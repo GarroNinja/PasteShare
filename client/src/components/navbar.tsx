@@ -2,9 +2,7 @@ import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { ThemeToggle } from "./theme-toggle";
 
-interface NavbarProps {}
-
-export function Navbar({}: NavbarProps) {
+export function Navbar() {
   const location = useLocation();
 
   return (
