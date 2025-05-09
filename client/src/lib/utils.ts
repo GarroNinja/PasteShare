@@ -41,9 +41,9 @@ export function getApiBaseUrl(): string {
       return process.env.REACT_APP_API_URL;
     }
     
-    // Otherwise, try to use the same host but with /api path
-    const { protocol, hostname } = window.location;
-    return `${protocol}//${hostname}/api`;
+    // For Vercel deployment, use the current hostname with /api path
+    const { protocol, host } = window.location;
+    return `${protocol}//${host}/api`;
   }
   
   // Development environment - use localhost
