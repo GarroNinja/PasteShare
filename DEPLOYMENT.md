@@ -225,4 +225,71 @@ Check application logs for debugging:
 - Regularly update dependencies
 - Monitor server resources
 - Implement a backup solution
-- Set up monitoring and error tracking 
+- Set up monitoring and error tracking
+
+# Deploying PasteShare to Vercel
+
+This guide covers how to deploy PasteShare to Vercel, a cloud platform for static sites and serverless functions.
+
+## Prerequisites
+
+1. A Vercel account (sign up at [vercel.com](https://vercel.com))
+2. Vercel CLI installed (optional, for local testing)
+   ```
+   npm install -g vercel
+   ```
+
+## Environment Variables
+
+Set up the following environment variables in your Vercel project settings:
+
+### Frontend (Client) Variables
+- `REACT_APP_API_URL`: URL to your API endpoint (e.g., `https://your-app-name.vercel.app/api`)
+
+### Backend (Server) Variables
+- `NODE_ENV`: Set to `production`
+- `UPLOAD_DIR`: Set to `/tmp/uploads` (Vercel uses an ephemeral filesystem)
+- `JWT_SECRET`: A strong secret key for JWT token generation
+- `JWT_EXPIRES_IN`: JWT token expiration time (e.g., `7d`)
+
+## Deployment Steps
+
+1. **Connect your repository to Vercel**:
+   - Go to [vercel.com](https://vercel.com) and create a new project
+   - Connect to your GitHub/GitLab/Bitbucket repository
+   - Vercel will detect your React application automatically
+
+2. **Configure the project**:
+   - Set the Framework Preset to "Create React App"
+   - Set the Build Command to: `cd client && npm install && npm run build`
+   - Set the Output Directory to: `client/build`
+
+3. **Add environment variables**:
+   - Go to the project settings and add all required environment variables
+
+4. **Deploy**:
+   - Click "Deploy" and Vercel will build and deploy your application
+
+## Important Notes on Vercel Deployment
+
+1. **File Storage**: Vercel has an ephemeral filesystem, meaning files uploaded to `/tmp/uploads` will not persist across function invocations. For production use, consider:
+   - Using a cloud storage service like AWS S3, Google Cloud Storage, or Azure Blob Storage
+   - Updating the upload middleware to work with cloud storage
+
+2. **SQLite Database**: The SQLite database used in this application is also stored on the filesystem. For production, consider:
+   - Using a managed database service compatible with Sequelize
+   - Update the database configuration to connect to this service
+
+3. **Serverless Functions**: Vercel has limitations for serverless functions:
+   - Maximum execution duration (default 10 seconds)
+   - Memory limits (1GB by default)
+   - Cold starts can affect performance
+
+## Alternative Deployment Options
+
+If you encounter limitations with Vercel, consider:
+
+1. **Railway**: Better support for persistent storage and databases
+2. **Render**: Similar to Vercel but with better support for full-stack applications
+3. **Heroku**: Traditional platform-as-a-service with persistent filesystem
+4. **DigitalOcean App Platform**: Managed platform with persistent storage 
