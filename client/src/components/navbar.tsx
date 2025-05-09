@@ -23,8 +23,8 @@ export function Navbar({}: NavbarProps) {
                 to="/"
                 className={`px-3 py-1 text-sm font-medium rounded-md ${
                   location.pathname === "/"
-                    ? "bg-blue-100 text-blue-600 dark:bg-[#282828] dark:text-green-300"
-                    : "text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white"
+                    ? "bg-green-100 text-green-700 dark:bg-[#282828] dark:text-[#98971a]"
+                    : "text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-[#b8bb26]"
                 }`}
               >
                 New Paste
@@ -34,8 +34,8 @@ export function Navbar({}: NavbarProps) {
                 to="/recent"
                 className={`px-3 py-1 text-sm font-medium rounded-md ${
                   location.pathname === "/recent"
-                    ? "bg-blue-100 text-blue-600 dark:bg-[#282828] dark:text-green-300"
-                    : "text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white"
+                    ? "bg-green-100 text-green-700 dark:bg-[#282828] dark:text-[#98971a]"
+                    : "text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-[#b8bb26]"
                 }`}
               >
                 Recent Pastes
