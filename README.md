@@ -52,7 +52,6 @@ For deployment instructions, see [DEPLOYMENT.md](DEPLOYMENT.md).
 - **Frontend**: React, Tailwind CSS
 - **Backend**: Node.js, Express
 - **Database**: SQLite (configurable for PostgreSQL/MySQL)
-- **Authentication**: JWT
 
 ## Contributing
 

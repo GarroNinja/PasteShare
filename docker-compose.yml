@@ -7,8 +7,6 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
-      - JWT_SECRET=your_secure_jwt_secret_key_here
-      - JWT_EXPIRES_IN=7d
       - UPLOAD_DIR=./uploads
     volumes:
       - pasteshare_uploads:/app/uploads

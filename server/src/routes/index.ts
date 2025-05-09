@@ -1,11 +1,9 @@
-import { Router } from 'express';
-import authRoutes from './authRoutes';
+import express from 'express';
 import pasteRoutes from './pasteRoutes';
 
-const router = Router();
+const router = express.Router();
 
-// API routes
-router.use('/auth', authRoutes);
+// Mount route groups
 router.use('/pastes', pasteRoutes);
 
 export default router; 

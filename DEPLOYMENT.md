@@ -32,12 +32,8 @@ Create a `.env.production` file in the `server/` directory with the following co
 ```
 PORT=3000
 NODE_ENV=production
-JWT_SECRET=your_secure_jwt_secret_key_here
-JWT_EXPIRES_IN=7d
 UPLOAD_DIR=./uploads
 ```
-
-Be sure to replace `your_secure_jwt_secret_key_here` with a strong, random secret key.
 
 ## Building for Production
 
@@ -138,8 +134,6 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
-      - JWT_SECRET=your_secure_jwt_secret_key_here
-      - JWT_EXPIRES_IN=7d
       - UPLOAD_DIR=./uploads
     volumes:
       - pasteshare_uploads:/app/uploads
@@ -170,7 +164,6 @@ volumes:
    ```
 5. Set environment variables:
    ```bash
-   heroku config:set JWT_SECRET=your_secure_jwt_secret
    heroku config:set NODE_ENV=production
    ```
 

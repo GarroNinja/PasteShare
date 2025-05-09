@@ -9,7 +9,6 @@ import fs from 'fs';
 export const createPaste = async (req: Request, res: Response) => {
   try {
     const { title, content, expiresIn, isPrivate, customUrl, isEditable } = req.body;
-    const userId = req.user?.userId;
     
     // Validate input
     if (!content) {
@@ -37,7 +36,7 @@ export const createPaste = async (req: Request, res: Response) => {
       expiresAt = new Date(Date.now() + parseInt(expiresIn) * 1000);
     }
     
-    // Create paste
+    // Create paste without userId
     const paste = await Paste.create({
       title: title || 'Untitled Paste',
       content,
@@ -45,7 +44,7 @@ export const createPaste = async (req: Request, res: Response) => {
       isPrivate: isPrivate === 'true' || isPrivate === true,
       isEditable: isEditable === 'true' || isEditable === true,
       customUrl: customUrl || null,
-      userId: userId || null,
+      userId: null,
     });
     
     // Handle file uploads
@@ -107,7 +106,6 @@ export const createPaste = async (req: Request, res: Response) => {
 export const getPasteById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const userId = req.user?.userId;
     
     // Find paste by ID or custom URL
     const paste = await Paste.findOne({
@@ -137,7 +135,8 @@ export const getPasteById = async (req: Request, res: Response) => {
       });
     }
     
-    // Check if paste is expired
+    // Allow access to all pastes regardless of whether they're private
+    // Just check if paste is expired
     if (paste.isExpired()) {
       return res.status(404).json({
         message: 'Paste has expired',
@@ -146,16 +145,6 @@ export const getPasteById = async (req: Request, res: Response) => {
     
     // Determine if this paste was just created (within the last 60 seconds)
     const justCreated = Date.now() - new Date(paste.createdAt).getTime() < 60000;
-    
-    // Allow access if:
-    // 1. The paste is not private, OR
-    // 2. The user is authenticated and is the owner, OR
-    // 3. The paste was just created (within the last minute)
-    if (paste.isPrivate && paste.userId !== userId && !justCreated) {
-      return res.status(403).json({
-        message: 'You do not have permission to view this paste',
-      });
-    }
     
     // Increment view count
     await paste.incrementViews();
@@ -170,7 +159,7 @@ export const getPasteById = async (req: Request, res: Response) => {
     }));
     
     // Check if current user can edit this paste
-    const canEdit = paste.canEdit(userId || null);
+    const canEdit = paste.canEdit(null);
     
     return res.status(200).json({
       paste: {
@@ -239,42 +228,9 @@ export const getRecentPastes = async (req: Request, res: Response) => {
 // Get user pastes
 export const getUserPastes = async (req: Request, res: Response) => {
   try {
-    const userId = req.user?.userId;
-    
-    if (!userId) {
-      return res.status(401).json({
-        message: 'Unauthorized',
-      });
-    }
-    
-    const limit = parseInt(req.query.limit as string) || 10;
-    const page = parseInt(req.query.page as string) || 1;
-    const offset = (page - 1) * limit;
-    
-    const pastes = await Paste.findAll({
-      where: {
-        userId,
-        [Op.or]: [
-          { expiresAt: null },
-          { expiresAt: { [Op.gt]: new Date() } },
-        ],
-      },
-      limit,
-      offset,
-      order: [['createdAt', 'DESC']],
-      attributes: ['id', 'title', 'content', 'createdAt', 'expiresAt', 'views', 'isPrivate'],
-    });
-    
+    // Since we're removing auth, just return an empty array
     return res.status(200).json({
-      pastes: pastes.map((paste) => ({
-        id: paste.id,
-        title: paste.title,
-        content: paste.content.length > 200 ? `${paste.content.slice(0, 200)}...` : paste.content,
-        createdAt: paste.createdAt,
-        expiresAt: paste.expiresAt,
-        views: paste.views,
-        isPrivate: paste.isPrivate,
-      })),
+      pastes: [],
     });
   } catch (error) {
     console.error('Get user pastes error:', error);
@@ -288,7 +244,6 @@ export const getUserPastes = async (req: Request, res: Response) => {
 export const downloadFile = async (req: Request, res: Response) => {
   try {
     const { pasteId, fileId } = req.params;
-    const userId = req.user?.userId;
     
     console.log(`Download request for file ${fileId} from paste ${pasteId}`);
     console.log('Request headers:', req.headers);
@@ -313,13 +268,6 @@ export const downloadFile = async (req: Request, res: Response) => {
     // Determine if this paste was just created (within the last 10 minutes)
     // Use a longer window for file access
     const justCreated = Date.now() - new Date(paste.createdAt).getTime() < 600000; // 10 minutes
-    
-    if (paste.isPrivate && paste.userId !== userId && !justCreated) {
-      console.log(`Access denied to private paste ${pasteId}`);
-      return res.status(403).json({
-        message: 'You do not have permission to access this file',
-      });
-    }
     
     // Get the file
     const file = await File.findOne({
@@ -399,13 +347,6 @@ export const downloadFile = async (req: Request, res: Response) => {
 export const deletePaste = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const userId = req.user?.userId;
-    
-    if (!userId) {
-      return res.status(401).json({
-        message: 'Unauthorized',
-      });
-    }
     
     const paste = await Paste.findByPk(id, {
       include: [
@@ -419,12 +360,6 @@ export const deletePaste = async (req: Request, res: Response) => {
     if (!paste) {
       return res.status(404).json({
         message: 'Paste not found',
-      });
-    }
-    
-    if (paste.userId !== userId) {
-      return res.status(403).json({
-        message: 'You do not have permission to delete this paste',
       });
     }
     
@@ -454,7 +389,6 @@ export const editPaste = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { title, content } = req.body;
-    const userId = req.user?.userId;
     
     // Find paste by ID or custom URL
     const paste = await Paste.findOne({
@@ -479,8 +413,8 @@ export const editPaste = async (req: Request, res: Response) => {
       });
     }
     
-    // Check if user can edit this paste
-    if (!paste.canEdit(userId || null)) {
+    // For editable check, use the canEdit method but pass null as userId
+    if (!paste.canEdit(null)) {
       return res.status(403).json({
         message: 'You do not have permission to edit this paste',
       });

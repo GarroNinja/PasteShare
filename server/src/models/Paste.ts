@@ -44,14 +44,8 @@ class Paste extends Model<PasteAttributes, PasteInput> implements PasteAttribute
 
   // Check if user can edit this paste
   public canEdit(userId: string | null): boolean {
-    // Anyone can edit if paste is marked as editable and is public
-    if (this.isEditable && !this.isPrivate) return true;
-    
-    // For private pastes that are editable, only the creator can edit
-    if (this.isEditable && this.isPrivate && this.userId === userId) return true;
-    
-    // Otherwise, no editing allowed
-    return false;
+    // Since we removed authentication, anyone can edit if paste is marked as editable
+    return this.isEditable;
   }
 }
 

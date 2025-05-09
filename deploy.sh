@@ -59,15 +59,10 @@ print_step "Setting up environment..."
 if [ ! -f ".env.production" ]; then
   print_warning "No .env.production file found. Using default environment variables."
   
-  # Create a default JWT secret if not provided
-  JWT_SECRET=${JWT_SECRET:-$(openssl rand -base64 32)}
-  
   # Create .env.production file
   cat > .env.production << EOL
 NODE_ENV=production
 PORT=3000
-JWT_SECRET=${JWT_SECRET}
-JWT_EXPIRES_IN=7d
 UPLOAD_DIR=./uploads
 EOL
   
