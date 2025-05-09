@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background rectangle with rounded corners -->
+  <rect x="64" y="32" width="384" height="448" rx="24" fill="#282828" stroke="#ebdbb2" stroke-width="16"/>
+  
+  <!-- Horizontal lines representing text on the notepad -->
+  <line x1="96" y1="128" x2="416" y2="128" stroke="#b8bb26" stroke-width="8"/>
+  <line x1="96" y1="192" x2="416" y2="192" stroke="#b8bb26" stroke-width="8"/>
+  <line x1="96" y1="256" x2="416" y2="256" stroke="#b8bb26" stroke-width="8"/>
+  <line x1="96" y1="320" x2="416" y2="320" stroke="#b8bb26" stroke-width="8"/>
+  <line x1="96" y1="384" x2="416" y2="384" stroke="#b8bb26" stroke-width="8"/>
+  
+  <!-- Top spiral binding -->
+  <rect x="64" y="32" width="384" height="32" rx="8" fill="#98971a"/>
+  
+  <!-- Clip holes in the binding -->
+  <circle cx="112" cy="48" r="8" fill="#282828"/>
+  <circle cx="176" cy="48" r="8" fill="#282828"/>
+  <circle cx="240" cy="48" r="8" fill="#282828"/>
+  <circle cx="304" cy="48" r="8" fill="#282828"/>
+  <circle cx="368" cy="48" r="8" fill="#282828"/>
+</svg> 
