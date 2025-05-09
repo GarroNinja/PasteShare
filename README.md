@@ -57,10 +57,6 @@ For deployment instructions, see [DEPLOYMENT.md](DEPLOYMENT.md).
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
-## License
-
-This project is licensed under the ISC License.
-
 ## Acknowledgments
 
 - Inspired by classic pastebin services with modern improvements
