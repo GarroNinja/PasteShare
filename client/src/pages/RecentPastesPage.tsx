@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { getApiBaseUrl } from '../lib/utils';
 
@@ -17,6 +17,7 @@ export function RecentPastesPage() {
   const [pastes, setPastes] = useState<Paste[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const fetchedRef = useRef(false);
 
   // Helper function to truncate paste content
   const truncateContent = (content: string, maxLength = 100) => {
@@ -25,6 +26,11 @@ export function RecentPastesPage() {
   };
 
   useEffect(() => {
+    // Skip if we've already fetched data
+    if (fetchedRef.current) return;
+    
+    fetchedRef.current = true;
+    
     const fetchPastes = async () => {
       try {
         const response = await fetch(`${getApiBaseUrl()}/pastes`, {
@@ -63,10 +69,17 @@ export function RecentPastesPage() {
     fetchPastes();
   }, []);
 
+  // Common wrapper for consistent minimum height
+  const PageWrapper = ({ children }: { children: React.ReactNode }) => (
+    <div className="max-w-4xl mx-auto px-4 py-8 min-h-[80vh]">
+      <h1 className="text-2xl font-bold mb-6">Recent Pastes</h1>
+      {children}
+    </div>
+  );
+
   if (loading) {
     return (
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <h1 className="text-2xl font-bold mb-6">Recent Pastes</h1>
+      <PageWrapper>
         <div className="space-y-4">
           {[1, 2, 3].map(i => (
             <div key={i} className="animate-pulse">
@@ -78,28 +91,31 @@ export function RecentPastesPage() {
             </div>
           ))}
         </div>
-      </div>
+      </PageWrapper>
     );
   }
 
   if (error) {
     return (
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <h1 className="text-2xl font-bold mb-6">Recent Pastes</h1>
+      <PageWrapper>
         <div className="bg-red-100 dark:bg-red-900 border border-red-200 dark:border-red-800 rounded-lg p-4">
           <p className="text-red-600 dark:text-red-300">{error}</p>
         </div>
-      </div>
+      </PageWrapper>
     );
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold mb-6">Recent Pastes</h1>
-      
+    <PageWrapper>
       {pastes.length === 0 ? (
         <div className="bg-white dark:bg-[#282828] rounded-lg shadow-sm border border-gray-200 dark:border-[#3c3836] p-8 text-center">
           <p className="text-gray-500 dark:text-gray-400">No pastes available.</p>
+          <Link
+            to="/"
+            className="inline-block mt-4 px-4 py-2 bg-green-600 !bg-green-600 text-white hover:bg-green-700 rounded-md border-transparent dark:!bg-[#98971a] dark:!text-[#1d2021] dark:hover:!bg-[#79740e]"
+          >
+            Create New Paste
+          </Link>
         </div>
       ) : (
         <div className="space-y-4">
@@ -107,7 +123,7 @@ export function RecentPastesPage() {
             <Link
               key={paste.id}
               to={`/paste/${paste.customUrl || paste.id}`}
-              className="block bg-white dark:bg-[#282828] rounded-lg shadow-sm border border-gray-200 dark:border-[#3c3836] hover:border-green-300 dark:hover:border-green-700 transition-colors"
+              className="block bg-white dark:bg-[#282828] rounded-lg shadow-sm border border-gray-200 dark:border-[#3c3836] hover:border-green-300 dark:hover:border-[#98971a] transition-colors"
             >
               <div className="p-4">
                 <h2 className="text-lg font-medium mb-2">{paste.title || 'Untitled Paste'}</h2>
@@ -118,7 +134,7 @@ export function RecentPastesPage() {
                   <span>Created: {new Date(paste.createdAt).toLocaleString()}</span>
                   <div className="flex items-center gap-2">
                     {paste.customUrl && (
-                      <span className="px-2 py-0.5 bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300 rounded-full">
+                      <span className="px-2 py-0.5 bg-green-100 dark:bg-[#282828] text-green-800 dark:text-[#98971a] rounded-full">
                         {paste.customUrl}
                       </span>
                     )}
@@ -130,6 +146,6 @@ export function RecentPastesPage() {
           ))}
         </div>
       )}
-    </div>
+    </PageWrapper>
   );
 } 

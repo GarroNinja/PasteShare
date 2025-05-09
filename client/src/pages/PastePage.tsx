@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getApiBaseUrl } from '../lib/utils';
 
@@ -32,6 +32,7 @@ export function PastePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+  const fetchedRef = useRef(false);
   
   // Edit mode state
   const [isEditMode, setIsEditMode] = useState(false);
@@ -41,6 +42,11 @@ export function PastePage() {
   const [editError, setEditError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Skip if we've already fetched data with the same ID
+    if (fetchedRef.current) return;
+    
+    fetchedRef.current = true;
+    
     const fetchPaste = async () => {
       if (!id) {
         setError("No paste ID provided");
@@ -275,7 +281,7 @@ export function PastePage() {
 
   if (loading) {
     return (
-      <div className="max-w-4xl mx-auto px-4 py-8 text-center">
+      <div className="max-w-4xl mx-auto px-4 py-8 min-h-[80vh]">
         <div className="animate-pulse">
           <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-1/3 mx-auto mb-4"></div>
           <div className="h-64 bg-gray-200 dark:bg-gray-700 rounded mb-4"></div>
@@ -287,7 +293,7 @@ export function PastePage() {
 
   if (error) {
     return (
-      <div className="max-w-4xl mx-auto px-4 py-8 text-center">
+      <div className="max-w-4xl mx-auto px-4 py-8 min-h-[80vh]">
         <div className="bg-red-100 dark:bg-red-900 border border-red-200 dark:border-red-800 rounded-lg p-4">
           <p className="text-red-600 dark:text-red-300">{error}</p>
           <button 
@@ -303,7 +309,7 @@ export function PastePage() {
 
   if (!paste) {
     return (
-      <div className="max-w-4xl mx-auto px-4 py-8 text-center">
+      <div className="max-w-4xl mx-auto px-4 py-8 min-h-[80vh]">
         <p>Paste not found or has expired.</p>
         <button 
           onClick={() => navigate('/')}
@@ -316,7 +322,7 @@ export function PastePage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
+    <div className="max-w-4xl mx-auto px-4 py-8 min-h-[80vh]">
       <div className="bg-white dark:bg-[#282828] rounded-lg shadow-sm border border-gray-200 dark:border-[#3c3836] overflow-hidden mb-4">
         <div className="p-4 border-b border-gray-200 dark:border-[#3c3836] flex justify-between items-center">
           {isEditMode ? (
