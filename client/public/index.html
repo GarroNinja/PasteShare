@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#000000" />
+    <meta
+      name="description"
+      content="PasteShare - A simple, modern pastebin-like application"
+    />
+    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
+    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+    <title>PasteShare</title>
+    <script>
+      // Try to read the server port file when the page loads
+      window.addEventListener('DOMContentLoaded', async function() {
+        try {
+          const response = await fetch('/server-port.txt');
+          if (response.ok) {
+            const port = await response.text();
+            // Extract only the numeric part
+            const portNumber = port.replace(/[^0-9]/g, '');
+            if (portNumber && !isNaN(parseInt(portNumber))) {
+              localStorage.setItem('api_port', portNumber);
+              console.log('Server port detected from file:', portNumber);
+            }
+          }
+        } catch (error) {
+          console.log('Could not read server port file');
+        }
+      });
+    </script>
+  </head>
+  <body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root"></div>
+  </body>
+</html> 

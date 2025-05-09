@@ -1,0 +1,21 @@
+version: '3'
+services:
+  pasteshare:
+    build: .
+    ports:
+      - "80:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - JWT_SECRET=your_secure_jwt_secret_key_here
+      - JWT_EXPIRES_IN=7d
+      - UPLOAD_DIR=./uploads
+    volumes:
+      - pasteshare_uploads:/app/uploads
+    restart: unless-stopped
+    # Uncomment if you need to specify a custom hostname
+    # hostname: pasteshare.example.com
+
+volumes:
+  pasteshare_uploads:
+    # This ensures uploaded files persist across container restarts 

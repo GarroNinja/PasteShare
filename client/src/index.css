@@ -1,0 +1,222 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+  }
+
+  .dark {
+    --background: 40 6% 11%;
+    --foreground: 50 8% 88%;
+  }
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+/* Gruvbox Dark theme */
+.dark {
+  /* Base colors */
+  --gruvbox-bg: #282828;
+  --gruvbox-bg-soft: #32302f;
+  --gruvbox-bg-hard: #1d2021;
+  --gruvbox-fg: #ebdbb2;
+  
+  /* Accent colors */
+  --gruvbox-green: #b8bb26;
+  --gruvbox-green-soft: #98971a;
+  --gruvbox-aqua: #8ec07c;
+  --gruvbox-yellow: #fabd2f;
+  --gruvbox-red: #fb4934;
+  
+  /* Apply base colors */
+  background-color: var(--gruvbox-bg);
+  color: var(--gruvbox-fg);
+}
+
+/* Background variants */
+.dark .bg-gray-800 {
+  background-color: var(--gruvbox-bg);
+}
+
+.dark .bg-gray-900 {
+  background-color: var(--gruvbox-bg-hard);
+}
+
+.dark .border-gray-700 {
+  border-color: #504945;
+}
+
+/* Override elements */
+.dark .min-h-screen {
+  background-color: var(--gruvbox-bg);
+}
+
+.dark header, 
+.dark nav,
+.dark footer {
+  background-color: var(--gruvbox-bg-hard);
+}
+
+.dark textarea,
+.dark input,
+.dark select {
+  background-color: var(--gruvbox-bg);
+  border-color: #504945;
+  color: var(--gruvbox-fg);
+}
+
+/* Green theme using gruvbox colors */
+.text-blue-400,
+.text-blue-500,
+.text-blue-600,
+.dark .text-blue-400,
+.dark .text-blue-500,
+.dark .text-blue-600 {
+  color: var(--gruvbox-green);
+}
+
+.bg-blue-100,
+.dark .bg-blue-100 {
+  background-color: rgba(184, 187, 38, 0.1);
+}
+
+.bg-blue-600,
+.bg-blue-700,
+.dark .bg-blue-600,
+.dark .bg-blue-700 {
+  background-color: var(--gruvbox-green-soft);
+}
+
+.bg-blue-800,
+.bg-blue-900,
+.dark .bg-blue-800,
+.dark .bg-blue-900 {
+  background-color: #79740e;
+}
+
+.text-blue-100,
+.text-blue-300,
+.dark .text-blue-100,
+.dark .text-blue-300 {
+  color: #d8e082;
+}
+
+.hover\:bg-blue-700:hover,
+.hover\:bg-blue-800:hover,
+.dark .hover\:bg-blue-700:hover,
+.dark .hover\:bg-blue-800:hover {
+  background-color: var(--gruvbox-green-soft);
+}
+
+.hover\:border-blue-300:hover,
+.dark .hover\:border-blue-300:hover,
+.hover\:border-green-300:hover,
+.dark .hover\:border-green-300:hover {
+  border-color: var(--gruvbox-green);
+}
+
+.dark .hover\:border-blue-700:hover,
+.dark .hover\:border-green-700:hover {
+  border-color: var(--gruvbox-green-soft);
+}
+
+/* Button colors */
+.bg-green-100,
+.dark .bg-green-100 {
+  background-color: rgba(184, 187, 38, 0.1);
+}
+
+.bg-green-600,
+.dark .bg-green-600 {
+  background-color: var(--gruvbox-green-soft);
+}
+
+/* Add a rule for text color on green buttons */
+.dark .bg-green-600,
+.dark .bg-[#98971a] {
+  color: var(--gruvbox-bg-hard);
+}
+
+.text-green-700,
+.dark .text-green-700 {
+  color: #98971a;
+}
+
+.dark .text-green-300 {
+  color: var(--gruvbox-green);
+}
+
+.dark .bg-green-900\/30 {
+  background-color: rgba(98, 151, 26, 0.3);
+}
+
+.dark .bg-green-900\/50 {
+  background-color: rgba(98, 151, 26, 0.5);
+}
+
+/* Other accent colors */
+.dark .bg-yellow-100,
+.dark .text-yellow-700 {
+  background-color: rgba(250, 189, 47, 0.1);
+  color: var(--gruvbox-yellow);
+}
+
+.dark .bg-red-100,
+.dark .text-red-700 {
+  background-color: rgba(251, 73, 52, 0.1);
+  color: var(--gruvbox-red);
+}
+
+/* Ensure Create Paste button is always visible */
+form button[type="submit"]:not(:disabled) {
+  background-color: #16a34a !important; /* light mode green */
+  color: white !important;
+}
+
+.dark form button[type="submit"]:not(:disabled) {
+  background-color: #98971a !important; /* dark mode gruvbox green */
+  color: #1d2021 !important; /* dark text on light background */
+}
+
+/* Ensure hover state is also visible */
+form button[type="submit"]:not(:disabled):hover {
+  background-color: #15803d !important; /* darker green for light mode */
+}
+
+.dark form button[type="submit"]:not(:disabled):hover {
+  background-color: #79740e !important; /* darker gruvbox green */
+}
+
+/* Navigation buttons */
+button[class*="bg-green-600"] {
+  background-color: #16a34a !important;
+  color: white !important;
+}
+
+.dark button[class*="bg-green-600"] {
+  background-color: #98971a !important;
+  color: #1d2021 !important;
+}
+
+button[class*="bg-green-600"]:hover {
+  background-color: #15803d !important;
+}
+
+.dark button[class*="bg-green-600"]:hover {
+  background-color: #79740e !important;
+} 

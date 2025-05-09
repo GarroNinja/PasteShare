@@ -1,0 +1,25 @@
+{
+  "name": "pasteshare",
+  "version": "1.0.0",
+  "description": "A pastebin-like application for sharing code snippets and text",
+  "main": "index.js",
+  "scripts": {
+    "start": "node server/dist/server.js",
+    "server": "cd server && npm run dev",
+    "client": "cd client && npm start",
+    "dev": "bash ./start.sh",
+    "install:all": "npm install && cd client && npm install && cd ../server && npm install",
+    "build": "cd client && npm run build && cd ../server && npm run build"
+  },
+  "keywords": [
+    "pastebin",
+    "code-sharing",
+    "text-sharing"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^7.6.0",
+    "cross-env": "^7.0.3"
+  }
+}
