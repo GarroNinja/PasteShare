@@ -6,7 +6,7 @@ PasteShare is a modern, Gruvbox-themed pastebin application designed for sharing
 
 ## Features
 
-- **Clean, Modern UI** with Gruvbox dark theme
+- **Clean, Modern UI** with Gruvbox light and dark themes
 - **Code & Text Sharing** with syntax highlighting
 - **File Attachments** - upload and share files alongside your pastes
 - **Custom URLs** - create memorable links for easier sharing
@@ -14,6 +14,8 @@ PasteShare is a modern, Gruvbox-themed pastebin application designed for sharing
 - **Private Pastes** - control who can access your content
 - **Collaborative Editing** - allow others to edit your pastes
 - **Mobile Responsive** - works great on all devices
+- **Dynamic Port Detection** - automatically connects to available ports
+- **Docker Support** - easily deploy with containerization
 
 ## Getting Started
 
@@ -21,6 +23,8 @@ PasteShare is a modern, Gruvbox-themed pastebin application designed for sharing
 
 - Node.js 16+ and npm
 - Git
+- Docker (optional, for containerized deployment)
+- ImageMagick (optional, for icon generation)
 
 ### Installation
 
@@ -42,15 +46,34 @@ PasteShare is a modern, Gruvbox-themed pastebin application designed for sharing
 
 4. Open your browser and navigate to `http://localhost:4000`
 
+### Docker Installation
+
+1. Build the Docker image
+   ```bash
+   docker build -t pasteshare .
+   ```
+
+2. Run the container
+   ```bash
+   docker run -p 4000:4000 -p 3000:3000 pasteshare
+   ```
+
+3. Access the application at `http://localhost:4000`
+
 ## Deployment
 
 For deployment instructions, see [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ## Technology Stack
 
-- **Frontend**: React, Tailwind CSS
-- **Backend**: Node.js, Express
+- **Frontend**: React, TypeScript, Tailwind CSS
+- **Backend**: Node.js, Express, TypeScript
 - **Database**: SQLite (configurable for PostgreSQL/MySQL)
+- **Containerization**: Docker
+- **Development Tools**: 
+  - Dynamic port allocation
+  - SVG and PNG icon generation
+  - Gruvbox theming (light and dark modes)
 
 ## Contributing
 
