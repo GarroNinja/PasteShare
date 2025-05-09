@@ -169,7 +169,7 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
       <div>
         <label htmlFor="title" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
           Title (optional)
@@ -193,14 +193,14 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
           placeholder="Enter your code or text here..."
           value={content}
           onChange={(e) => setContent(e.target.value)}
-          rows={15}
+          rows={10}
           required
           className="mt-1 block w-full rounded-md border border-gray-300 dark:border-[#504945] bg-white dark:bg-[#282828] px-3 py-2 text-gray-900 dark:text-[#ebdbb2] shadow-sm focus:border-green-500 dark:focus:border-[#b8bb26] focus:ring-green-500 dark:focus:ring-[#b8bb26]"
         ></textarea>
       </div>
       
-      <div className="flex flex-col sm:flex-row gap-6">
-        <div className="w-full sm:w-1/2">
+      <div className="flex flex-col gap-4 sm:flex-row sm:gap-6">
+        <div className="w-full">
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
             Expires In
           </label>
@@ -252,7 +252,7 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
           </div>
         </div>
         
-        <div className="w-full sm:w-1/2">
+        <div className="w-full">
           <label htmlFor="customUrl" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
             Custom URL (optional)
           </label>
@@ -285,14 +285,14 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
           Attach Files (optional, max 5)
         </label>
-        <div className="mt-1 flex items-center">
+        <div className="mt-1 flex flex-wrap items-center gap-2">
           <label 
             htmlFor="files" 
             className="cursor-pointer px-4 py-2 text-sm font-medium rounded-md bg-[#f2e5bc] text-[#79740e] dark:bg-[#282828] dark:text-[#98971a] hover:bg-[#fbf1c7] dark:hover:bg-[#504945] border border-[#d5c4a1] dark:border-[#504945]"
           >
             Choose Files
           </label>
-          <span className="ml-3 text-sm text-gray-500 dark:text-gray-400">
+          <span className="text-sm text-gray-500 dark:text-gray-400">
             {files.length > 0 ? `${files.length} file${files.length !== 1 ? 's' : ''} selected` : 'No file chosen'}
           </span>
           <input
@@ -369,7 +369,7 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
         <button
           type="submit"
           disabled={isLoading || !content.trim() || fileError !== null || customUrlError !== null}
-          className={`w-full rounded-md px-4 py-2 text-sm font-medium shadow-sm border 
+          className={`w-full rounded-md px-4 py-3 text-sm font-medium shadow-sm border 
                     ${isLoading || !content.trim() || fileError !== null || customUrlError !== null
                       ? 'bg-gray-300 text-gray-500 dark:bg-[#504945] dark:text-gray-300 cursor-not-allowed border-transparent dark:border-[#3c3836]' 
                       : 'bg-green-600 !bg-green-600 text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 border-transparent dark:!bg-[#98971a] dark:!text-[#1d2021] dark:hover:!bg-[#79740e] dark:focus:ring-[#b8bb26]'}`}
