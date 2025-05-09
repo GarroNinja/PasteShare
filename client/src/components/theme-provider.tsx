@@ -14,7 +14,7 @@ type ThemeProviderState = {
 };
 
 const initialState: ThemeProviderState = {
-  theme: "dark",
+  theme: "light",
   setTheme: () => null,
 };
 
@@ -34,20 +34,20 @@ const addThemeInitScript = () => {
   script.innerHTML = `
     (function() {
       try {
-        // Set dark mode as default first
-        document.documentElement.classList.add('dark');
-        document.documentElement.style.colorScheme = 'dark';
+        // Set light mode as default first
+        document.documentElement.classList.add('light');
+        document.documentElement.style.colorScheme = 'light';
         
         // Then check for saved preference
-        const theme = localStorage.getItem('pasteshare-theme') || 'dark';
-        if (theme !== 'dark') {
-          document.documentElement.classList.remove('dark');
+        const theme = localStorage.getItem('pasteshare-theme') || 'light';
+        if (theme !== 'light') {
+          document.documentElement.classList.remove('light');
           document.documentElement.classList.add(theme);
           document.documentElement.style.colorScheme = theme;
         }
       } catch (e) {
         console.error('Theme init error:', e);
-        document.documentElement.classList.add('dark');
+        document.documentElement.classList.add('light');
       }
     })();
   `;
@@ -68,7 +68,7 @@ if (typeof window !== 'undefined') {
 
 export function ThemeProvider({
   children,
-  defaultTheme = "dark",
+  defaultTheme = "light",
   storageKey = "pasteshare-theme",
   ...props
 }: ThemeProviderProps) {

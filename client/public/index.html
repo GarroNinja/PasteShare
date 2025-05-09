@@ -4,8 +4,8 @@
     <meta charset="utf-8" />
     <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#1d2021" />
-    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#f9f5d7" />
+    <meta name="color-scheme" content="light" />
     <meta
       name="description"
       content="PasteShare - A simple, fast, and secure way to share code snippets and files"
@@ -34,17 +34,20 @@
     </script>
     <script>
       (function() {
-        // Set dark mode as default
-        document.documentElement.classList.add('dark');
-        document.documentElement.style.colorScheme = 'dark';
+        // Set light mode as default
+        document.documentElement.classList.add('light');
+        document.documentElement.style.colorScheme = 'light';
         
         // Try to get saved theme
         try {
           const theme = localStorage.getItem('pasteshare-theme');
           if (theme) {
-            document.documentElement.classList.remove('dark');
+            document.documentElement.classList.remove('light', 'dark');
             document.documentElement.classList.add(theme);
             document.documentElement.style.colorScheme = theme;
+          } else {
+            // Default to light theme if none saved
+            localStorage.setItem('pasteshare-theme', 'light');
           }
         } catch (e) {
           console.error('Error setting initial theme:', e);
@@ -53,11 +56,11 @@
     </script>
     <style>
       :root {
-        color-scheme: dark;
+        color-scheme: light;
       }
       html, body {
-        background-color: #282828 !important;
-        color: #ebdbb2 !important;
+        background-color: #fbf1c7 !important;
+        color: #3c3836 !important;
       }
       /* Prevent flash by hiding content until CSS is loaded */
       body:not(.loaded) #root {
