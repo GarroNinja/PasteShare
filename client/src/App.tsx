@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { ThemeProvider } from './components/theme-provider';
 import { Navbar } from './components/navbar';
@@ -7,13 +7,32 @@ import { PastePage } from './pages/PastePage';
 import { RecentPastesPage } from './pages/RecentPastesPage';
 
 function App() {
+  // Apply dark theme class to document on component mount to prevent flashing
+  useEffect(() => {
+    // Get theme from localStorage or use dark as default
+    const storedTheme = localStorage.getItem('pasteshare-theme') || 'dark';
+    document.documentElement.classList.add(storedTheme);
+    
+    // Set color scheme meta tag
+    const meta = document.createElement('meta');
+    meta.name = 'color-scheme';
+    meta.content = 'dark';
+    document.head.appendChild(meta);
+    
+    return () => {
+      document.head.removeChild(meta);
+    };
+  }, []);
+  
   return (
     <ThemeProvider defaultTheme="dark">
       <Router>
-        <div className="min-h-screen bg-gray-100 dark:bg-[#282828]">
+        {/* Use flex column to create a layout with sticky footer */}
+        <div className="flex flex-col min-h-screen bg-gray-100 dark:bg-[#282828]">
           <Navbar />
           
-          <main className="pb-16">
+          {/* Make main content grow to fill available space */}
+          <main className="flex-grow">
             <Routes>
               <Route path="/" element={<HomePage />} />
               <Route path="/paste/:id" element={<PastePage />} />
@@ -21,7 +40,8 @@ function App() {
             </Routes>
           </main>
           
-          <footer className="py-4 text-center text-gray-500 dark:text-gray-400 text-sm">
+          {/* Footer will stay at the bottom */}
+          <footer className="py-4 text-center text-gray-500 dark:text-gray-400 text-sm mt-auto border-t border-gray-200 dark:border-[#3c3836]">
             &copy; {new Date().getFullYear()} PasteShare. All rights reserved.
           </footer>
         </div>

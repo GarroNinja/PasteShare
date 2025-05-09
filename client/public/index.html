@@ -4,14 +4,15 @@
     <meta charset="utf-8" />
     <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#000000" />
+    <meta name="theme-color" content="#1d2021" />
+    <meta name="color-scheme" content="dark" />
     <meta
       name="description"
-      content="PasteShare - A simple, modern pastebin-like application"
+      content="PasteShare - A simple, fast, and secure way to share code snippets and files"
     />
     <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
-    <title>PasteShare</title>
+    <title>PasteShare - Code & File Sharing</title>
     <script>
       // Try to read the server port file when the page loads
       window.addEventListener('DOMContentLoaded', async function() {
@@ -31,6 +32,38 @@
         }
       });
     </script>
+    <script>
+      (function() {
+        // Set dark mode as default
+        document.documentElement.classList.add('dark');
+        document.documentElement.style.colorScheme = 'dark';
+        
+        // Try to get saved theme
+        try {
+          const theme = localStorage.getItem('pasteshare-theme');
+          if (theme) {
+            document.documentElement.classList.remove('dark');
+            document.documentElement.classList.add(theme);
+            document.documentElement.style.colorScheme = theme;
+          }
+        } catch (e) {
+          console.error('Error setting initial theme:', e);
+        }
+      })();
+    </script>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      html, body {
+        background-color: #282828 !important;
+        color: #ebdbb2 !important;
+      }
+      /* Prevent flash by hiding content until CSS is loaded */
+      body:not(.loaded) #root {
+        visibility: hidden;
+      }
+    </style>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>

@@ -1,17 +1,69 @@
+/* Prevent theme flash during page load */
+:root {
+  color-scheme: dark;
+}
+
+/* Force initial Gruvbox colors for critical UI elements */
+:root {
+  --gruvbox-bg: #282828;
+  --gruvbox-bg-hard: #1d2021;
+  --gruvbox-fg: #ebdbb2;
+  --gruvbox-green: #98971a;
+}
+
+/* Set immediate colors for html and body */
+html, body {
+  background-color: var(--gruvbox-bg);
+  color: var(--gruvbox-fg);
+}
+
+/* Navbar colors */
+header {
+  background-color: var(--gruvbox-bg-hard) !important;
+}
+
+/* End of critical CSS */
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
+  /* Set consistent base colors for both light and dark modes */
   :root {
     --background: 0 0% 100%;
     --foreground: 240 10% 3.9%;
+    
+    /* Ensure blue colors are overridden even before JS loads */
+    --blue-100: rgba(184, 187, 38, 0.1);
+    --blue-300: #d8e082;
+    --blue-400: #b8bb26;
+    --blue-500: #b8bb26;
+    --blue-600: #98971a;
+    --blue-700: #98971a;
+    --blue-800: #79740e;
+    --blue-900: #79740e;
   }
 
   .dark {
     --background: 40 6% 11%;
     --foreground: 50 8% 88%;
+    
+    /* Ensure all blue colors are Gruvbox-themed */
+    --blue-100: rgba(184, 187, 38, 0.1);
+    --blue-300: #d8e082;
+    --blue-400: #b8bb26;
+    --blue-500: #b8bb26;
+    --blue-600: #98971a;
+    --blue-700: #98971a;
+    --blue-800: #79740e;
+    --blue-900: #79740e;
   }
+}
+
+/* Apply immediate dark theme by default to prevent flashing */
+html {
+  color-scheme: dark;
 }
 
 body {

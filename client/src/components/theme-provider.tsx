@@ -20,15 +20,63 @@ const initialState: ThemeProviderState = {
 
 const ThemeProviderContext = createContext<ThemeProviderState>(initialState);
 
+// Add script to prevent theme flashing
+const addThemeInitScript = () => {
+  // Skip during SSR
+  if (typeof window === 'undefined') return;
+  
+  // Check if script was already added
+  if (document.getElementById('theme-init-script')) return;
+  
+  // Add a script to the head to set the theme immediately on page load
+  const script = document.createElement('script');
+  script.id = 'theme-init-script';
+  script.innerHTML = `
+    (function() {
+      try {
+        // Set dark mode as default first
+        document.documentElement.classList.add('dark');
+        document.documentElement.style.colorScheme = 'dark';
+        
+        // Then check for saved preference
+        const theme = localStorage.getItem('pasteshare-theme') || 'dark';
+        if (theme !== 'dark') {
+          document.documentElement.classList.remove('dark');
+          document.documentElement.classList.add(theme);
+          document.documentElement.style.colorScheme = theme;
+        }
+      } catch (e) {
+        console.error('Theme init error:', e);
+        document.documentElement.classList.add('dark');
+      }
+    })();
+  `;
+  
+  // Insert at the beginning of head for earliest execution
+  if (document.head.firstChild) {
+    document.head.insertBefore(script, document.head.firstChild);
+  } else {
+    document.head.appendChild(script);
+  }
+};
+
+// Call the script addition on module load
+if (typeof window !== 'undefined') {
+  // Use setTimeout to ensure this runs after the document is available
+  setTimeout(addThemeInitScript, 0);
+}
+
 export function ThemeProvider({
   children,
   defaultTheme = "dark",
   storageKey = "pasteshare-theme",
   ...props
 }: ThemeProviderProps) {
-  const [theme, setTheme] = useState<Theme>(
-    () => (localStorage.getItem(storageKey) as Theme) || defaultTheme
-  );
+  // Get initial theme from localStorage with a proper fallback
+  const [theme, setTheme] = useState<Theme>(() => {
+    if (typeof window === 'undefined') return defaultTheme;
+    return (localStorage.getItem(storageKey) as Theme) || defaultTheme;
+  });
 
   useEffect(() => {
     const root = window.document.documentElement;
