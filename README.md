@@ -2,7 +2,8 @@
 
 PasteShare is a modern, Gruvbox-themed pastebin application designed for sharing code snippets, text, and files with others. It features a clean, intuitive interface with support for custom URLs, file attachments, and collaborative editing.
 
-![PasteShare Screenshot](https://via.placeholder.com/800x450.png?text=PasteShare+Screenshot)
+![image](https://github.com/user-attachments/assets/b853e1ad-b880-4a7c-9637-d9991bd2642a)
+
 
 ## Features
 
