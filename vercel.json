@@ -7,9 +7,6 @@
     { "source": "/api/pastes", "destination": "/api/server.js" },
     { "source": "/api/pastes/:id", "destination": "/api/server.js" },
     { "source": "/api/files/:id", "destination": "/api/server.js" },
-    { "source": "/api/dbtest", "destination": "/api/test-db-connection.js" },
-    { "source": "/api/test", "destination": "/api/test-vercel.js" },
-    { "source": "/api/health", "destination": "/api/server.js" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [
@@ -40,19 +37,9 @@
       "memory": 1024,
       "maxDuration": 10,
       "includeFiles": "node_modules/pg/**"
-    },
-    "api/test-db-connection.js": {
-      "memory": 512,
-      "maxDuration": 5,
-      "includeFiles": "node_modules/pg/**"
-    },
-    "api/test-vercel.js": {
-      "memory": 512,
-      "maxDuration": 5,
-      "includeFiles": "node_modules/pg/**"
     }
   },
   "env": {
     "NODE_ENV": "production"
   }
-} 
+}
