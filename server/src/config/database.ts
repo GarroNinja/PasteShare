@@ -27,10 +27,31 @@ if (!envLoaded) {
   dotenv.config(); // Try loading from default location as last resort
 }
 
-// Check if environment variable exists
-if (!process.env.DATABASE_URL) {
-  console.warn('⚠️ DATABASE_URL is not defined in environment. Database functionality will be disabled.');
-  console.warn('Set DATABASE_URL in your .env file or environment variables.');
+// Check for all possible database URL variants from Vercel Supabase integration
+// In order of preference: pooled connection first, then direct connection
+const possibleDbVars = [
+  'DATABASE_URL',
+  'POSTGRES_URL',
+  'POSTGRES_PRISMA_URL', 
+  'POSTGRES_URL_NON_POOLING'
+];
+
+// Find the first available database URL
+let connectionString: string | undefined;
+let sourceVar: string | undefined;
+
+for (const varName of possibleDbVars) {
+  if (process.env[varName]) {
+    connectionString = process.env[varName];
+    sourceVar = varName;
+    break;
+  }
+}
+
+// Log connection status
+if (!connectionString) {
+  console.warn('⚠️ No database connection URL found in environment variables');
+  console.warn(`Checked for these variables: ${possibleDbVars.join(', ')}`);
   
   // Log all available environment variables in development (redacted for security)
   if (process.env.NODE_ENV === 'development') {
@@ -39,13 +60,10 @@ if (!process.env.DATABASE_URL) {
         .filter(key => !key.includes('SECRET') && !key.includes('KEY') && !key.includes('TOKEN') && !key.includes('PASS'))
     );
   }
-}
-
-// Get connection string
-let connectionString = process.env.DATABASE_URL;
-
-// Log connection details (safely)
-if (connectionString) {
+} else {
+  console.log(`Using database connection from ${sourceVar}`);
+  
+  // Log connection details (safely)
   const urlParts = connectionString.split('@');
   if (urlParts.length > 1) {
     console.log('Database connection:', `[credentials hidden]@${urlParts[1]}`);
@@ -57,15 +75,6 @@ if (connectionString) {
       console.log('Not using connection pooler URL (might cause connection issues in serverless)');
     }
   }
-}
-
-// Check required environment variables
-const requiredVars = ['DATABASE_URL'];
-const missingVars = requiredVars.filter(varName => !process.env[varName]);
-
-if (missingVars.length > 0) {
-  console.warn(`Missing required environment variables: ${missingVars.join(', ')}`);
-  console.warn('Some functionality may be limited.');
 }
 
 // Create Sequelize instance with proper error handling
@@ -84,8 +93,8 @@ if (connectionString) {
       idle_in_transaction_session_timeout: 10000  // 10s idle timeout
     },
     pool: {
-      max: 3,
-      min: 0,
+      max: 3,                      // Keep connection pool small for serverless
+      min: 0,                      // Allow all connections to close when idle
       acquire: 10000,
       idle: 5000,
     },
@@ -107,7 +116,7 @@ if (connectionString) {
   // Override authenticate to provide clear error
   const originalAuth = sequelize.authenticate.bind(sequelize);
   sequelize.authenticate = async () => {
-    throw new Error('DATABASE_URL not configured. Please set the DATABASE_URL environment variable.');
+    throw new Error('Database connection not configured. Please set DATABASE_URL or other database environment variables.');
   };
 }
 
@@ -136,7 +145,7 @@ if (connectionString) {
         console.error('Failed to query database tables:', queryError);
       }
     } else {
-      console.warn('⚠️ Skipping database connection test - DATABASE_URL not set');
+      console.warn('⚠️ Skipping database connection test - No database connection URL found');
     }
   } catch (error) {
     console.error('❌ Unable to connect to the database:', error);

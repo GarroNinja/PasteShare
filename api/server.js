@@ -33,20 +33,50 @@ if (!envLoaded) {
 // Import paste routes
 const pasteRoutes = require('./pasteRoutes');
 
+// Helper function to check for all possible database URLs
+function getDatabaseUrl() {
+  // In order of preference: pooled connection first, then direct connection
+  const possibleDbVars = [
+    'DATABASE_URL',
+    'POSTGRES_URL',
+    'POSTGRES_PRISMA_URL', 
+    'POSTGRES_URL_NON_POOLING'
+  ];
+  
+  for (const varName of possibleDbVars) {
+    if (process.env[varName]) {
+      return {
+        value: process.env[varName],
+        source: varName
+      };
+    }
+  }
+  
+  return {
+    value: null,
+    source: null
+  };
+}
+
 // Print environments at startup
 console.log('=== PasteShare API Server Starting ===');
 console.log('NODE_ENV:', process.env.NODE_ENV);
-console.log('DATABASE_URL exists:', !!process.env.DATABASE_URL);
-if (process.env.DATABASE_URL) {
+
+// Check for database connection
+const dbConnection = getDatabaseUrl();
+console.log('Database connection from:', dbConnection.source || 'not found');
+
+if (dbConnection.value) {
   // Extract and log host information without credentials
   try {
-    const url = new URL(process.env.DATABASE_URL);
+    const url = new URL(dbConnection.value);
     console.log('Database host:', url.hostname);
     console.log('Database port:', url.port);
     console.log('Database name:', url.pathname.substring(1));
     console.log('Using SSL:', url.protocol === 'postgres:' ? 'No' : 'Yes');
+    console.log('Using pooler:', url.hostname.includes('pooler') ? 'Yes' : 'No');
   } catch (error) {
-    console.error('Error parsing DATABASE_URL:', error.message);
+    console.error('Error parsing database URL:', error.message);
   }
 }
 
@@ -126,6 +156,25 @@ app.get('/api/health', (req, res) => {
   // Count in-memory pastes if available
   const inMemoryPasteCount = pasteRoutes.inMemoryPastes ? pasteRoutes.inMemoryPastes.length : 'Unknown';
   
+  // Get all database connection variables (safely masked)
+  const dbConnections = ['DATABASE_URL', 'POSTGRES_URL', 'POSTGRES_PRISMA_URL', 'POSTGRES_URL_NON_POOLING']
+    .map(varName => {
+      if (process.env[varName]) {
+        const url = process.env[varName];
+        const parts = url.split('@');
+        if (parts.length > 1) {
+          return { 
+            name: varName, 
+            available: true,
+            masked: `[credentials hidden]@${parts[1]}`,
+            pooled: parts[1].includes('pooler')
+          };
+        }
+        return { name: varName, available: true, masked: '[invalid format]', pooled: false };
+      }
+      return { name: varName, available: false };
+    });
+  
   // Set strong cache control headers to prevent caching
   res.setHeader('Cache-Control', 'no-store, max-age=0');
   res.setHeader('Pragma', 'no-cache');
@@ -136,15 +185,19 @@ app.get('/api/health', (req, res) => {
     message: 'Vercel serverless function is running',
     timestamp: new Date().toISOString(),
     instanceId: Math.random().toString(36).substring(2, 15), // Generate random ID to identify different cold starts
-    environment: process.env.NODE_ENV || 'unknown',
+    environment: {
+      NODE_ENV: process.env.NODE_ENV || 'unknown',
+      VERCEL_ENV: process.env.VERCEL_ENV || 'unknown',
+      VERCEL_REGION: process.env.VERCEL_REGION || 'unknown'
+    },
     database: {
-      url: process.env.DATABASE_URL ? 'Configured' : 'Not configured',
+      connections: dbConnections,
       mode: databaseStatus.mode,
       connected: databaseStatus.isConnected,
       details: databaseStatus.details || 'No additional details available',
       inMemoryPastes: inMemoryPasteCount
     },
-    version: '1.0.2',
+    version: '1.0.3',
     serverInfo: {
       platform: process.platform,
       nodeVersion: process.version,
@@ -155,70 +208,36 @@ app.get('/api/health', (req, res) => {
 });
 
 // Enhanced database status route
-app.get('/api/database', (req, res) => {
+app.get('/api/database', async (req, res) => {
+  const dbConnection = getDatabaseUrl();
+  
   const dbInfo = {
-    isConfigured: !!process.env.DATABASE_URL,
+    isConfigured: !!dbConnection.value,
+    configuredFrom: dbConnection.source,
     isConnected: pasteRoutes.useDatabase === true,
     fallbackMode: pasteRoutes.useDatabase !== true,
     timestamp: new Date().toISOString(),
     connectionInfo: pasteRoutes.getDatabaseStatus ? pasteRoutes.getDatabaseStatus() : null
   };
   
-  res.status(200).json(dbInfo);
-});
-
-// Test Supabase connection directly
-app.get('/api/test-connection', (req, res) => {
-  if (!process.env.DATABASE_URL) {
-    return res.status(400).json({ 
-      success: false, 
-      message: 'DATABASE_URL is not configured' 
-    });
+  // Try to run a simple query to test connection
+  try {
+    if (typeof pasteRoutes.dbReady === 'function') {
+      const isConnected = await pasteRoutes.dbReady();
+      dbInfo.connectionTest = {
+        success: isConnected,
+        timestamp: new Date().toISOString()
+      };
+    }
+  } catch (error) {
+    dbInfo.connectionTest = {
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    };
   }
   
-  try {
-    const url = new URL(process.env.DATABASE_URL);
-    const options = {
-      hostname: url.hostname,
-      port: url.port,
-      path: '/',
-      method: 'HEAD',
-      timeout: 5000
-    };
-    
-    const request = https.request(options, (response) => {
-      res.status(200).json({
-        success: true,
-        message: 'Connection test successful',
-        statusCode: response.statusCode,
-        headers: response.headers
-      });
-    });
-    
-    request.on('error', (error) => {
-      res.status(500).json({
-        success: false,
-        message: 'Connection test failed',
-        error: error.message
-      });
-    });
-    
-    request.on('timeout', () => {
-      request.destroy();
-      res.status(408).json({
-        success: false,
-        message: 'Connection test timed out'
-      });
-    });
-    
-    request.end();
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error testing connection',
-      error: error.message
-    });
-  }
+  res.status(200).json(dbInfo);
 });
 
 // Handle route not found

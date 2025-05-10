@@ -44,6 +44,30 @@ const connectionRetryInterval = 30000; // Reduced from 60000 to 30000 (30 second
 const CACHE_EXPIRATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 const CACHE_KEY_PREFIX = 'pasteshare_';
 
+// Check for all possible database URL variants from Vercel Supabase integration
+const getPossibleDatabaseUrl = () => {
+  // In order of preference: pooled connection first, then direct connection
+  const possibleDbVars = [
+    'DATABASE_URL',
+    'POSTGRES_URL',
+    'POSTGRES_PRISMA_URL', 
+    'POSTGRES_URL_NON_POOLING'
+  ];
+  
+  // Find the first available database URL
+  for (const varName of possibleDbVars) {
+    if (process.env[varName]) {
+      console.log(`Using database connection from ${varName}`);
+      return process.env[varName];
+    }
+  }
+  
+  console.error('No database connection URL found in environment variables');
+  console.error(`Checked for these variables: ${possibleDbVars.join(', ')}`);
+  
+  return null;
+};
+
 // Helper function to restore pastes from database
 async function restorePastesFromDatabase() {
   if (!useDatabase || !sequelize || !Paste) return;
@@ -106,7 +130,7 @@ async function restorePastesFromDatabase() {
 console.log('==== PasteShare API Initializing ====');
 console.log('Environment:', process.env.NODE_ENV);
 console.log('Vercel Environment:', process.env.VERCEL_ENV || 'not running on Vercel');
-console.log('DATABASE_URL available:', !!process.env.DATABASE_URL);
+console.log('Database connection available:', !!getPossibleDatabaseUrl());
 console.log('Database fallback allowed:', ALLOW_FALLBACK);
 console.log('=============================');
 
@@ -121,9 +145,12 @@ function initializeDatabase() {
   lastConnectionAttempt = now;
   console.log('Initializing database connection...');
   
+  // Get connection string using the helper function
+  const connectionString = getPossibleDatabaseUrl();
+  
   try {
-    if (!process.env.DATABASE_URL) {
-      console.error('DATABASE_URL is not set in environment!');
+    if (!connectionString) {
+      console.error('No database connection URL found in environment!');
       // Log all environment variables in development (redacted for security)
       if (process.env.NODE_ENV === 'development') {
         console.log('Available environment variables:', 
@@ -135,15 +162,22 @@ function initializeDatabase() {
     }
     
     // Log database connection attempt with more details
-    const urlParts = process.env.DATABASE_URL.split('@');
+    const urlParts = connectionString.split('@');
     if (urlParts.length > 1) {
       console.log('Connecting to:', `[credentials hidden]@${urlParts[1]}`);
+      
+      // Check for pooler in the URL (preferred for Vercel)
+      if (urlParts[1].includes('pooler')) {
+        console.log('Using connection pooler URL (recommended for serverless)');
+      } else {
+        console.log('Not using connection pooler URL (might cause connection issues in serverless)');
+      }
     } else {
-      console.log('DATABASE_URL has unexpected format');
+      console.log('Connection string has unexpected format');
     }
 
     // Initialize DB connection with simplified config for Vercel + Supabase
-    sequelize = new Sequelize(process.env.DATABASE_URL, {
+    sequelize = new Sequelize(connectionString, {
       dialect: 'postgres',
       dialectOptions: {
         ssl: {
@@ -243,20 +277,22 @@ function initializeDatabase() {
       }
     }, {
       // Model options
-      tableName: 'files',
+      tableName: 'files', 
       timestamps: true, // Enable timestamps
       paranoid: false, // Don't use soft deletes
       underscored: false, // Use camelCase for fields
       freezeTableName: true // Use the exact model name as table name
     });
 
-    // Define associations
+    // Setup associations
     Paste.hasMany(File, { 
-      onDelete: 'CASCADE',
-      foreignKey: 'pasteId'
+      foreignKey: 'pasteId',
+      as: 'Files'
     });
-    File.belongsTo(Paste, {
-      foreignKey: 'pasteId'
+    
+    File.belongsTo(Paste, { 
+      foreignKey: 'pasteId',
+      as: 'Paste'
     });
 
     // Try asynchronous operations immediately
@@ -943,34 +979,85 @@ router.getDatabaseStatus = function() {
 // Expose inMemoryPastes for diagnostics
 router.inMemoryPastes = inMemoryPastes;
 
-// Update connection handling - simplify to avoid recursion issues
+// Expose dbReady function
+router.dbReady = dbReady;
+
+// Update connection handling to check all possible database URLs
 async function ensureConnection() {
+  // Try to initialize if not already done
   if (!sequelize) {
     return initializeDatabase();
   }
   
   try {
-    await sequelize.authenticate({ retry: false }); // Simple connection check
+    // Simple connection check with no retries
+    await sequelize.authenticate({ retry: false });
     useDatabase = true;
     return true;
   } catch (err) {
     console.error('Database check failed:', err.message);
+    
+    // Check if we should try to reinitialize with a different connection string
+    const connectionString = getPossibleDatabaseUrl();
+    if (connectionString) {
+      console.log('Attempting to reconnect with available connection string');
+      initializeDatabase();
+    }
+    
     useDatabase = false;
     return false;
   }
 }
 
-// Add health check endpoint
+// Add health check endpoint with detailed diagnostics
 router.get('/health', async (req, res) => {
   try {
     const dbStatus = await dbReady();
+    
+    // Get all potential database environment variables (safely)
+    const dbEnvVars = ['DATABASE_URL', 'POSTGRES_URL', 'POSTGRES_PRISMA_URL', 'POSTGRES_URL_NON_POOLING']
+      .map(varName => {
+        if (process.env[varName]) {
+          const url = process.env[varName];
+          const parts = url.split('@');
+          if (parts.length > 1) {
+            return { 
+              name: varName, 
+              available: true,
+              masked: `[credentials hidden]@${parts[1]}`,
+              pooled: parts[1].includes('pooler')
+            };
+          }
+          return { name: varName, available: true, masked: '[invalid format]', pooled: false };
+        }
+        return { name: varName, available: false };
+      });
+    
     res.json({
       status: 'OK',
-      database: dbStatus ? 'connected' : 'disconnected',
-      memoryPastes: inMemoryPastes.length
+      timestamp: new Date().toISOString(),
+      environment: {
+        node_env: process.env.NODE_ENV,
+        vercel_env: process.env.VERCEL_ENV,
+        region: process.env.VERCEL_REGION || 'unknown'
+      },
+      database: {
+        status: dbStatus ? 'connected' : 'disconnected',
+        mode: useDatabase ? 'PostgreSQL' : 'In-Memory',
+        lastConnectionAttempt: new Date(lastConnectionAttempt).toISOString(),
+        connectionVariables: dbEnvVars
+      },
+      cache: {
+        inMemoryPastes: inMemoryPastes.length
+      }
     });
   } catch (error) {
-    res.status(500).json({ status: 'ERROR' });
+    console.error('Health check error:', error);
+    res.status(500).json({ 
+      status: 'ERROR',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
   }
 });
 
