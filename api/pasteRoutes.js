@@ -154,8 +154,8 @@ function initializeDatabase() {
         type: DataTypes.INTEGER,
         allowNull: false
       },
-      buffer: {
-        type: DataTypes.BLOB('long'),
+      content: {
+        type: DataTypes.TEXT('long'), // Use TEXT instead of BLOB for better compatibility
         allowNull: false
       }
     });
@@ -262,12 +262,15 @@ router.post('/', upload.array('files', 5), async (req, res) => {
         const fileRecords = [];
         if (req.files && req.files.length > 0) {
           for (const file of req.files) {
+            // Convert buffer to base64 string for storage
+            const base64Content = file.buffer.toString('base64');
+            
             const fileRecord = await File.create({
               filename: file.originalname,
               originalname: file.originalname,
               mimetype: file.mimetype,
               size: file.size,
-              buffer: file.buffer,
+              content: base64Content, // Store as base64 string instead of buffer
               PasteId: paste.id
             });
             fileRecords.push(fileRecord);
@@ -331,7 +334,7 @@ router.post('/', upload.array('files', 5), async (req, res) => {
         originalname: file.originalname,
         mimetype: file.mimetype,
         size: file.size,
-        buffer: file.buffer
+        content: file.buffer.toString('base64') // Store as base64 string for consistency
       }));
     }
     
@@ -654,9 +657,12 @@ router.get('/:pasteId/files/:fileId', async (req, res) => {
         });
         
         if (file) {
+          // Convert base64 back to buffer
+          const fileBuffer = Buffer.from(file.content, 'base64');
+          
           res.setHeader('Content-Type', file.mimetype);
           res.setHeader('Content-Disposition', `inline; filename="${file.originalname}"`);
-          return res.send(file.buffer);
+          return res.send(fileBuffer);
         }
         // If file not found in database, fall through to in-memory check
       } catch (error) {
@@ -677,9 +683,12 @@ router.get('/:pasteId/files/:fileId', async (req, res) => {
       return res.status(404).json({ message: 'File not found' });
     }
     
+    // Convert base64 back to buffer
+    const fileBuffer = Buffer.from(file.content, 'base64');
+
     res.setHeader('Content-Type', file.mimetype);
     res.setHeader('Content-Disposition', `inline; filename="${file.originalname}"`);
-    return res.send(file.buffer);
+    return res.send(fileBuffer);
   } catch (error) {
     console.error('Get file error:', error);
     return res.status(500).json({ message: 'Server error retrieving file' });
