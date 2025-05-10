@@ -1,15 +1,24 @@
 {
   "version": 2,
-  "buildCommand": "cd client && npm install && CI=false npm run build",
+  "buildCommand": "npm install pg pg-hstore && cd client && npm install && CI=false npm run build",
+  "installCommand": "npm install",
   "outputDirectory": "client/build",
   "rewrites": [
-    { "source": "/api/:path*", "destination": "/api/server" },
+    { "source": "/api/pastes", "destination": "/api/index.js" },
+    { "source": "/api/pastes/:id", "destination": "/api/index.js" },
+    { "source": "/api/files/:id", "destination": "/api/index.js" },
+    { "source": "/api/dbtest", "destination": "/api/test-db-connection.js" },
+    { "source": "/api/test", "destination": "/api/test-vercel.js" },
+    { "source": "/api/health", "destination": "/api/index.js" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [
     {
       "source": "/api/(.*)",
       "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET, POST, PUT, DELETE, OPTIONS" },
+        { "key": "Access-Control-Allow-Headers", "value": "X-Requested-With, Content-Type, Accept, Authorization" },
         { "key": "Cache-Control", "value": "no-store, no-cache, must-revalidate" }
       ]
     },
@@ -27,9 +36,23 @@
     }
   ],
   "functions": {
-    "api/server.js": {
+    "api/index.js": {
       "memory": 1024,
-      "maxDuration": 10
+      "maxDuration": 10,
+      "includeFiles": "node_modules/pg/**"
+    },
+    "api/test-db-connection.js": {
+      "memory": 512,
+      "maxDuration": 5,
+      "includeFiles": "node_modules/pg/**"
+    },
+    "api/test-vercel.js": {
+      "memory": 512,
+      "maxDuration": 5,
+      "includeFiles": "node_modules/pg/**"
     }
+  },
+  "env": {
+    "NODE_ENV": "production"
   }
 } 
