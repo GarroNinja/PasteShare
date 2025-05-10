@@ -9,6 +9,7 @@ const fs = require('fs');
 
 // Determine environment
 const IS_PROD = process.env.NODE_ENV === 'production';
+const ALLOW_FALLBACK = !IS_PROD;
 
 // Configure multer for file uploads
 const upload = multer({
@@ -592,6 +593,11 @@ router.get('/', async (req, res) => {
           // If database returned no pastes but we have in-memory pastes, use those
           console.log('No pastes in database, falling back to in-memory pastes');
           useDatabase = false; // Trigger fallback mechanism
+          if (!ALLOW_FALLBACK) {
+            console.error('Database query failed in production, aborting request');
+            return res.status(503).json({ message: 'Database unavailable' });
+          }
+          useDatabase = false; // fallback in development
         } else {
           // Return database results
           return res.status(200).json(
