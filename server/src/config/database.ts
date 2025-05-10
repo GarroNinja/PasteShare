@@ -5,7 +5,7 @@ dotenv.config();
 
 // Use PostgreSQL for Vercel deployment
 const sequelize = new Sequelize(
-  process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/pasteshare',
+  process.env.NODE_ENV === 'production' ? (process.env.DATABASE_URL || '') : 'postgres://postgres:postgres@localhost:5432/pasteshare',
   {
     dialect: 'postgres',
     dialectOptions: {
