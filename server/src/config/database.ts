@@ -3,55 +3,53 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-// Process connection string to handle potential special characters
+// Simple connection string logging - don't try to manipulate it
 let connectionString = process.env.DATABASE_URL;
 if (connectionString) {
-  try {
-    // Check if URL is valid
-    new URL(connectionString);
-    // Valid URL, no changes needed
-  } catch (error) {
-    console.log('Fixing invalid connection string...');
-    
-    // Split the URL into parts
-    const parts = connectionString.split('@');
-    if (parts.length === 2) {
-      const hostPart = parts[1];
-      
-      // Handle protocol and credentials part
-      const credParts = parts[0].split('://');
-      if (credParts.length === 2) {
-        const protocol = credParts[0];
-        const userPassParts = credParts[1].split(':');
-        
-        if (userPassParts.length >= 2) {
-          const username = userPassParts[0];
-          // Everything after the first colon and before @ is the password
-          const password = credParts[1].substring(credParts[1].indexOf(':') + 1);
-          
-          // URL encode the password
-          const encodedPassword = encodeURIComponent(password);
-          connectionString = `${protocol}://${username}:${encodedPassword}@${hostPart}`;
-          console.log('Connection string fixed');
-        }
-      }
-    }
+  const urlParts = connectionString.split('@');
+  if (urlParts.length > 1) {
+    console.log('Database connection:', `[credentials hidden]@${urlParts[1]}`);
   }
+} else {
+  console.warn('DATABASE_URL environment variable is not set!');
 }
 
-// Use PostgreSQL for Vercel deployment
+// Use PostgreSQL for both local and production
 const sequelize = new Sequelize(
-  connectionString || 'postgres://postgres:postgres@localhost:5432/pasteshare',
+  process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/pasteshare',
   {
     dialect: 'postgres',
     dialectOptions: {
-      ssl: process.env.NODE_ENV === 'production' ? {
+      ssl: {
         require: true,
-        rejectUnauthorized: false
-      } : false
+        rejectUnauthorized: false  // Required for Supabase
+      },
+      // Timeout settings
+      statement_timeout: 10000,    // 10s query timeout
+      idle_in_transaction_session_timeout: 10000  // 10s idle timeout
     },
-    logging: process.env.NODE_ENV === 'development' ? console.log : false,
+    pool: {
+      max: 3,
+      min: 0,
+      acquire: 10000,
+      idle: 5000,
+    },
+    logging: process.env.NODE_ENV === 'development',
+    retry: {
+      max: 3,
+      match: [/Deadlock/i, /Lock/i, /Timeout/i, /Connection/i]
+    }
   }
 );
+
+// Test connection when this module is first imported
+(async () => {
+  try {
+    await sequelize.authenticate();
+    console.log('Database connection established successfully');
+  } catch (error) {
+    console.error('Unable to connect to the database:', error);
+  }
+})();
 
 export default sequelize; 

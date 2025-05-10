@@ -48,16 +48,42 @@ A modern pastebin application for sharing code snippets, text, and files.
 
 ### Vercel
 
-1. Fork this repository to your GitHub account
-2. Create a new project in Vercel connected to your repository
-3. Add environment variables:
-   - `DATABASE_URL`: Your PostgreSQL connection string
-   - `NODE_ENV`: `production`
+1. Create a Supabase PostgreSQL database
+2. In Vercel, set the following environment variables:
+   
+   ```
+   DATABASE_URL=postgres://postgres.[your-project-id]:[your-password]@aws-0-[region].pooler.supabase.co:6543/postgres
+   NODE_ENV=production
+   ```
 
-For PostgreSQL, use a provider like:
-- Supabase
-- Neon
-- Vercel Postgres
+3. **IMPORTANT**: Make sure to use the connection string format that includes the pooler:
+   
+   ```
+   postgres://postgres.[project-ref]:[password]@aws-0-[region].pooler.supabase.co:6543/postgres
+   ```
+   
+   Not the standard connection string.
+
+4. For local testing, create a `.env` file with:
+   ```
+   DATABASE_URL=postgres://postgres.[your-project-id]:[your-password]@aws-0-[region].pooler.supabase.co:6543/postgres
+   NODE_ENV=development
+   ```
+
+5. Run the database verification script to test your connection:
+   ```
+   node db-verify.js
+   ```
+
+## Deployment Troubleshooting
+
+If experiencing database connectivity issues:
+
+1. Verify your Supabase connection string
+2. Check that you're using the pooler version of the connection string 
+3. Make sure your IP is allowlisted in Supabase
+4. Confirm database permissions in Supabase
+5. In Vercel, ensure environment variables are properly set
 
 ## Tech Stack
 
