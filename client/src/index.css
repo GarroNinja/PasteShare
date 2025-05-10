@@ -1,6 +1,6 @@
 /* Prevent theme flash during page load */
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 /* Force initial Gruvbox colors for critical UI elements */
@@ -10,26 +10,35 @@
   --gruvbox-fg: #ebdbb2;
   --gruvbox-green: #98971a;
   
-  /* Gruvbox light colors */
-  --gruvbox-light-bg: #fbf1c7;
-  --gruvbox-light-bg-hard: #f9f5d7;
-  --gruvbox-light-bg-soft: #f2e5bc;
-  --gruvbox-light-fg: #3c3836;
-  --gruvbox-light-green: #79740e;
-  --gruvbox-light-green-soft: #98971a;
-  --gruvbox-light-aqua: #427b58;
-  --gruvbox-light-yellow: #b57614;
-  --gruvbox-light-red: #9d0006;
+  /* Minimalist light theme colors */
+  --light-bg: #ffffff;
+  --light-bg-hard: #f8f8f8;
+  --light-bg-soft: #f0f0f0;
+  --light-fg: #3c3836;
+  --light-green: #79740e;
+  --light-green-soft: #98971a;
+  --light-aqua: #427b58;
+  --light-yellow: #b57614;
+  --light-red: #9d0006;
 }
 
 /* Set immediate colors for html and body */
 html, body {
+  background-color: var(--light-bg);
+  color: var(--light-fg);
+}
+
+.dark html, .dark body {
   background-color: var(--gruvbox-bg);
   color: var(--gruvbox-fg);
 }
 
 /* Navbar colors */
 header {
+  background-color: var(--light-bg-hard) !important;
+}
+
+.dark header {
   background-color: var(--gruvbox-bg-hard) !important;
 }
 
@@ -42,39 +51,39 @@ header {
 @layer base {
   /* Set consistent base colors for both light and dark modes */
   :root {
-    --background: 43 86% 97%;
+    --background: 0 0% 100%;
     --foreground: 27 9% 24%;
     
-    /* Ensure blue colors are overridden even before JS loads */
-    --blue-100: rgba(121, 116, 14, 0.1);
-    --blue-300: #98971a;
-    --blue-400: #79740e;
-    --blue-500: #79740e;
-    --blue-600: #98971a;
-    --blue-700: #98971a;
-    --blue-800: #79740e;
-    --blue-900: #79740e;
+    /* Ensure green colors are consistent across themes */
+    --green-100: rgba(121, 116, 14, 0.1);
+    --green-300: #98971a;
+    --green-400: #79740e;
+    --green-500: #79740e;
+    --green-600: #98971a;
+    --green-700: #98971a;
+    --green-800: #79740e;
+    --green-900: #79740e;
   }
 
   .dark {
     --background: 40 6% 11%;
     --foreground: 50 8% 88%;
     
-    /* Ensure all blue colors are Gruvbox-themed */
-    --blue-100: rgba(184, 187, 38, 0.1);
-    --blue-300: #d8e082;
-    --blue-400: #b8bb26;
-    --blue-500: #b8bb26;
-    --blue-600: #98971a;
-    --blue-700: #98971a;
-    --blue-800: #79740e;
-    --blue-900: #79740e;
+    /* Ensure all green colors are Gruvbox-themed in dark mode */
+    --green-100: rgba(184, 187, 38, 0.1);
+    --green-300: #d8e082;
+    --green-400: #b8bb26;
+    --green-500: #b8bb26;
+    --green-600: #98971a;
+    --green-700: #98971a;
+    --green-800: #79740e;
+    --green-900: #79740e;
   }
 }
 
-/* Apply immediate dark theme by default to prevent flashing */
+/* Apply light theme by default to prevent flashing */
 html {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 body {
@@ -111,24 +120,24 @@ code {
   color: var(--gruvbox-fg);
 }
 
-/* Gruvbox Light theme */
+/* Minimalist Light theme */
 :root:not(.dark) {
   /* Base colors */
-  --gruvbox-bg: var(--gruvbox-light-bg);
-  --gruvbox-bg-soft: var(--gruvbox-light-bg-soft);
-  --gruvbox-bg-hard: var(--gruvbox-light-bg-hard);
-  --gruvbox-fg: var(--gruvbox-light-fg);
+  --gruvbox-bg: var(--light-bg);
+  --gruvbox-bg-soft: var(--light-bg-soft);
+  --gruvbox-bg-hard: var(--light-bg-hard);
+  --gruvbox-fg: var(--light-fg);
   
   /* Accent colors */
-  --gruvbox-green: var(--gruvbox-light-green);
-  --gruvbox-green-soft: var(--gruvbox-light-green-soft);
-  --gruvbox-aqua: var(--gruvbox-light-aqua);
-  --gruvbox-yellow: var(--gruvbox-light-yellow);
-  --gruvbox-red: var(--gruvbox-light-red);
+  --gruvbox-green: var(--light-green);
+  --gruvbox-green-soft: var(--light-green-soft);
+  --gruvbox-aqua: var(--light-aqua);
+  --gruvbox-yellow: var(--light-yellow);
+  --gruvbox-red: var(--light-red);
   
   /* Apply base colors */
-  background-color: var(--gruvbox-light-bg);
-  color: var(--gruvbox-light-fg);
+  background-color: var(--light-bg);
+  color: var(--light-fg);
 }
 
 /* Background variants */
@@ -147,19 +156,19 @@ code {
 /* Light mode background variants */
 :root:not(.dark) .bg-gray-50,
 :root:not(.dark) .bg-gray-100 {
-  background-color: var(--gruvbox-light-bg-hard);
+  background-color: var(--light-bg-hard);
 }
 
 :root:not(.dark) .bg-gray-200 {
-  background-color: var(--gruvbox-light-bg-soft);
+  background-color: var(--light-bg-soft);
 }
 
 :root:not(.dark) .bg-white {
-  background-color: var(--gruvbox-light-bg);
+  background-color: var(--light-bg);
 }
 
 :root:not(.dark) .border-gray-200 {
-  border-color: #d5c4a1;
+  border-color: #e0e0e0;
 }
 
 /* Override elements */
@@ -168,7 +177,7 @@ code {
 }
 
 :root:not(.dark) .min-h-screen {
-  background-color: var(--gruvbox-light-bg);
+  background-color: var(--light-bg);
 }
 
 .dark header, 
@@ -180,7 +189,7 @@ code {
 :root:not(.dark) header,
 :root:not(.dark) nav,
 :root:not(.dark) footer {
-  background-color: var(--gruvbox-light-bg-hard);
+  background-color: var(--light-bg-hard);
 }
 
 .dark textarea,
@@ -194,21 +203,73 @@ code {
 :root:not(.dark) textarea,
 :root:not(.dark) input,
 :root:not(.dark) select {
-  background-color: var(--gruvbox-light-bg);
-  border-color: #d5c4a1;
-  color: var(--gruvbox-light-fg);
+  background-color: var(--light-bg);
+  border-color: #e0e0e0;
+  color: var(--light-fg);
 }
 
 /* Green theme using gruvbox colors */
-.text-blue-400,
-.text-blue-500,
-.text-blue-600,
-.dark .text-blue-400,
-.dark .text-blue-500,
-.dark .text-blue-600 {
+.text-green-400,
+.text-green-500,
+.text-green-600,
+.dark .text-green-400,
+.dark .text-green-500,
+.dark .text-green-600 {
   color: var(--gruvbox-green);
 }
 
+.bg-green-100,
+.dark .bg-green-100 {
+  background-color: rgba(184, 187, 38, 0.1);
+}
+
+:root:not(.dark) .bg-green-100 {
+  background-color: rgba(121, 116, 14, 0.1);
+}
+
+.bg-green-600,
+.bg-green-700,
+.dark .bg-green-600,
+.dark .bg-green-700 {
+  background-color: var(--gruvbox-green-soft);
+}
+
+.bg-green-800,
+.bg-green-900,
+.dark .bg-green-800,
+.dark .bg-green-900 {
+  background-color: #79740e;
+}
+
+.text-green-100,
+.text-green-300,
+.dark .text-green-100,
+.dark .text-green-300 {
+  color: #d8e082;
+}
+
+:root:not(.dark) .text-green-100,
+:root:not(.dark) .text-green-300 {
+  color: #98971a;
+}
+
+.hover\:bg-green-700:hover,
+.hover\:bg-green-800:hover,
+.dark .hover\:bg-green-700:hover,
+.dark .hover\:bg-green-800:hover {
+  background-color: var(--gruvbox-green-soft);
+}
+
+.hover\:border-green-300:hover,
+.dark .hover\:border-green-300:hover {
+  border-color: var(--gruvbox-green);
+}
+
+.dark .hover\:border-green-700:hover {
+  border-color: var(--gruvbox-green-soft);
+}
+
+/* Blue-themed elements should use green (consistency) */
 .bg-blue-100,
 .dark .bg-blue-100 {
   background-color: rgba(184, 187, 38, 0.1);
@@ -218,49 +279,37 @@ code {
   background-color: rgba(121, 116, 14, 0.1);
 }
 
-.bg-blue-600,
-.bg-blue-700,
-.dark .bg-blue-600,
-.dark .bg-blue-700 {
-  background-color: var(--gruvbox-green-soft);
+.text-blue-700,
+.dark .text-blue-700 {
+  color: var(--gruvbox-green-soft);
 }
 
-.bg-blue-800,
-.bg-blue-900,
-.dark .bg-blue-800,
-.dark .bg-blue-900 {
-  background-color: #79740e;
+:root:not(.dark) .text-blue-700 {
+  color: var(--light-green);
 }
 
-.text-blue-100,
-.text-blue-300,
-.dark .text-blue-100,
 .dark .text-blue-300 {
-  color: #d8e082;
+  color: var(--gruvbox-green);
 }
 
-:root:not(.dark) .text-blue-100,
 :root:not(.dark) .text-blue-300 {
-  color: #98971a;
+  color: var(--light-green-soft);
 }
 
-.hover\:bg-blue-700:hover,
-.hover\:bg-blue-800:hover,
-.dark .hover\:bg-blue-700:hover,
-.dark .hover\:bg-blue-800:hover {
-  background-color: var(--gruvbox-green-soft);
+.dark .bg-blue-900\/30 {
+  background-color: rgba(98, 151, 26, 0.3);
 }
 
-.hover\:border-blue-300:hover,
-.dark .hover\:border-blue-300:hover,
-.hover\:border-green-300:hover,
-.dark .hover\:border-green-300:hover {
-  border-color: var(--gruvbox-green);
+.dark .bg-blue-900\/50 {
+  background-color: rgba(98, 151, 26, 0.5);
 }
 
-.dark .hover\:border-blue-700:hover,
-.dark .hover\:border-green-700:hover {
-  border-color: var(--gruvbox-green-soft);
+:root:not(.dark) .bg-blue-900\/30 {
+  background-color: rgba(121, 116, 14, 0.3);
+}
+
+:root:not(.dark) .bg-blue-900\/50 {
+  background-color: rgba(121, 116, 14, 0.5);
 }
 
 /* Button colors */
@@ -279,7 +328,7 @@ code {
 }
 
 :root:not(.dark) .bg-green-600 {
-  background-color: var(--gruvbox-light-green-soft);
+  background-color: var(--light-green-soft);
 }
 
 /* Add a rule for text color on green buttons */
@@ -290,7 +339,7 @@ code {
 
 :root:not(.dark) .bg-green-600,
 :root:not(.dark) .bg-[#98971a] {
-  color: var(--gruvbox-light-bg-hard);
+  color: white;
 }
 
 .text-green-700,
@@ -299,7 +348,7 @@ code {
 }
 
 :root:not(.dark) .text-green-700 {
-  color: var(--gruvbox-light-green);
+  color: var(--light-green);
 }
 
 .dark .text-green-300 {
@@ -307,7 +356,7 @@ code {
 }
 
 :root:not(.dark) .text-green-300 {
-  color: var(--gruvbox-light-green-soft);
+  color: var(--light-green-soft);
 }
 
 .dark .bg-green-900\/30 {
@@ -342,29 +391,29 @@ code {
 :root:not(.dark) .bg-yellow-100,
 :root:not(.dark) .text-yellow-700 {
   background-color: rgba(181, 118, 20, 0.1);
-  color: var(--gruvbox-light-yellow);
+  color: var(--light-yellow);
 }
 
 :root:not(.dark) .bg-red-100,
 :root:not(.dark) .text-red-700 {
   background-color: rgba(157, 0, 6, 0.1);
-  color: var(--gruvbox-light-red);
+  color: var(--light-red);
 }
 
 /* Ensure Create Paste button is always visible */
 form button[type="submit"]:not(:disabled) {
-  background-color: var(--gruvbox-light-green-soft) !important;
-  color: var(--gruvbox-light-bg-hard) !important;
+  background-color: var(--light-green-soft) !important;
+  color: white !important;
 }
 
 .dark form button[type="submit"]:not(:disabled) {
-  background-color: #98971a !important; /* dark mode gruvbox green */
-  color: #1d2021 !important; /* dark text on light background */
+  background-color: var(--gruvbox-green-soft) !important;
+  color: var(--gruvbox-bg-hard) !important;
 }
 
 /* Ensure hover state is also visible */
 form button[type="submit"]:not(:disabled):hover {
-  background-color: var(--gruvbox-light-green) !important;
+  background-color: var(--light-green) !important;
 }
 
 .dark form button[type="submit"]:not(:disabled):hover {
@@ -373,17 +422,17 @@ form button[type="submit"]:not(:disabled):hover {
 
 /* Navigation buttons */
 button[class*="bg-green-600"] {
-  background-color: var(--gruvbox-light-green-soft) !important;
-  color: var(--gruvbox-light-bg-hard) !important;
+  background-color: var(--light-green-soft) !important;
+  color: white !important;
 }
 
 .dark button[class*="bg-green-600"] {
-  background-color: #98971a !important;
-  color: #1d2021 !important;
+  background-color: var(--gruvbox-green-soft) !important;
+  color: var(--gruvbox-bg-hard) !important;
 }
 
 button[class*="bg-green-600"]:hover {
-  background-color: var(--gruvbox-light-green) !important;
+  background-color: var(--light-green) !important;
 }
 
 .dark button[class*="bg-green-600"]:hover {
@@ -394,7 +443,7 @@ button[class*="bg-green-600"]:hover {
 :root:not(.dark) .text-white,
 :root:not(.dark) .text-gray-100,
 :root:not(.dark) .text-gray-200 {
-  color: var(--gruvbox-light-fg) !important;
+  color: var(--light-fg) !important;
 }
 
 :root:not(.dark) .text-gray-500,
@@ -406,7 +455,7 @@ button[class*="bg-green-600"]:hover {
 /* Fix for code blocks in light mode */
 :root:not(.dark) pre,
 :root:not(.dark) code {
-  background-color: var(--gruvbox-light-bg-soft);
-  color: var(--gruvbox-light-fg);
-  border-color: #d5c4a1;
+  background-color: var(--light-bg-soft);
+  color: var(--light-fg);
+  border-color: #e0e0e0;
 } 

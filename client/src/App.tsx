@@ -46,16 +46,16 @@ function MobileNavBar() {
 }
 
 function App() {
-  // Apply dark theme class to document on component mount to prevent flashing
+  // Apply light theme class to document on component mount to prevent flashing
   useEffect(() => {
-    // Get theme from localStorage or use dark as default
-    const storedTheme = localStorage.getItem('pasteshare-theme') || 'dark';
+    // Get theme from localStorage or use light as default
+    const storedTheme = localStorage.getItem('pasteshare-theme') || 'light';
     document.documentElement.classList.add(storedTheme);
     
     // Set color scheme meta tag
     const meta = document.createElement('meta');
     meta.name = 'color-scheme';
-    meta.content = 'dark';
+    meta.content = storedTheme;
     document.head.appendChild(meta);
     
     return () => {
@@ -64,10 +64,10 @@ function App() {
   }, []);
   
   return (
-    <ThemeProvider defaultTheme="dark">
+    <ThemeProvider defaultTheme="light">
       <Router>
         {/* Use flex column to create a layout with sticky footer */}
-        <div className="flex flex-col min-h-screen bg-gray-100 dark:bg-[#282828]">
+        <div className="flex flex-col min-h-screen bg-white dark:bg-[#282828]">
           <Navbar />
           
           {/* Make main content grow to fill available space */}
