@@ -163,32 +163,35 @@ function initializeDatabase() {
     }
 
     // Initialize DB connection with better configuration for Supabase
-    sequelize = new Sequelize(
-      connectionString || 'postgres://postgres:postgres@localhost:5432/pasteshare',
-      {
-        dialect: 'postgres',
-        dialectOptions: {
-          ssl: {
-            require: true,
-            rejectUnauthorized: false
-          },
-          keepAlive: true
+    sequelize = new Sequelize(process.env.DATABASE_URL, {
+      dialect: 'postgres',
+      dialectOptions: {
+        ssl: {
+          require: true,
+          rejectUnauthorized: false // Required for Vercel + Supabase
         },
-        pool: {
-          max: 5, // Increased from 2 to 5
-          min: 1, // Increased from 0 to 1, keep at least one connection
-          idle: 20000, // Increased from 5000 to 20000 (20 seconds)
-          acquire: 30000, // Increased from 15000 to 30000 (30 seconds)
-          evict: 5000  // Increased from 1000 to 5000 (5 seconds)
-        },
-        retry: {
-          max: 5, // Increased from 3 to 5
-          timeout: 20000 // Increased from 10000 to 20000 (20 seconds)
-        },
-        logging: false,
-        benchmark: true // To measure query times
-      }
-    );
+        keepAlive: true,
+        connectionTimeoutMillis: 10000
+      },
+      pool: {
+        max: 5, // Reduced for serverless compatibility
+        min: 0,
+        idle: 10000,
+        acquire: 30000,
+        evict: 5000
+      },
+      retry: {
+        max: 5,
+        match: [
+          /ETIMEDOUT/,
+          /ECONNRESET/,
+          /ECONNREFUSED/,
+          /SequelizeConnectionError/
+        ],
+        timeout: 15000
+      },
+      logging: false
+    });
 
     // Define Paste model
     Paste = sequelize.define('Paste', {
@@ -301,22 +304,25 @@ function initializeDatabase() {
         console.log('Existing tables:', existingTables);
         
         // Check if tables exist before syncing
-        const hasPassesTable = existingTables.includes('pastes') || existingTables.includes('Pastes');
-        const hasFilesTable = existingTables.includes('files') || existingTables.includes('Files');
+        const hasPassesTable = existingTables.includes('pastes');
+        const hasFilesTable = existingTables.includes('files');
+        
+        // Disable force/alter sync in production
+        const forceSync = process.env.NODE_ENV === 'development' && process.env.FORCE_SYNC === 'true';
+        const alterSync = process.env.NODE_ENV === 'development' && process.env.ALTER_SYNC === 'true';
         
         if (!hasPassesTable || !hasFilesTable) {
-          // Only synchronize if tables don't exist yet
-          // Always perform sync, but only force in development with explicit flag
-          const forceSync = process.env.NODE_ENV === 'development' && process.env.FORCE_SYNC === 'true';
-          const alterSync = !forceSync && process.env.ALTER_SYNC === 'true'; // Only alter if explicitly set
-          
           await sequelize.sync({ 
             force: forceSync,
             alter: alterSync
           });
           console.log(`Database tables synchronized successfully (force: ${forceSync}, alter: ${alterSync})`);
         } else {
-          console.log('Tables already exist, skipping sync to preserve data');
+          // In production, just authenticate without sync
+          if (process.env.NODE_ENV === 'production') {
+            await sequelize.authenticate();
+          }
+          console.log('Tables exist, skipping sync');
         }
         
         // Test a simple query to validate connection and check actual table structure
@@ -953,21 +959,48 @@ router.getDatabaseStatus = function() {
 // Expose inMemoryPastes for diagnostics
 router.inMemoryPastes = inMemoryPastes;
 
-// Helper: ensure we have a live DB connection (called before every request)
+// Update connection handling with exponential backoff
+let connectionRetries = 0;
+const MAX_RETRIES = 5;
+
 async function ensureConnection() {
-  if (!sequelize) initializeDatabase();
   if (!sequelize) {
-    useDatabase = false;
+    initializeDatabase();
     return;
   }
+
   try {
     await sequelize.authenticate();
     useDatabase = true;
+    connectionRetries = 0;
   } catch (err) {
-    console.error('Database ping failed:', err.message);
-    useDatabase = false;
+    console.error(`Connection attempt ${connectionRetries + 1}/${MAX_RETRIES} failed`);
+    if (connectionRetries < MAX_RETRIES) {
+      connectionRetries++;
+      await new Promise(resolve => 
+        setTimeout(resolve, Math.pow(2, connectionRetries) * 1000)
+      );
+      await ensureConnection();
+    } else {
+      console.error('Max connection retries reached');
+      useDatabase = false;
+    }
   }
 }
+
+// Add health check endpoint
+router.get('/health', async (req, res) => {
+  try {
+    const dbStatus = await dbReady();
+    res.json({
+      status: 'OK',
+      database: dbStatus ? 'connected' : 'disconnected',
+      memoryPastes: inMemoryPastes.length
+    });
+  } catch (error) {
+    res.status(500).json({ status: 'ERROR' });
+  }
+});
 
 async function dbReady () {
   try {
