@@ -1,7 +1,6 @@
 # PasteShare
 
-A modern pastebin application for sharing code snippets, text, and files with PostgreSQL storage.
-
+A modern pastebin application for sharing code snippets, text, and files.
 ![image](https://github.com/user-attachments/assets/38b6f65a-e58d-4b9e-b79d-a5c505cc6b0b)
 
 ## Features
