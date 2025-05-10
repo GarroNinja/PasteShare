@@ -46,25 +46,13 @@ const CACHE_KEY_PREFIX = 'pasteshare_';
 
 // Check for all possible database URL variants from Vercel Supabase integration
 const getPossibleDatabaseUrl = () => {
-  // In order of preference: pooled connection first, then direct connection
-  const possibleDbVars = [
-    'DATABASE_URL',
-    'POSTGRES_URL',
-    'POSTGRES_PRISMA_URL', 
-    'POSTGRES_URL_NON_POOLING'
-  ];
-  
-  // Find the first available database URL
-  for (const varName of possibleDbVars) {
-    if (process.env[varName]) {
-      console.log(`Using database connection from ${varName}`);
-      return process.env[varName];
-    }
+  // Only check for DATABASE_URL
+  if (process.env.DATABASE_URL) {
+    console.log('Using DATABASE_URL for database connection');
+    return process.env.DATABASE_URL;
   }
   
-  console.error('No database connection URL found in environment variables');
-  console.error(`Checked for these variables: ${possibleDbVars.join(', ')}`);
-  
+  console.error('DATABASE_URL is not set in environment variables');
   return null;
 };
 
@@ -145,12 +133,12 @@ function initializeDatabase() {
   lastConnectionAttempt = now;
   console.log('Initializing database connection...');
   
-  // Get connection string using the helper function
-  const connectionString = getPossibleDatabaseUrl();
+  // Get connection string directly from environment
+  const connectionString = process.env.DATABASE_URL;
   
   try {
     if (!connectionString) {
-      console.error('No database connection URL found in environment!');
+      console.error('DATABASE_URL is not set in environment!');
       // Log all environment variables in development (redacted for security)
       if (process.env.NODE_ENV === 'development') {
         console.log('Available environment variables:', 
@@ -165,15 +153,8 @@ function initializeDatabase() {
     const urlParts = connectionString.split('@');
     if (urlParts.length > 1) {
       console.log('Connecting to:', `[credentials hidden]@${urlParts[1]}`);
-      
-      // Check for pooler in the URL (preferred for Vercel)
-      if (urlParts[1].includes('pooler')) {
-        console.log('Using connection pooler URL (recommended for serverless)');
-      } else {
-        console.log('Not using connection pooler URL (might cause connection issues in serverless)');
-      }
     } else {
-      console.log('Connection string has unexpected format');
+      console.log('DATABASE_URL has unexpected format');
     }
 
     // Initialize DB connection with simplified config for Vercel + Supabase
@@ -400,15 +381,13 @@ router.use(async (req, res, next) => {
     return next();
   }
   
-  // Check for any available database connection URL
-  const connectionString = getPossibleDatabaseUrl();
-  if (!connectionString) {
-    console.error('No database connection URL found in environment!');
-    console.error('Checked for DATABASE_URL, POSTGRES_URL, POSTGRES_PRISMA_URL, POSTGRES_URL_NON_POOLING');
+  // Check if DATABASE_URL is set
+  if (!process.env.DATABASE_URL) {
+    console.error('DATABASE_URL is not set in environment!');
     if (IS_PROD && !ALLOW_FALLBACK) {
       return res.status(503).json({ 
         message: 'Database configuration error', 
-        error: 'No database connection URL found' 
+        error: 'DATABASE_URL not found' 
       });
     }
   }
@@ -1077,24 +1056,17 @@ router.get('/health', async (req, res) => {
     // Then check if it's ready
     const dbStatus = await dbReady();
     
-    // Get all potential database environment variables (safely)
-    const dbEnvVars = ['DATABASE_URL', 'POSTGRES_URL', 'POSTGRES_PRISMA_URL', 'POSTGRES_URL_NON_POOLING']
-      .map(varName => {
-        if (process.env[varName]) {
-          const url = process.env[varName];
-          const parts = url.split('@');
-          if (parts.length > 1) {
-            return { 
-              name: varName, 
-              available: true,
-              masked: `[credentials hidden]@${parts[1]}`,
-              pooled: parts[1].includes('pooler')
-            };
-          }
-          return { name: varName, available: true, masked: '[invalid format]', pooled: false };
-        }
-        return { name: varName, available: false };
-      });
+    // Safely check DATABASE_URL
+    let dbUrl = 'Not configured';
+    if (process.env.DATABASE_URL) {
+      const url = process.env.DATABASE_URL;
+      const parts = url.split('@');
+      if (parts.length > 1) {
+        dbUrl = `[credentials hidden]@${parts[1]}`;
+      } else {
+        dbUrl = 'Invalid format';
+      }
+    }
     
     res.json({
       status: 'OK',
@@ -1108,10 +1080,10 @@ router.get('/health', async (req, res) => {
         status: dbStatus ? 'connected' : 'disconnected',
         initialization: initialized ? 'success' : 'failed',
         mode: useDatabase ? 'PostgreSQL' : 'In-Memory',
+        DATABASE_URL: dbUrl,
         sequelizeInitialized: !!sequelize,
         modelsInitialized: !!(Paste && File),
-        lastConnectionAttempt: new Date(lastConnectionAttempt).toISOString(),
-        connectionVariables: dbEnvVars
+        lastConnectionAttempt: new Date(lastConnectionAttempt).toISOString()
       },
       cache: {
         inMemoryPastes: inMemoryPastes.length

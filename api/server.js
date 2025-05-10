@@ -33,6 +33,21 @@ if (!envLoaded) {
 // Import paste routes
 const pasteRoutes = require('./pasteRoutes');
 
+// Helper function to check for DATABASE_URL
+function getDatabaseInfo() {
+  if (!process.env.DATABASE_URL) {
+    return {
+      value: null,
+      exists: false
+    };
+  }
+  
+  return {
+    value: process.env.DATABASE_URL,
+    exists: true
+  };
+}
+
 // Helper function to check for all possible database URLs
 function getDatabaseUrl() {
   // In order of preference: pooled connection first, then direct connection
@@ -63,8 +78,8 @@ console.log('=== PasteShare API Server Starting ===');
 console.log('NODE_ENV:', process.env.NODE_ENV);
 
 // Check for database connection
-const dbConnection = getDatabaseUrl();
-console.log('Database connection from:', dbConnection.source || 'not found');
+const dbConnection = getDatabaseInfo();
+console.log('DATABASE_URL exists:', dbConnection.exists);
 
 if (dbConnection.value) {
   // Extract and log host information without credentials
@@ -156,24 +171,17 @@ app.get('/api/health', (req, res) => {
   // Count in-memory pastes if available
   const inMemoryPasteCount = pasteRoutes.inMemoryPastes ? pasteRoutes.inMemoryPastes.length : 'Unknown';
   
-  // Get all database connection variables (safely masked)
-  const dbConnections = ['DATABASE_URL', 'POSTGRES_URL', 'POSTGRES_PRISMA_URL', 'POSTGRES_URL_NON_POOLING']
-    .map(varName => {
-      if (process.env[varName]) {
-        const url = process.env[varName];
-        const parts = url.split('@');
-        if (parts.length > 1) {
-          return { 
-            name: varName, 
-            available: true,
-            masked: `[credentials hidden]@${parts[1]}`,
-            pooled: parts[1].includes('pooler')
-          };
-        }
-        return { name: varName, available: true, masked: '[invalid format]', pooled: false };
-      }
-      return { name: varName, available: false };
-    });
+  // Safely check DATABASE_URL
+  let dbUrl = 'Not configured';
+  if (process.env.DATABASE_URL) {
+    const url = process.env.DATABASE_URL;
+    const parts = url.split('@');
+    if (parts.length > 1) {
+      dbUrl = `[credentials hidden]@${parts[1]}`;
+    } else {
+      dbUrl = 'Invalid format';
+    }
+  }
   
   // Set strong cache control headers to prevent caching
   res.setHeader('Cache-Control', 'no-store, max-age=0');
@@ -191,13 +199,13 @@ app.get('/api/health', (req, res) => {
       VERCEL_REGION: process.env.VERCEL_REGION || 'unknown'
     },
     database: {
-      connections: dbConnections,
+      DATABASE_URL: dbUrl,
       mode: databaseStatus.mode,
       connected: databaseStatus.isConnected,
       details: databaseStatus.details || 'No additional details available',
       inMemoryPastes: inMemoryPasteCount
     },
-    version: '1.0.3',
+    version: '1.0.4',
     serverInfo: {
       platform: process.platform,
       nodeVersion: process.version,
@@ -209,11 +217,22 @@ app.get('/api/health', (req, res) => {
 
 // Enhanced database status route
 app.get('/api/database', async (req, res) => {
-  const dbConnection = getDatabaseUrl();
+  const dbConnection = getDatabaseInfo();
+  
+  // Create a safe version of the URL for display
+  let safeDbUrl = 'Not configured';
+  if (dbConnection.value) {
+    const parts = dbConnection.value.split('@');
+    if (parts.length > 1) {
+      safeDbUrl = `[credentials hidden]@${parts[1]}`;
+    } else {
+      safeDbUrl = 'Invalid format';
+    }
+  }
   
   const dbInfo = {
-    isConfigured: !!dbConnection.value,
-    configuredFrom: dbConnection.source,
+    isConfigured: dbConnection.exists,
+    databaseUrl: safeDbUrl, 
     isConnected: pasteRoutes.useDatabase === true,
     fallbackMode: pasteRoutes.useDatabase !== true,
     timestamp: new Date().toISOString(),
