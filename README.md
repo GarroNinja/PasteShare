@@ -1,7 +1,9 @@
 # PasteShare
 
 A modern pastebin application for sharing code snippets, text, and files.
-![image](https://github.com/user-attachments/assets/38b6f65a-e58d-4b9e-b79d-a5c505cc6b0b)
+
+# Screenshots
+![image](https://github.com/user-attachments/assets/9429dc2c-6fe5-438d-a687-077f53aecc56) ![image](https://github.com/user-attachments/assets/4aa49b33-e9d9-4a0e-be5b-7562cc67da40)
 
 ## Features
 
