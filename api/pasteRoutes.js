@@ -129,6 +129,13 @@ function initializeDatabase() {
         type: DataTypes.INTEGER,
         defaultValue: 0
       }
+    }, {
+      // Model options
+      tableName: 'Pastes',
+      timestamps: true, // Enable timestamps
+      paranoid: false, // Don't use soft deletes
+      underscored: false, // Use camelCase for fields
+      freezeTableName: true // Use the exact model name as table name
     });
 
     // Define File model
@@ -158,11 +165,23 @@ function initializeDatabase() {
         type: DataTypes.TEXT('long'), // Use TEXT instead of BLOB for better compatibility
         allowNull: false
       }
+    }, {
+      // Model options
+      tableName: 'Files',
+      timestamps: true, // Enable timestamps
+      paranoid: false, // Don't use soft deletes
+      underscored: false, // Use camelCase for fields
+      freezeTableName: true // Use the exact model name as table name
     });
 
     // Define associations
-    Paste.hasMany(File, { onDelete: 'CASCADE' });
-    File.belongsTo(Paste);
+    Paste.hasMany(File, { 
+      onDelete: 'CASCADE',
+      foreignKey: 'PasteId'
+    });
+    File.belongsTo(Paste, {
+      foreignKey: 'PasteId'
+    });
 
     // Test database connection and sync
     (async () => {
@@ -170,14 +189,40 @@ function initializeDatabase() {
         await sequelize.authenticate();
         console.log('Database connection established successfully');
         
-        // Force sync in development only
-        const forceSync = process.env.NODE_ENV === 'development' && process.env.FORCE_SYNC === 'true';
-        await sequelize.sync({ force: forceSync });
-        console.log(`Database tables synchronized successfully (force: ${forceSync})`);
+        // Analyze existing database structure
+        const [results] = await sequelize.query(`
+          SELECT table_name 
+          FROM information_schema.tables 
+          WHERE table_schema = 'public'
+        `);
+        const existingTables = results.map(r => r.table_name.toLowerCase());
+        console.log('Existing tables:', existingTables);
         
-        // Test a simple query to validate connection
-        const count = await Paste.count();
-        console.log(`Database has ${count} pastes`);
+        // Always perform sync, but only force in development with explicit flag
+        const forceSync = process.env.NODE_ENV === 'development' && process.env.FORCE_SYNC === 'true';
+        const alterSync = !forceSync; // Use alter for production to apply schema changes safely
+        
+        await sequelize.sync({ 
+          force: forceSync,
+          alter: alterSync
+        });
+        console.log(`Database tables synchronized successfully (force: ${forceSync}, alter: ${alterSync})`);
+        
+        // Test a simple query to validate connection and check actual table structure
+        const pasteCount = await Paste.count();
+        console.log(`Database has ${pasteCount} pastes`);
+        
+        // Verify the Files table as well
+        const fileCount = await File.count();
+        console.log(`Database has ${fileCount} files`);
+        
+        // Check table structure
+        const [pasteColumns] = await sequelize.query(`
+          SELECT column_name, data_type 
+          FROM information_schema.columns 
+          WHERE table_name = 'Pastes'
+        `);
+        console.log('Paste table structure:', pasteColumns.map(c => `${c.column_name} (${c.data_type})`));
         
         // Only set useDatabase to true if everything succeeded
         useDatabase = true;
@@ -236,11 +281,21 @@ router.post('/', upload.array('files', 5), async (req, res) => {
     }
     
     if (useDatabase) {
+      // Use transaction to ensure both paste and files are created or nothing is
+      let transaction;
+      
       try {
+        // Start transaction
+        transaction = await sequelize.transaction();
+        
         // Check if custom URL is taken (database version)
         if (customUrl) {
-          const existingPaste = await Paste.findOne({ where: { customUrl } });
+          const existingPaste = await Paste.findOne({ 
+            where: { customUrl },
+            transaction
+          });
           if (existingPaste) {
+            await transaction.rollback();
             return res.status(400).json({ message: 'Custom URL is already taken' });
           }
         }
@@ -254,7 +309,7 @@ router.post('/', upload.array('files', 5), async (req, res) => {
           isEditable: isEditable === 'true' || isEditable === true,
           customUrl: customUrl || null,
           userId: null
-        });
+        }, { transaction });
         
         console.log(`Created paste in database with ID: ${paste.id}`);
         
@@ -272,10 +327,16 @@ router.post('/', upload.array('files', 5), async (req, res) => {
               size: file.size,
               content: base64Content, // Store as base64 string instead of buffer
               PasteId: paste.id
-            });
+            }, { transaction });
+            
             fileRecords.push(fileRecord);
           }
+          
+          console.log(`Added ${fileRecords.length} files to paste ${paste.id}`);
         }
+        
+        // Commit the transaction
+        await transaction.commit();
         
         return res.status(201).json({
           message: 'Paste created successfully',
@@ -298,6 +359,8 @@ router.post('/', upload.array('files', 5), async (req, res) => {
           }
         });
       } catch (error) {
+        // Rollback transaction if there was an error
+        if (transaction) await transaction.rollback();
         console.error('Database operation failed:', error);
         useDatabase = false;
         // Fall through to in-memory implementation
@@ -378,19 +441,26 @@ router.get('/', async (req, res) => {
     
     if (useDatabase) {
       try {
+        // Simplified query without complex where clauses
         const publicPastes = await Paste.findAll({
           where: {
             isPrivate: false,
+            // Handle expiration separately to avoid issues
             [Op.or]: [
               { expiresAt: null },
               { expiresAt: { [Op.gt]: now } }
             ]
           },
           order: [['createdAt', 'DESC']],
-          limit
+          limit,
+          // Don't include files in this query to keep it simpler
+          attributes: ['id', 'title', 'content', 'createdAt', 'expiresAt', 'views', 'customUrl']
         });
         
         console.log(`Retrieved ${publicPastes.length} pastes from database`);
+        
+        // Output full IDs for debugging
+        console.log('Paste IDs:', publicPastes.map(p => p.id));
         
         return res.status(200).json(
           publicPastes.map(paste => ({
@@ -406,6 +476,9 @@ router.get('/', async (req, res) => {
         );
       } catch (error) {
         console.error('Database query failed:', error);
+        if (error.original) {
+          console.error('Original error:', error.original.message);
+        }
         useDatabase = false;
         // Fall through to in-memory implementation
       }
@@ -445,27 +518,54 @@ router.get('/:id', async (req, res) => {
     const { id } = req.params;
     const now = new Date();
     
+    console.log(`GET /api/pastes/${id} - Retrieving paste, mode: ${useDatabase ? 'database' : 'in-memory'}`);
+    
     if (useDatabase) {
       try {
-        // Find by ID or custom URL (database version)
-        const paste = await Paste.findOne({
-          where: {
-            [Sequelize.Op.or]: [
-              { id },
-              { customUrl: id }
-            ],
-            [Sequelize.Op.or]: [
-              { expiresAt: null },
-              { expiresAt: { [Sequelize.Op.gt]: now } }
-            ]
-          },
+        // First, attempt to find by ID
+        let paste = await Paste.findByPk(id, {
           include: [File]
         });
         
+        // If not found by ID, try by customUrl
+        if (!paste) {
+          paste = await Paste.findOne({
+            where: { customUrl: id },
+            include: [File]
+          });
+        }
+        
+        // If found, check expiration
         if (paste) {
-          // Increment views
-          paste.views += 1;
-          await paste.save();
+          // Only check expiration if expiresAt is not null
+          if (paste.expiresAt && new Date(paste.expiresAt) < now) {
+            console.log(`Paste ${paste.id} has expired`);
+            return res.status(404).json({ message: 'Paste has expired' });
+          }
+          
+          // Increment views and save (with retry logic)
+          let retries = 3;
+          while (retries > 0) {
+            try {
+              paste.views += 1;
+              await paste.save();
+              break; // Success, exit the retry loop
+            } catch (saveError) {
+              retries--;
+              if (retries === 0) {
+                console.error('Failed to update views after multiple attempts:', saveError);
+              } else {
+                console.log(`Retrying view update, attempts left: ${retries}`);
+                await new Promise(resolve => setTimeout(resolve, 100)); // Wait before retry
+              }
+            }
+          }
+          
+          // Log detailed information about the paste and its files
+          console.log(`Retrieved paste ${paste.id} with ${paste.Files ? paste.Files.length : 0} files`);
+          if (paste.Files && paste.Files.length > 0) {
+            console.log('Files:', paste.Files.map(f => ({ id: f.id, name: f.filename, size: f.size })));
+          }
           
           return res.status(200).json({
             paste: {
@@ -485,13 +585,19 @@ router.get('/:id', async (req, res) => {
                 size: f.size,
                 url: `/api/pastes/${paste.id}/files/${f.id}`
               })) : [],
-              canEdit: paste.isEditable
+              canEdit: paste.isEditable,
+              storageType: 'database'
             }
           });
+        } else {
+          console.log(`Paste not found in database: ${id}`);
         }
         // If paste not found in database, fall through to in-memory check
       } catch (error) {
         console.error('Database query failed:', error);
+        if (error.original) {
+          console.error('Original error:', error.original.message);
+        }
         useDatabase = false;
         // Fall through to in-memory implementation
       }
@@ -644,25 +750,29 @@ router.get('/:pasteId/files/:fileId', async (req, res) => {
   try {
     const { pasteId, fileId } = req.params;
     
+    console.log(`GET /api/pastes/${pasteId}/files/${fileId} - Retrieving file`);
+    
     if (useDatabase) {
       try {
+        // First try with a simpler query to avoid join issues
         const file = await File.findOne({
-          where: { id: fileId },
-          include: [
-            {
-              model: Paste,
-              where: { id: pasteId }
-            }
-          ]
+          where: { 
+            id: fileId,
+            PasteId: pasteId
+          }
         });
         
         if (file) {
+          console.log(`Found file ${fileId} for paste ${pasteId}`);
+          
           // Convert base64 back to buffer
           const fileBuffer = Buffer.from(file.content, 'base64');
           
           res.setHeader('Content-Type', file.mimetype);
           res.setHeader('Content-Disposition', `inline; filename="${file.originalname}"`);
           return res.send(fileBuffer);
+        } else {
+          console.log(`File not found in database: ${fileId} for paste ${pasteId}`);
         }
         // If file not found in database, fall through to in-memory check
       } catch (error) {
@@ -685,7 +795,7 @@ router.get('/:pasteId/files/:fileId', async (req, res) => {
     
     // Convert base64 back to buffer
     const fileBuffer = Buffer.from(file.content, 'base64');
-
+    
     res.setHeader('Content-Type', file.mimetype);
     res.setHeader('Content-Disposition', `inline; filename="${file.originalname}"`);
     return res.send(fileBuffer);
