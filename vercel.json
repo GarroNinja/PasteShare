@@ -3,8 +3,6 @@
   "buildCommand": "cd client && npm install && CI=false npm run build",
   "outputDirectory": "client/build",
   "rewrites": [
-    { "source": "/api/pastes/:path*", "destination": "/api/server" },
-    { "source": "/api/health", "destination": "/api/server" },
     { "source": "/api/:path*", "destination": "/api/server" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
@@ -12,10 +10,7 @@
     {
       "source": "/api/(.*)",
       "headers": [
-        { "key": "Cache-Control", "value": "no-store, no-cache, must-revalidate, proxy-revalidate" },
-        { "key": "Pragma", "value": "no-cache" },
-        { "key": "Expires", "value": "0" },
-        { "key": "Surrogate-Control", "value": "no-store" }
+        { "key": "Cache-Control", "value": "no-store, no-cache, must-revalidate" }
       ]
     }
   ],
@@ -24,8 +19,5 @@
       "memory": 1024,
       "maxDuration": 10
     }
-  },
-  "env": {
-    "NODE_ENV": "production"
   }
 } 

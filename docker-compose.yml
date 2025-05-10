@@ -4,15 +4,12 @@ services:
     build: .
     ports:
       - "4000:4000"
-      - "3000:3000"
     environment:
       - NODE_ENV=development
       - DATABASE_URL=postgres://pasteshare:pasteshare@postgres:5432/pasteshare
     volumes:
       - ./:/app
       - /app/node_modules
-      - /app/client/node_modules
-      - /app/server/node_modules
     depends_on:
       - postgres
 
@@ -22,8 +19,6 @@ services:
       - POSTGRES_USER=pasteshare
       - POSTGRES_PASSWORD=pasteshare
       - POSTGRES_DB=pasteshare
-    ports:
-      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
