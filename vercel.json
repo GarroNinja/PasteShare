@@ -4,6 +4,7 @@
   "outputDirectory": "client/build",
   "rewrites": [
     { "source": "/api/pastes/:path*", "destination": "/api/pasteRoutes" },
+    { "source": "/api/db-test", "destination": "/api/db-test" },
     { "source": "/api/:path*", "destination": "/api/server" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
@@ -38,9 +39,19 @@
     "api/pasteRoutes.js": {
       "memory": 1024,
       "maxDuration": 10
+    },
+    "api/db-test.js": {
+      "memory": 512,
+      "maxDuration": 5
     }
   },
   "env": {
-    "NODE_ENV": "production"
+    "NODE_ENV": "production",
+    "DATABASE_URL": "postgres://postgres.zvtiijqzddiinjglbsga:garro251004G@aws-0-ap-south-1.pooler.supabase.com:6543/postgres"
+  },
+  "build": {
+    "env": {
+      "DATABASE_URL": "postgres://postgres.zvtiijqzddiinjglbsga:garro251004G@aws-0-ap-south-1.pooler.supabase.com:6543/postgres"
+    }
   }
 } 
