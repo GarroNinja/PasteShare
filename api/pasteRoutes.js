@@ -114,13 +114,30 @@ async function restorePastesFromDatabase() {
   }
 }
 
-// Log deployment environment on startup
+// Fallback in-memory storage only when no DATABASE_URL is provided
+const FORCE_IN_MEMORY = !process.env.DATABASE_URL;
+
+// Log environment
 console.log('==== PasteShare API Initializing ====');
 console.log('Environment:', process.env.NODE_ENV);
-console.log('Vercel Environment:', process.env.VERCEL_ENV || 'not running on Vercel');
-console.log('Database connection available:', !!getPossibleDatabaseUrl());
-console.log('Database fallback allowed:', ALLOW_FALLBACK);
+console.log('DATABASE_URL available:', !!process.env.DATABASE_URL);
+console.log('Force in-memory mode:', FORCE_IN_MEMORY);
 console.log('=============================');
+
+// Immediately set to in-memory mode if no DATABASE_URL provided
+if (FORCE_IN_MEMORY) {
+  console.log('⚠️ No DATABASE_URL provided - using in-memory storage');
+  useDatabase = false;
+} else {
+  // Try to initialize database if we have DATABASE_URL and aren't forcing in-memory mode
+  try {
+    console.log('Attempting database initialization');
+    const initialized = initializeDatabase();
+    console.log(`Initial database initialization ${initialized ? 'successful' : 'failed'}`);
+  } catch (error) {
+    console.error('Initial database initialization failed with error:', error.message);
+  }
+}
 
 function initializeDatabase() {
   // Don't retry connection too frequently
@@ -327,15 +344,6 @@ function initializeDatabase() {
     useDatabase = false;
     return false;
   }
-}
-
-// Try to initialize database connection right away
-try {
-  console.log('Performing initial database initialization');
-  const initialized = initializeDatabase();
-  console.log(`Initial database initialization ${initialized ? 'successful' : 'failed'}`);
-} catch (error) {
-  console.error('Initial database initialization failed with error:', error.message);
 }
 
 // Create a function to ensure the database is initialized, with an option to force reinitialization
