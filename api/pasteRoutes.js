@@ -260,15 +260,24 @@ function initializeDatabase() {
         const existingTables = results.map(r => r.table_name.toLowerCase());
         console.log('Existing tables:', existingTables);
         
-        // Always perform sync, but only force in development with explicit flag
-        const forceSync = process.env.NODE_ENV === 'development' && process.env.FORCE_SYNC === 'true';
-        const alterSync = !forceSync; // Use alter for production to apply schema changes safely
+        // Check if tables exist before syncing
+        const hasPassesTable = existingTables.includes('pastes') || existingTables.includes('Pastes');
+        const hasFilesTable = existingTables.includes('files') || existingTables.includes('Files');
         
-        await sequelize.sync({ 
-          force: forceSync,
-          alter: alterSync
-        });
-        console.log(`Database tables synchronized successfully (force: ${forceSync}, alter: ${alterSync})`);
+        if (!hasPassesTable || !hasFilesTable) {
+          // Only synchronize if tables don't exist yet
+          // Always perform sync, but only force in development with explicit flag
+          const forceSync = process.env.NODE_ENV === 'development' && process.env.FORCE_SYNC === 'true';
+          const alterSync = !forceSync && process.env.ALTER_SYNC === 'true'; // Only alter if explicitly set
+          
+          await sequelize.sync({ 
+            force: forceSync,
+            alter: alterSync
+          });
+          console.log(`Database tables synchronized successfully (force: ${forceSync}, alter: ${alterSync})`);
+        } else {
+          console.log('Tables already exist, skipping sync to preserve data');
+        }
         
         // Test a simple query to validate connection and check actual table structure
         const pasteCount = await Paste.count();

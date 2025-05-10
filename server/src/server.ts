@@ -111,8 +111,29 @@ const startServer = async () => {
     await sequelize.authenticate();
     console.log('Database connection established successfully.');
     
-    // Sync models with database with altering to add new fields
-    await sequelize.sync({ alter: true });
+    // Check if tables exist before syncing
+    const [results] = await sequelize.query(`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public'
+    `);
+    const existingTables = results.map((r: any) => r.table_name.toLowerCase());
+    console.log('Existing tables:', existingTables);
+    
+    // Only sync if tables don't exist
+    const hasPastesTable = existingTables.includes('pastes');
+    const hasFilesTable = existingTables.includes('files');
+    const hasUsersTable = existingTables.includes('users');
+    
+    if (!hasPastesTable || !hasFilesTable || !hasUsersTable) {
+      // Only alter in development and only when explicitly requested
+      const alterSync = process.env.NODE_ENV === 'development' && process.env.ALTER_SYNC === 'true';
+      console.log(`Syncing database with alter: ${alterSync}`);
+      await sequelize.sync({ alter: alterSync });
+      console.log('Database tables synchronized successfully');
+    } else {
+      console.log('Tables already exist, skipping sync to preserve data');
+    }
     
     // Try to find an available port from candidates
     let selectedPort = 0;
