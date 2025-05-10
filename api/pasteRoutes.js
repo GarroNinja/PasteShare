@@ -191,7 +191,7 @@ function initializeDatabase() {
       }
     }, {
       // Model options
-      tableName: 'Pastes',
+      tableName: 'pastes',
       timestamps: true, // Enable timestamps
       paranoid: false, // Don't use soft deletes
       underscored: false, // Use camelCase for fields
@@ -227,7 +227,7 @@ function initializeDatabase() {
       }
     }, {
       // Model options
-      tableName: 'Files',
+      tableName: 'files',
       timestamps: true, // Enable timestamps
       paranoid: false, // Don't use soft deletes
       underscored: false, // Use camelCase for fields
@@ -237,10 +237,10 @@ function initializeDatabase() {
     // Define associations
     Paste.hasMany(File, { 
       onDelete: 'CASCADE',
-      foreignKey: 'PasteId'
+      foreignKey: 'pasteId'
     });
     File.belongsTo(Paste, {
-      foreignKey: 'PasteId'
+      foreignKey: 'pasteId'
     });
 
     // Try asynchronous operations immediately
@@ -420,7 +420,7 @@ router.post('/', upload.array('files', 5), async (req, res) => {
               mimetype: file.mimetype,
               size: file.size,
               content: base64Content, // Store as base64 string instead of buffer
-              PasteId: paste.id
+              pasteId: paste.id
             }, { transaction });
             
             fileRecords.push(fileRecord);
@@ -864,7 +864,7 @@ router.get('/:pasteId/files/:fileId', async (req, res) => {
         const file = await File.findOne({
           where: { 
             id: fileId,
-            PasteId: pasteId
+            pasteId: pasteId
           }
         });
         

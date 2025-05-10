@@ -57,7 +57,7 @@ async function initializeDatabase() {
       defaultValue: 0
     }
   }, {
-    tableName: 'Pastes',
+    tableName: 'pastes',
     timestamps: true,
     freezeTableName: true
   });
@@ -90,7 +90,7 @@ async function initializeDatabase() {
       allowNull: false
     }
   }, {
-    tableName: 'Files',
+    tableName: 'files',
     timestamps: true,
     freezeTableName: true
   });
