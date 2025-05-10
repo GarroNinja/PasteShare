@@ -20,8 +20,6 @@
   "license": "ISC",
   "devDependencies": {
     "concurrently": "^7.6.0",
-    "cross-env": "^7.0.3",
-    "sharp": "^0.34.1",
-    "svg-app-icon": "^2.0.0"
+    "cross-env": "^7.0.3"
   }
 }
