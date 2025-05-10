@@ -7,6 +7,16 @@ const morgan = require('morgan');
 // Import paste routes
 const pasteRoutes = require('./pasteRoutes');
 
+// Print environments at startup
+console.log('Starting serverless function with:');
+console.log('NODE_ENV:', process.env.NODE_ENV);
+console.log('DATABASE_URL exists:', !!process.env.DATABASE_URL);
+if (process.env.DATABASE_URL) {
+  // Mask the actual password but show the connection format
+  const maskedUrl = process.env.DATABASE_URL.replace(/:[^:]*@/, ':****@');
+  console.log('DATABASE_URL format:', maskedUrl);
+}
+
 // Initialize Express app
 const app = express();
 
@@ -49,23 +59,42 @@ app.use((err, req, res, next) => {
   next(err);
 });
 
-// Print environment variables (for debugging)
-console.log('NODE_ENV:', process.env.NODE_ENV);
-console.log('DATABASE_URL exists:', !!process.env.DATABASE_URL);
-
 // Mount the paste routes
 app.use('/api/pastes', pasteRoutes);
 
 // Health check route
 app.get('/api/health', (req, res) => {
+  // Get info about database usage from the pasteRoutes module
+  const databaseStatus = pasteRoutes.getDatabaseStatus ? pasteRoutes.getDatabaseStatus() : {
+    isConnected: !!pasteRoutes.useDatabase,
+    mode: pasteRoutes.useDatabase ? 'PostgreSQL' : 'In-Memory'
+  };
+  
   res.status(200).json({ 
     status: 'UP', 
     message: 'Vercel serverless function is running',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'unknown',
-    database: process.env.DATABASE_URL ? 'PostgreSQL' : 'In-Memory',
-    databaseUrl: process.env.DATABASE_URL ? 'Configured' : 'Not configured'
+    database: {
+      url: process.env.DATABASE_URL ? 'Configured' : 'Not configured',
+      mode: databaseStatus.mode,
+      connected: databaseStatus.isConnected,
+      details: databaseStatus.details || 'No additional details available'
+    },
+    version: '1.0.0'
   });
+});
+
+// Enhanced database status route
+app.get('/api/database', (req, res) => {
+  const dbInfo = {
+    isConfigured: !!process.env.DATABASE_URL,
+    isConnected: pasteRoutes.useDatabase === true,
+    fallbackMode: pasteRoutes.useDatabase !== true,
+    timestamp: new Date().toISOString()
+  };
+  
+  res.status(200).json(dbInfo);
 });
 
 // Handle route not found

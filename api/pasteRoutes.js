@@ -35,18 +35,29 @@ let useDatabase = true;
 let sequelize, Paste, File;
 
 try {
+  // Log database connection attempt
+  console.log('Attempting to connect to database with URL:', 
+    process.env.DATABASE_URL ? 'DATABASE_URL is set (value hidden)' : 'DATABASE_URL is not set');
+
   // Initialize DB connection
   sequelize = new Sequelize(
     process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/pasteshare',
     {
       dialect: 'postgres',
       dialectOptions: {
-        ssl: process.env.NODE_ENV === 'production' ? {
+        ssl: {
           require: true,
           rejectUnauthorized: false
-        } : false
+        }
       },
-      logging: process.env.NODE_ENV === 'development' ? console.log : false,
+      pool: {
+        max: 3, // Maximum number of connection in pool
+        min: 0, // Minimum number of connection in pool
+        idle: 10000, // The maximum time, in milliseconds, that a connection can be idle before being released
+        acquire: 30000, // Maximum time, in milliseconds, that pool will try to get connection before throwing error
+        evict: 1000 // How frequently to check for idle connections to evict
+      },
+      logging: false,
     }
   );
 
@@ -130,17 +141,28 @@ try {
   (async () => {
     try {
       await sequelize.authenticate();
-      console.log('Database connection established');
+      console.log('Database connection established successfully');
       await sequelize.sync();
-      console.log('Database synchronized');
+      console.log('Database tables synchronized successfully');
+      
+      // Test a simple query
+      const count = await Paste.count();
+      console.log(`Database has ${count} pastes`);
+      useDatabase = true;
     } catch (error) {
-      console.error('Database connection failed:', error);
+      console.error('Database connection failed:', error.message);
+      if (error.original) {
+        console.error('Original error:', error.original.message);
+      }
       useDatabase = false;
     }
   })();
   
 } catch (error) {
-  console.error('Error setting up database:', error);
+  console.error('Error setting up database:', error.message);
+  if (error.original) {
+    console.error('Original error:', error.original.message);
+  }
   useDatabase = false;
 }
 
@@ -597,5 +619,17 @@ router.get('/:pasteId/files/:fileId', async (req, res) => {
     return res.status(500).json({ message: 'Server error retrieving file' });
   }
 });
+
+// Export database status
+router.getDatabaseStatus = function() {
+  return {
+    isConnected: useDatabase,
+    mode: useDatabase ? 'PostgreSQL' : 'In-Memory',
+    details: {
+      initialized: !!sequelize,
+      modelsLoaded: !!(Paste && File)
+    }
+  };
+};
 
 module.exports = router; 
