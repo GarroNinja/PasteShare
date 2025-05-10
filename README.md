@@ -23,6 +23,7 @@ PasteShare is a modern, Gruvbox-themed pastebin application designed for sharing
 
 - Node.js 16+ and npm
 - Git
+- PostgreSQL database
 - Docker (optional, for containerized deployment)
 - ImageMagick (optional, for icon generation)
 
@@ -34,17 +35,28 @@ PasteShare is a modern, Gruvbox-themed pastebin application designed for sharing
    cd PasteShare
    ```
 
-2. Install dependencies
+2. Set up PostgreSQL
+   - Create a PostgreSQL database for PasteShare
+   ```bash
+   createdb pasteshare
+   ```
+   - Configure database connection by creating a `.env` file in the server directory based on `.env.example`
+   ```bash
+   cp server/.env.example server/.env
+   ```
+   - Edit the `.env` file with your database credentials
+
+3. Install dependencies
    ```bash
    npm run install:all
    ```
 
-3. Start the development servers
+4. Start the development servers
    ```bash
    npm run dev
    ```
 
-4. Open your browser and navigate to `http://localhost:4000`
+5. Open your browser and navigate to `http://localhost:4000`
 
 ### Docker Installation
 
@@ -53,9 +65,9 @@ PasteShare is a modern, Gruvbox-themed pastebin application designed for sharing
    docker build -t pasteshare .
    ```
 
-2. Run the container
+2. Run the container with PostgreSQL
    ```bash
-   docker run -p 4000:4000 -p 3000:3000 pasteshare
+   docker run -p 4000:4000 -p 3000:3000 -e DATABASE_URL=postgres://username:password@host:port/pasteshare pasteshare
    ```
 
 3. Access the application at `http://localhost:4000`
@@ -64,11 +76,19 @@ PasteShare is a modern, Gruvbox-themed pastebin application designed for sharing
 
 For deployment instructions, see [DEPLOYMENT.md](DEPLOYMENT.md).
 
+### Vercel Deployment
+
+When deploying to Vercel, make sure to set up the following environment variables:
+- `DATABASE_URL` - Your PostgreSQL connection string
+- `NODE_ENV` - Set to `production`
+- `JWT_SECRET` - A secure random string for JWT token generation
+
 ## Technology Stack
 
 - **Frontend**: React, TypeScript, Tailwind CSS
 - **Backend**: Node.js, Express, TypeScript
-- **Database**: SQLite (configurable for PostgreSQL/MySQL)
+- **Database**: PostgreSQL
+- **ORM**: Sequelize
 - **Containerization**: Docker
 - **Development Tools**: 
   - Dynamic port allocation

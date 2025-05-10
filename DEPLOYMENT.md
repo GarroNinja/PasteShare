@@ -6,6 +6,7 @@ This guide provides step-by-step instructions for deploying the PasteShare appli
 
 - Node.js 16+ and npm installed
 - Git for cloning the repository
+- PostgreSQL database
 - Basic knowledge of command line operations
 
 ## Project Structure
@@ -33,7 +34,11 @@ Create a `.env.production` file in the `server/` directory with the following co
 PORT=3000
 NODE_ENV=production
 UPLOAD_DIR=./uploads
+DATABASE_URL=postgres://username:password@host:port/pasteshare
+JWT_SECRET=your_secure_random_string
 ```
+
+Replace `username`, `password`, `host`, `port` with your PostgreSQL database credentials.
 
 ## Building for Production
 
@@ -53,9 +58,17 @@ This will create:
 
 1. Clone your repository on the server
 2. Set up environment variables
-3. Build the application
-4. Configure a reverse proxy (Nginx/Apache) to serve the application
-5. Use PM2 to manage the Node.js process
+3. Install and configure PostgreSQL
+   ```bash
+   sudo apt-get update
+   sudo apt-get install postgresql postgresql-contrib
+   sudo -u postgres createdb pasteshare
+   sudo -u postgres psql -c "CREATE USER pasteshare_user WITH PASSWORD 'your_password';"
+   sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE pasteshare TO pasteshare_user;"
+   ```
+4. Build the application
+5. Configure a reverse proxy (Nginx/Apache) to serve the application
+6. Use PM2 to manage the Node.js process
 
 #### Nginx Configuration Example
 
@@ -122,7 +135,7 @@ EXPOSE 3000
 CMD ["node", "server/dist/server.js"]
 ```
 
-Create a `docker-compose.yml` file:
+Update the `docker-compose.yml` file to include PostgreSQL:
 
 ```yaml
 version: '3'
@@ -135,11 +148,25 @@ services:
       - NODE_ENV=production
       - PORT=3000
       - UPLOAD_DIR=./uploads
+      - DATABASE_URL=postgres://pasteshare:pasteshare@postgres:5432/pasteshare
+      - JWT_SECRET=change_this_to_a_secure_random_string
     volumes:
       - pasteshare_uploads:/app/uploads
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres:14-alpine
+    environment:
+      - POSTGRES_USER=pasteshare
+      - POSTGRES_PASSWORD=pasteshare
+      - POSTGRES_DB=pasteshare
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
 
 volumes:
   pasteshare_uploads:
+  postgres_data:
 ```
 
 ### Option 3: Platform-as-a-Service (PaaS)
@@ -157,32 +184,50 @@ volumes:
      "node": "16.x"
    }
    ```
-4. Deploy to Heroku:
+4. Add PostgreSQL addon:
+   ```bash
+   heroku addons:create heroku-postgresql:hobby-dev
+   ```
+5. Deploy to Heroku:
    ```bash
    heroku create pasteshare-app
    git push heroku main
    ```
-5. Set environment variables:
+6. Set additional environment variables:
    ```bash
-   heroku config:set NODE_ENV=production
+   heroku config:set NODE_ENV=production JWT_SECRET=your_secure_random_string
    ```
 
 #### Render.com Deployment
 
 1. Connect your Git repository
-2. Configure as a Web Service
-3. Set the build command: `npm run build`
-4. Set the start command: `node server/dist/server.js`
-5. Add environment variables in the Render dashboard
+2. Set up a PostgreSQL database in Render
+3. Configure as a Web Service
+4. Set the build command: `npm run build`
+5. Set the start command: `node server/dist/server.js`
+6. Add environment variables in the Render dashboard:
+   - `NODE_ENV=production`
+   - `DATABASE_URL` (from your Render PostgreSQL service)
+   - `JWT_SECRET=your_secure_random_string`
+
+### Vercel Deployment
+
+1. Connect your Git repository to Vercel
+2. Set up a PostgreSQL database (Vercel Postgres, Supabase, or other provider)
+3. Add the following environment variables in the Vercel project settings:
+   - `DATABASE_URL` - Your PostgreSQL connection string
+   - `NODE_ENV=production`
+   - `JWT_SECRET=your_secure_random_string`
+4. Deploy the project
 
 ## Additional Considerations
 
-### Database Configuration
+### Database Migration
 
-The application currently uses SQLite, which is fine for small deployments. For production with higher loads, consider:
+When deploying with PostgreSQL, your database schema will be created automatically by Sequelize when the application first runs. For production environments, consider:
 
-1. Switching to a more robust database like PostgreSQL or MySQL
-2. Update the database configuration in `server/src/config/database.ts`
+1. Creating database migration scripts for version control
+2. Using Sequelize's migration tools for safe schema changes
 
 ### File Storage
 

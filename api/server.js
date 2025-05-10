@@ -50,7 +50,8 @@ app.get('/api/health', (req, res) => {
     status: 'UP', 
     message: 'Vercel serverless function is running',
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'unknown'
+    environment: process.env.NODE_ENV || 'unknown',
+    database: 'PostgreSQL'
   });
 });
 
