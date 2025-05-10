@@ -334,20 +334,20 @@ export function PastePage() {
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 min-h-[80vh]">
       <div className="bg-white dark:bg-[#282828] rounded-lg shadow-sm border border-gray-200 dark:border-[#3c3836] overflow-hidden mb-4">
-        <div className="p-4 border-b border-gray-200 dark:border-[#3c3836] flex justify-between items-center">
+        <div className="p-4 border-b border-gray-200 dark:border-[#3c3836] flex flex-col sm:flex-row sm:justify-between sm:items-center">
           {isEditMode ? (
             <input
               type="text"
               value={editableTitle}
               onChange={(e) => setEditableTitle(e.target.value)}
               placeholder="Untitled Paste"
-              className="text-xl font-semibold bg-white dark:bg-[#282828] border border-gray-300 dark:border-gray-600 rounded px-2 py-1 w-2/3"
+              className="text-xl font-semibold bg-white dark:bg-[#282828] border border-gray-300 dark:border-gray-600 rounded px-2 py-1 w-full sm:w-2/3"
             />
           ) : (
-            <h1 className="text-xl font-semibold">{paste.title || 'Untitled Paste'}</h1>
+            <h1 className="text-xl font-semibold mb-3 sm:mb-0">{paste.title || 'Untitled Paste'}</h1>
           )}
           
-          <div className="flex space-x-2">
+          <div className="flex flex-wrap gap-2 mt-2 sm:mt-0">
             {!isEditMode && (
               <>
                 <button 

@@ -139,7 +139,15 @@ export function RecentPastesPage() {
                 className="block bg-white dark:bg-[#282828] rounded-lg shadow-sm border border-gray-200 dark:border-[#3c3836] hover:border-green-300 dark:hover:border-[#98971a] transition-colors"
               >
                 <div className="p-4">
-                  <h2 className="text-lg font-medium mb-2">{paste.title || 'Untitled Paste'}</h2>
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-2">
+                    <h2 className="text-lg font-medium mb-2 sm:mb-0 pr-20 sm:pr-0">{paste.title || 'Untitled Paste'}</h2>
+                    <button
+                      onClick={(e) => copyLinkToClipboard(paste.id, paste.customUrl, e)}
+                      className="absolute top-4 right-4 sm:static sm:ml-2 px-3 py-1 text-sm bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-900/50 z-10"
+                    >
+                      Copy Link
+                    </button>
+                  </div>
                   <pre className="overflow-hidden text-ellipsis whitespace-nowrap bg-gray-50 dark:bg-[#1d2021] p-2 rounded text-sm font-mono">
                     {truncateContent(paste.content)}
                   </pre>
@@ -156,12 +164,6 @@ export function RecentPastesPage() {
                   </div>
                 </div>
               </Link>
-              <button
-                onClick={(e) => copyLinkToClipboard(paste.id, paste.customUrl, e)}
-                className="absolute top-4 right-4 px-3 py-1 text-sm bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-900/50 z-10"
-              >
-                Copy Link
-              </button>
             </div>
           ))}
         </div>
