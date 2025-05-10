@@ -127,7 +127,7 @@ function initializeDatabase() {
   const now = Date.now();
   if (now - lastConnectionAttempt < connectionRetryInterval && lastConnectionAttempt !== 0) {
     console.log(`Skipping connection attempt, last attempt was ${Math.round((now - lastConnectionAttempt) / 1000)}s ago`);
-    return;
+    return false;
   }
   
   lastConnectionAttempt = now;
@@ -146,7 +146,7 @@ function initializeDatabase() {
             .filter(key => !key.includes('SECRET') && !key.includes('KEY') && !key.includes('TOKEN') && !key.includes('PASS'))
         );
       }
-      return;
+      return false;
     }
     
     // Log database connection attempt with more details
@@ -157,13 +157,13 @@ function initializeDatabase() {
       console.log('DATABASE_URL has unexpected format');
     }
 
-    // Initialize DB connection with simplified config for Vercel + Supabase
+    // Initialize DB connection with simplified config
     sequelize = new Sequelize(connectionString, {
       dialect: 'postgres',
       dialectOptions: {
         ssl: {
           require: true,
-          rejectUnauthorized: false // Important for Vercel + Supabase
+          rejectUnauthorized: false // Important for Vercel
         }
       },
       pool: {
@@ -178,6 +178,13 @@ function initializeDatabase() {
       },
       logging: false
     });
+    
+    if (!sequelize) {
+      console.error('❌ Sequelize initialization failed - object is undefined after creation');
+      return false;
+    }
+
+    console.log('✓ Sequelize instance created, defining models...');
 
     // Define Paste model
     Paste = sequelize.define('Paste', {
@@ -228,6 +235,13 @@ function initializeDatabase() {
       underscored: false, // Use camelCase for fields
       freezeTableName: true // Use the exact model name as table name
     });
+    
+    if (!Paste) {
+      console.error('❌ Paste model initialization failed - object is undefined after creation');
+      return false;
+    }
+
+    console.log('✓ Paste model defined, defining File model...');
 
     // Define File model
     File = sequelize.define('File', {
@@ -264,6 +278,13 @@ function initializeDatabase() {
       underscored: false, // Use camelCase for fields
       freezeTableName: true // Use the exact model name as table name
     });
+    
+    if (!File) {
+      console.error('❌ File model initialization failed - object is undefined after creation');
+      return false;
+    }
+
+    console.log('✓ File model defined, setting up associations...');
 
     // Setup associations
     Paste.hasMany(File, { 
@@ -276,95 +297,82 @@ function initializeDatabase() {
       as: 'Paste'
     });
 
-    // Try asynchronous operations immediately
-    (async () => {
-      try {
-        // First just try to authenticate
-        await sequelize.authenticate();
-        console.log('✅ Database connection established successfully');
-        
-        // Set useDatabase to true immediately after authentication
-        useDatabase = true;
-        
-        // Analyze existing database structure
-        try {
-          const [results] = await sequelize.query(`
-            SELECT table_name 
-            FROM information_schema.tables 
-            WHERE table_schema = 'public'
-          `);
-          
-          if (results && results.length) {
-            const existingTables = results.map(r => r.table_name?.toLowerCase());
-            console.log('Existing tables:', existingTables);
-            
-            // Skip sync operations if tables exist
-            if (existingTables.includes('pastes') || existingTables.includes('files')) {
-              console.log('Tables already exist, skipping sync to preserve data');
-              return;
-            }
-          }
-          
-          // Tables don't exist, sync them (never force in production)
-          const forceSync = false; // Never force in production
-          await sequelize.sync({ force: forceSync });
-          console.log('Database tables synchronized successfully');
-          
-        } catch (queryError) {
-          console.error('Error checking database tables:', queryError.message);
-          // Continue anyway, we'll try to use the database
-        }
-      } catch (error) {
-        console.error('Database initialization FAILED:', error.message);
-        if (error.original) {
-          console.error('Original error:', error.original.message);
-        }
-        useDatabase = false;
-      }
-    })();
+    console.log('✓ Database models and associations initialized successfully');
+
+    // Try synchronous authentication
+    try {
+      // Synchronous check if we can connect
+      sequelize.connectionManager.getConnection({ type: 'test' })
+        .then(connection => {
+          console.log('✅ Database connection test successful');
+          sequelize.connectionManager.releaseConnection(connection);
+          useDatabase = true;
+        })
+        .catch(error => {
+          console.error('❌ Database connection test failed:', error.message);
+          useDatabase = false;
+        });
+      
+      return true;
+    } catch (authError) {
+      console.error('❌ Error during connection test:', authError.message);
+      useDatabase = false;
+      return false;
+    }
   } catch (error) {
     console.error('Error setting up database:', error.message);
     if (error.original) {
       console.error('Original error:', error.original.message);
     }
     useDatabase = false;
+    return false;
   }
 }
 
 // Try to initialize database connection right away
-(async function() {
-  try {
-    // Don't wait for this to complete - it's just an initial attempt
-    initializeDatabase();
-    console.log('Initial database initialization triggered');
-  } catch (error) {
-    console.error('Initial database initialization failed:', error.message);
-  }
-})();
+try {
+  console.log('Performing initial database initialization');
+  const initialized = initializeDatabase();
+  console.log(`Initial database initialization ${initialized ? 'successful' : 'failed'}`);
+} catch (error) {
+  console.error('Initial database initialization failed with error:', error.message);
+}
 
 // Create a function to ensure the database is initialized, with an option to force reinitialization
 async function ensureDatabaseInitialized(force = false) {
   try {
     if (force || !sequelize) {
-      console.log('Forcing database initialization');
-      initializeDatabase();
+      console.log('Ensuring database is initialized' + (force ? ' (forced)' : ''));
+      const initialized = initializeDatabase();
       
-      // Wait just a bit for initialization to start
-      await new Promise(resolve => setTimeout(resolve, 500));
+      if (!initialized) {
+        console.error('Database initialization failed in ensureDatabaseInitialized');
+        useDatabase = false;
+        return false;
+      }
     }
     
+    // Check if database is ready after initialization
     if (!sequelize) {
-      throw new Error('Database initialization failed - sequelize is undefined');
+      console.error('Database initialization failed - sequelize is undefined');
+      useDatabase = false;
+      return false;
     }
     
     // Try a quick connection test with timeout
-    await Promise.race([
-      sequelize.authenticate(),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Database authentication timeout')), 3000))
-    ]);
-    
-    useDatabase = true;
-    return true;
+    try {
+      await Promise.race([
+        sequelize.authenticate(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Database authentication timeout')), 3000))
+      ]);
+      
+      useDatabase = true;
+      return true;
+    } catch (authError) {
+      console.error('Database authentication failed:', authError.message);
+      useDatabase = false;
+      return false;
+    }
   } catch (error) {
     console.error('Database initialization check failed:', error.message);
     useDatabase = false;
@@ -1100,26 +1108,35 @@ router.get('/health', async (req, res) => {
 });
 
 async function dbReady() {
+  // If sequelize is not defined, try to initialize it
   if (!sequelize) {
-    console.log('dbReady check: sequelize is undefined, attempting initialization');
-    await ensureDatabaseInitialized(true);
-  }
-  
-  try {
-    if (!sequelize) {
-      console.error('dbReady: sequelize is still undefined after initialization attempt');
+    console.log('dbReady check: sequelize is undefined, forcing initialization');
+    const initialized = initializeDatabase();
+    if (!initialized) {
+      console.error('dbReady check failed: Database initialization failed');
       return false;
     }
     
+    // After initialization, check again if sequelize is defined
+    if (!sequelize) {
+      console.error('dbReady check failed: sequelize is still undefined after initialization');
+      return false;
+    }
+  }
+  
+  try {
     // Set a short timeout for the authentication check
     await Promise.race([
       sequelize.authenticate(),
       new Promise((_, reject) => setTimeout(() => reject(new Error('Auth timeout')), 3000))
     ]);
     
+    console.log('dbReady check passed: Database is connected');
+    useDatabase = true;
     return true;
   } catch (error) {
     console.error('dbReady check failed:', error.message);
+    useDatabase = false;
     return false;
   }
 }
