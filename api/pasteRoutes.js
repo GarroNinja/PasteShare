@@ -7,6 +7,9 @@ const { Sequelize, DataTypes, Op } = require('sequelize');
 const path = require('path');
 const fs = require('fs');
 
+// Determine environment
+const IS_PROD = process.env.NODE_ENV === 'production';
+
 // Configure multer for file uploads
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -363,12 +366,17 @@ initializeDatabase();
 
 // Middleware to check database connection before each request
 router.use(async (req, res, next) => {
-  // If we're not using the database, try to initialize it again
-  // This will respect the retry interval
+  await ensureConnection();
   if (!useDatabase) {
+    if (IS_PROD) {
+      console.error('Database operation failed in production, returning 503');
+      return res.status(503).json({ message: 'Database unavailable' });
+    }
+    // Development: fall through to in-memory implementation
     initializeDatabase();
-  } else if (inMemoryPastes.length === 0) {
-    // If we have a database connection but no in-memory pastes, restore them
+  }
+  // In dev, repopulate cache if needed
+  if (useDatabase && inMemoryPastes.length === 0) {
     await restorePastesFromDatabase();
   }
   next();
@@ -949,5 +957,21 @@ router.getDatabaseStatus = function() {
 
 // Expose inMemoryPastes for diagnostics
 router.inMemoryPastes = inMemoryPastes;
+
+// Helper: ensure we have a live DB connection (called before every request)
+async function ensureConnection() {
+  if (!sequelize) {
+    initializeDatabase();
+  }
+  if (sequelize) {
+    try {
+      await sequelize.authenticate();
+      useDatabase = true;
+    } catch (err) {
+      console.error('Database ping failed:', err.message);
+      useDatabase = false;
+    }
+  }
+}
 
 module.exports = router; 
