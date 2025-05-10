@@ -5,6 +5,7 @@
   "rewrites": [
     { "source": "/api/pastes/:path*", "destination": "/api/pasteRoutes" },
     { "source": "/api/db-test", "destination": "/api/db-test" },
+    { "source": "/api/db-diagnostic", "destination": "/api/db-diagnostic" },
     { "source": "/api/:path*", "destination": "/api/server" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
@@ -43,11 +44,16 @@
     "api/db-test.js": {
       "memory": 512,
       "maxDuration": 5
+    },
+    "api/db-diagnostic.js": {
+      "memory": 512,
+      "maxDuration": 10
     }
   },
   "env": {
     "NODE_ENV": "production",
-    "DATABASE_URL": "postgres://postgres.zvtiijqzddiinjglbsga:garro251004G@aws-0-ap-south-1.pooler.supabase.com:6543/postgres"
+    "DATABASE_URL": "postgres://postgres.zvtiijqzddiinjglbsga:garro251004G@aws-0-ap-south-1.pooler.supabase.com:6543/postgres",
+    "ALLOW_FALLBACK": "true"
   },
   "build": {
     "env": {
