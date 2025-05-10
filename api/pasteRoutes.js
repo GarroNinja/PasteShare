@@ -424,17 +424,9 @@ router.use(async (req, res, next) => {
     
     // If we reach here, the database is not available even after two attempts
     
-    // In production, return error if fallback not allowed
-    if (IS_PROD && !ALLOW_FALLBACK) {
-      return res.status(503).json({ 
-        message: 'Database unavailable', 
-        error: 'Database connection failed after multiple attempts' 
-      });
-    }
-    
-    // In development or if fallback allowed, use in-memory storage
+    // Database check failed - falling back to in-memory storage
     useDatabase = false;
-    console.log('Using in-memory storage fallback');
+    console.log('Database unavailable, using in-memory storage fallback');
     next();
   } catch (error) {
     console.error('Database connection failed:', error.message);
