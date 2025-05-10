@@ -25,6 +25,19 @@ export function RecentPastesPage() {
     return content.substring(0, maxLength) + '...';
   };
 
+  const copyLinkToClipboard = async (pasteId: string, customUrl: string | undefined, event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    try {
+      const baseUrl = window.location.origin;
+      const pasteUrl = `${baseUrl}/paste/${customUrl || pasteId}`;
+      await navigator.clipboard.writeText(pasteUrl);
+      alert("Link copied to clipboard!");
+    } catch (err) {
+      console.error("Failed to copy link:", err);
+    }
+  };
+
   useEffect(() => {
     // Skip if we've already fetched data
     if (fetchedRef.current) return;
@@ -120,29 +133,36 @@ export function RecentPastesPage() {
       ) : (
         <div className="space-y-4">
           {pastes.map(paste => (
-            <Link
-              key={paste.id}
-              to={`/paste/${paste.customUrl || paste.id}`}
-              className="block bg-white dark:bg-[#282828] rounded-lg shadow-sm border border-gray-200 dark:border-[#3c3836] hover:border-green-300 dark:hover:border-[#98971a] transition-colors"
-            >
-              <div className="p-4">
-                <h2 className="text-lg font-medium mb-2">{paste.title || 'Untitled Paste'}</h2>
-                <pre className="overflow-hidden text-ellipsis whitespace-nowrap bg-gray-50 dark:bg-[#1d2021] p-2 rounded text-sm font-mono">
-                  {truncateContent(paste.content)}
-                </pre>
-                <div className="mt-2 flex justify-between text-xs text-gray-500 dark:text-gray-400">
-                  <span>Created: {new Date(paste.createdAt).toLocaleString()}</span>
-                  <div className="flex items-center gap-2">
-                    {paste.customUrl && (
-                      <span className="px-2 py-0.5 bg-green-100 dark:bg-[#282828] text-green-800 dark:text-[#98971a] rounded-full">
-                        {paste.customUrl}
-                      </span>
-                    )}
-                    <span>{paste.views} views</span>
+            <div key={paste.id} className="relative block">
+              <Link
+                to={`/paste/${paste.customUrl || paste.id}`}
+                className="block bg-white dark:bg-[#282828] rounded-lg shadow-sm border border-gray-200 dark:border-[#3c3836] hover:border-green-300 dark:hover:border-[#98971a] transition-colors"
+              >
+                <div className="p-4">
+                  <h2 className="text-lg font-medium mb-2">{paste.title || 'Untitled Paste'}</h2>
+                  <pre className="overflow-hidden text-ellipsis whitespace-nowrap bg-gray-50 dark:bg-[#1d2021] p-2 rounded text-sm font-mono">
+                    {truncateContent(paste.content)}
+                  </pre>
+                  <div className="mt-2 flex justify-between text-xs text-gray-500 dark:text-gray-400">
+                    <span>Created: {new Date(paste.createdAt).toLocaleString()}</span>
+                    <div className="flex items-center gap-2">
+                      {paste.customUrl && (
+                        <span className="px-2 py-0.5 bg-green-100 dark:bg-[#282828] text-green-800 dark:text-[#98971a] rounded-full">
+                          {paste.customUrl}
+                        </span>
+                      )}
+                      <span>{paste.views} views</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </Link>
+              </Link>
+              <button
+                onClick={(e) => copyLinkToClipboard(paste.id, paste.customUrl, e)}
+                className="absolute top-4 right-4 px-3 py-1 text-sm bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-900/50 z-10"
+              >
+                Copy Link
+              </button>
+            </div>
           ))}
         </div>
       )}
