@@ -41,6 +41,18 @@ app.use(json({ limit: '10mb' }));
 app.use(urlencoded({ extended: true, limit: '10mb' }));
 app.use(morgan('dev'));
 
+// Catch JSON parsing errors
+app.use((err, req, res, next) => {
+  if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+    return res.status(400).json({ message: 'Invalid JSON' });
+  }
+  next(err);
+});
+
+// Print environment variables (for debugging)
+console.log('NODE_ENV:', process.env.NODE_ENV);
+console.log('DATABASE_URL exists:', !!process.env.DATABASE_URL);
+
 // Mount the paste routes
 app.use('/api/pastes', pasteRoutes);
 
@@ -51,7 +63,8 @@ app.get('/api/health', (req, res) => {
     message: 'Vercel serverless function is running',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'unknown',
-    database: 'PostgreSQL'
+    database: process.env.DATABASE_URL ? 'PostgreSQL' : 'In-Memory',
+    databaseUrl: process.env.DATABASE_URL ? 'Configured' : 'Not configured'
   });
 });
 
@@ -61,6 +74,15 @@ app.use((req, res) => {
     message: 'Route not found',
     path: req.path,
     method: req.method
+  });
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Server error:', err);
+  res.status(500).json({
+    message: 'Server error',
+    error: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error'
   });
 });
 
