@@ -344,10 +344,10 @@ export function PastePage() {
               className="text-xl font-semibold bg-white dark:bg-[#282828] border border-gray-300 dark:border-gray-600 rounded px-2 py-1 w-full sm:w-2/3"
             />
           ) : (
-            <h1 className="text-xl font-semibold mb-3 sm:mb-0">{paste.title || 'Untitled Paste'}</h1>
+            <h1 className="text-xl font-semibold mb-3 sm:mb-0 truncate max-w-full">{paste.title || 'Untitled Paste'}</h1>
           )}
           
-          <div className="flex flex-wrap gap-2 mt-2 sm:mt-0">
+          <div className="flex flex-wrap gap-2 mt-2 sm:mt-0 sm:flex-shrink-0">
             {!isEditMode && (
               <>
                 <button 

@@ -140,10 +140,10 @@ export function RecentPastesPage() {
               >
                 <div className="p-4">
                   <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-2">
-                    <h2 className="text-lg font-medium mb-2 sm:mb-0 pr-20 sm:pr-0">{paste.title || 'Untitled Paste'}</h2>
+                    <h2 className="text-lg font-medium mb-2 sm:mb-0 pr-20 sm:pr-0 truncate max-w-full">{paste.title || 'Untitled Paste'}</h2>
                     <button
                       onClick={(e) => copyLinkToClipboard(paste.id, paste.customUrl, e)}
-                      className="absolute top-4 right-4 sm:static sm:ml-2 px-3 py-1 text-sm bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-900/50 z-10"
+                      className="absolute top-4 right-4 sm:static sm:ml-2 sm:flex-shrink-0 px-3 py-1 text-sm bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-900/50 z-10"
                     >
                       Copy Link
                     </button>
