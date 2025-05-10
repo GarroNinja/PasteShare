@@ -5,32 +5,43 @@
     <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
     <link rel="icon" type="image/svg+xml" href="%PUBLIC_URL%/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#ffffff" />
+    <meta name="theme-color" content="#000000" />
     <meta name="color-scheme" content="light" />
     <meta
       name="description"
-      content="PasteShare - A simple, fast, and secure way to share code snippets and files"
+      content="A modern pastebin application for code sharing and collaboration"
     />
+    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
-    <title>PasteShare - Code & File Sharing</title>
+    <title>PasteShare - Code Sharing Made Simple</title>
+    
+    <!-- Server port detection script -->
     <script>
-      // Try to read the server port file when the page loads
-      window.addEventListener('DOMContentLoaded', async function() {
-        try {
-          const response = await fetch('/server-port.txt');
-          if (response.ok) {
-            const port = await response.text();
-            // Extract only the numeric part
-            const portNumber = port.replace(/[^0-9]/g, '');
-            if (portNumber && !isNaN(parseInt(portNumber))) {
-              localStorage.setItem('api_port', portNumber);
-              console.log('Server port detected from file:', portNumber);
-            }
-          }
-        } catch (error) {
-          console.log('Could not read server port file');
+      try {
+        // Default port if not specified
+        window.SERVER_PORT = "3003";
+        
+        // Check if we're in development mode
+        if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
+          // Fetch the server port from server-port.txt if it exists
+          fetch('/server-port.txt')
+            .then(response => {
+              if (response.ok) return response.text();
+              throw new Error('Server port file not found');
+            })
+            .then(port => {
+              if (port && !isNaN(parseInt(port.trim()))) {
+                window.SERVER_PORT = port.trim();
+                console.log('Server port set to:', window.SERVER_PORT);
+              }
+            })
+            .catch(err => {
+              console.warn('Failed to load server port, using default:', err);
+            });
         }
-      });
+      } catch (e) {
+        console.warn('Error in server port script:', e);
+      }
     </script>
     <script>
       (function() {

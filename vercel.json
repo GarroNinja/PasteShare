@@ -3,6 +3,7 @@
   "buildCommand": "cd client && npm install && CI=false npm run build",
   "outputDirectory": "client/build",
   "rewrites": [
+    { "source": "/api/pastes/:path*", "destination": "/api/pasteRoutes" },
     { "source": "/api/:path*", "destination": "/api/server" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
@@ -10,6 +11,9 @@
     {
       "source": "/api/(.*)",
       "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET, POST, PUT, DELETE, OPTIONS" },
+        { "key": "Access-Control-Allow-Headers", "value": "X-Requested-With, Content-Type, Accept" },
         { "key": "Cache-Control", "value": "no-store, no-cache, must-revalidate" }
       ]
     },
@@ -30,6 +34,13 @@
     "api/server.js": {
       "memory": 1024,
       "maxDuration": 10
+    },
+    "api/pasteRoutes.js": {
+      "memory": 1024,
+      "maxDuration": 10
     }
+  },
+  "env": {
+    "NODE_ENV": "production"
   }
 } 

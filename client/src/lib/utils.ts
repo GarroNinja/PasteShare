@@ -34,18 +34,24 @@ export function getExpiryDate(seconds: number): Date | null {
 
 // Get the server API base URL
 export function getApiBaseUrl(): string {
+  // Check if server port is defined in window object (set by the server during development)
+  // @ts-ignore
+  const serverPort = window.SERVER_PORT || '3000';
+  
   // Check if we're in production environment
   if (process.env.NODE_ENV === 'production') {
-    // If REACT_APP_API_URL is defined, use it
-    if (process.env.REACT_APP_API_URL) {
-      return process.env.REACT_APP_API_URL;
-    }
-    
     // For Vercel deployment, use the current hostname with /api path
     const { protocol, host } = window.location;
     return `${protocol}//${host}/api`;
   }
   
-  // Development environment - use localhost
-  return 'http://localhost:3000/api';
+  // Try to get the port from the public directory if available
+  try {
+    // Development environment - use dynamic port lookup
+    return `http://localhost:${serverPort}/api`;
+  } catch (error) {
+    console.warn('Failed to read server port, using default 3003:', error);
+    // Fallback to common development ports
+    return 'http://localhost:3003/api';
+  }
 } 
