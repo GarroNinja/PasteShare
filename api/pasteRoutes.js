@@ -350,8 +350,46 @@ function initializeDatabase() {
   }
 }
 
-// Initialize database connection
-initializeDatabase();
+// Try to initialize database connection right away
+(async function() {
+  try {
+    // Don't wait for this to complete - it's just an initial attempt
+    initializeDatabase();
+    console.log('Initial database initialization triggered');
+  } catch (error) {
+    console.error('Initial database initialization failed:', error.message);
+  }
+})();
+
+// Create a function to ensure the database is initialized, with an option to force reinitialization
+async function ensureDatabaseInitialized(force = false) {
+  try {
+    if (force || !sequelize) {
+      console.log('Forcing database initialization');
+      initializeDatabase();
+      
+      // Wait just a bit for initialization to start
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    
+    if (!sequelize) {
+      throw new Error('Database initialization failed - sequelize is undefined');
+    }
+    
+    // Try a quick connection test with timeout
+    await Promise.race([
+      sequelize.authenticate(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Database authentication timeout')), 3000))
+    ]);
+    
+    useDatabase = true;
+    return true;
+  } catch (error) {
+    console.error('Database initialization check failed:', error.message);
+    useDatabase = false;
+    return false;
+  }
+}
 
 // Middleware to check database connection before each request
 router.use(async (req, res, next) => {
@@ -362,37 +400,59 @@ router.use(async (req, res, next) => {
     return next();
   }
   
-  if (!process.env.DATABASE_URL) {
-    console.error('DATABASE_URL is not set in environment!');
-    if (IS_PROD) {
-      return res.status(503).json({ message: 'Database configuration error', error: 'Missing DATABASE_URL' });
+  // Check for any available database connection URL
+  const connectionString = getPossibleDatabaseUrl();
+  if (!connectionString) {
+    console.error('No database connection URL found in environment!');
+    console.error('Checked for DATABASE_URL, POSTGRES_URL, POSTGRES_PRISMA_URL, POSTGRES_URL_NON_POOLING');
+    if (IS_PROD && !ALLOW_FALLBACK) {
+      return res.status(503).json({ 
+        message: 'Database configuration error', 
+        error: 'No database connection URL found' 
+      });
     }
   }
   
   try {
-    // Make a direct, forceful connection attempt
-    if (!sequelize) {
-      initializeDatabase();
-      // Wait a bit for initialization
-      await new Promise(resolve => setTimeout(resolve, 1000));
+    // Use our helper function to ensure database is initialized
+    const dbReady = await ensureDatabaseInitialized(false); // Don't force reinitialization on every request
+    
+    if (dbReady) {
+      // Connected successfully!
+      next();
+      return;
     }
     
-    // Try to ping - but with a short timeout
-    await Promise.race([
-      sequelize.authenticate(),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Auth timeout')), 5000))
-    ]);
+    // If we reach here, the database is not ready but didn't throw an error
+    console.warn('Database not ready, trying one more time with forced initialization');
     
-    // Connected!
-    useDatabase = true;
+    // Try one more time with forced reinitialization
+    const secondAttempt = await ensureDatabaseInitialized(true);
+    
+    if (secondAttempt) {
+      // Connected on second attempt!
+      next();
+      return;
+    }
+    
+    // If we reach here, the database is not available even after two attempts
+    
+    // In production, return error if fallback not allowed
+    if (IS_PROD && !ALLOW_FALLBACK) {
+      return res.status(503).json({ 
+        message: 'Database unavailable', 
+        error: 'Database connection failed after multiple attempts' 
+      });
+    }
+    
+    // In development or if fallback allowed, use in-memory storage
+    useDatabase = false;
+    console.log('Using in-memory storage fallback');
     next();
   } catch (error) {
     console.error('Database connection failed:', error.message);
     
-    // Always try to reinitialize on failure
-    initializeDatabase();
-    
-    // In production, return error
+    // In production, return error if fallback not allowed
     if (IS_PROD && !ALLOW_FALLBACK) {
       return res.status(503).json({ 
         message: 'Database unavailable', 
@@ -400,7 +460,7 @@ router.use(async (req, res, next) => {
       });
     }
     
-    // In development, fall back to in-memory storage
+    // In development or if fallback allowed, use in-memory storage
     useDatabase = false;
     console.log('Using in-memory storage fallback');
     next();
@@ -1012,6 +1072,9 @@ async function ensureConnection() {
 // Add health check endpoint with detailed diagnostics
 router.get('/health', async (req, res) => {
   try {
+    // First try to ensure the database is initialized
+    const initialized = await ensureDatabaseInitialized(false);
+    // Then check if it's ready
     const dbStatus = await dbReady();
     
     // Get all potential database environment variables (safely)
@@ -1043,7 +1106,10 @@ router.get('/health', async (req, res) => {
       },
       database: {
         status: dbStatus ? 'connected' : 'disconnected',
+        initialization: initialized ? 'success' : 'failed',
         mode: useDatabase ? 'PostgreSQL' : 'In-Memory',
+        sequelizeInitialized: !!sequelize,
+        modelsInitialized: !!(Paste && File),
         lastConnectionAttempt: new Date(lastConnectionAttempt).toISOString(),
         connectionVariables: dbEnvVars
       },
@@ -1061,11 +1127,29 @@ router.get('/health', async (req, res) => {
   }
 });
 
-async function dbReady () {
+async function dbReady() {
+  if (!sequelize) {
+    console.log('dbReady check: sequelize is undefined, attempting initialization');
+    await ensureDatabaseInitialized(true);
+  }
+  
   try {
-    await sequelize.authenticate();   // inexpensive ping
+    if (!sequelize) {
+      console.error('dbReady: sequelize is still undefined after initialization attempt');
+      return false;
+    }
+    
+    // Set a short timeout for the authentication check
+    await Promise.race([
+      sequelize.authenticate(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Auth timeout')), 3000))
+    ]);
+    
     return true;
-  } catch { return false; }
+  } catch (error) {
+    console.error('dbReady check failed:', error.message);
+    return false;
+  }
 }
 
 module.exports = router; 
