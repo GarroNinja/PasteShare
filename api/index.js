@@ -161,56 +161,31 @@ app.use((err, req, res, next) => {
 app.use('/api/pastes', pasteRoutes);
 
 // Health check route
-app.get('/api/health', (req, res) => {
-  // Get info about database usage from the pasteRoutes module
-  const databaseStatus = pasteRoutes.getDatabaseStatus ? pasteRoutes.getDatabaseStatus() : {
-    isConnected: !!pasteRoutes.useDatabase,
-    mode: pasteRoutes.useDatabase ? 'PostgreSQL' : 'In-Memory'
-  };
+app.get('/api/health', async (req, res) => {
+  // Get info about database status
+  let dbStatus = false;
+  try {
+    dbStatus = await pasteRoutes.dbReady();
+  } catch (error) {
+    console.error('Health check error:', error);
+  }
   
-  // Count in-memory pastes if available
-  const inMemoryPasteCount = pasteRoutes.inMemoryPastes ? pasteRoutes.inMemoryPastes.length : 'Unknown';
-  
-  // Safely check DATABASE_URL
+  // Create safe database URL (hide credentials)
   let dbUrl = 'Not configured';
   if (process.env.DATABASE_URL) {
-    const url = process.env.DATABASE_URL;
-    const parts = url.split('@');
+    const parts = process.env.DATABASE_URL.split('@');
     if (parts.length > 1) {
       dbUrl = `[credentials hidden]@${parts[1]}`;
-    } else {
-      dbUrl = 'Invalid format';
     }
   }
   
-  // Set strong cache control headers to prevent caching
-  res.setHeader('Cache-Control', 'no-store, max-age=0');
-  res.setHeader('Pragma', 'no-cache');
-  res.setHeader('Expires', '0');
-  
   res.status(200).json({ 
     status: 'UP', 
-    message: 'Vercel serverless function is running',
     timestamp: new Date().toISOString(),
-    instanceId: Math.random().toString(36).substring(2, 15), // Generate random ID to identify different cold starts
-    environment: {
-      NODE_ENV: process.env.NODE_ENV || 'unknown',
-      VERCEL_ENV: process.env.VERCEL_ENV || 'unknown',
-      VERCEL_REGION: process.env.VERCEL_REGION || 'unknown'
-    },
+    environment: process.env.NODE_ENV || 'development',
     database: {
-      DATABASE_URL: dbUrl,
-      mode: databaseStatus.mode,
-      connected: databaseStatus.isConnected,
-      details: databaseStatus.details || 'No additional details available',
-      inMemoryPastes: inMemoryPasteCount
-    },
-    version: '1.0.4',
-    serverInfo: {
-      platform: process.platform,
-      nodeVersion: process.version,
-      memoryUsage: process.memoryUsage(),
-      uptime: process.uptime()
+      status: dbStatus ? 'connected' : 'disconnected',
+      url: dbUrl
     }
   });
 });
@@ -280,6 +255,6 @@ app.use((err, req, res, next) => {
 
 // Export the serverless function handler
 module.exports = (req, res) => {
-  console.log(`Function invoked: ${req.method} ${req.url}`);
+  console.log(`Request: ${req.method} ${req.url}`);
   return app(req, res);
 }; 

@@ -286,6 +286,14 @@ function initializeDatabase() {
       content: {
         type: DataTypes.TEXT('long'), // Use TEXT instead of BLOB for better compatibility
         allowNull: false
+      },
+      pasteId: {
+        type: DataTypes.UUID,
+        allowNull: false,
+        references: {
+          model: 'Pastes',
+          key: 'id'
+        }
       }
     }, {
       // Model options
