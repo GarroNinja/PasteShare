@@ -3,7 +3,7 @@ const express = require('express');
 const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const multer = require('multer');
-const { Sequelize, DataTypes } = require('sequelize');
+const { Sequelize, DataTypes, Op } = require('sequelize');
 const path = require('path');
 const fs = require('fs');
 
@@ -31,145 +31,198 @@ const upload = multer({
 
 // Fallback in-memory storage if database connection fails
 const inMemoryPastes = [];
-let useDatabase = true;
+let useDatabase = false; // Start with false and only enable after successful connection
 let sequelize, Paste, File;
+let lastConnectionAttempt = 0;
+const connectionRetryInterval = 60000; // 1 minute
 
-try {
-  // Log database connection attempt
-  console.log('Attempting to connect to database with URL:', 
-    process.env.DATABASE_URL ? 'DATABASE_URL is set (value hidden)' : 'DATABASE_URL is not set');
-
-  // Initialize DB connection
-  sequelize = new Sequelize(
-    process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/pasteshare',
-    {
-      dialect: 'postgres',
-      dialectOptions: {
-        ssl: {
-          require: true,
-          rejectUnauthorized: false
-        }
-      },
-      pool: {
-        max: 3, // Maximum number of connection in pool
-        min: 0, // Minimum number of connection in pool
-        idle: 10000, // The maximum time, in milliseconds, that a connection can be idle before being released
-        acquire: 30000, // Maximum time, in milliseconds, that pool will try to get connection before throwing error
-        evict: 1000 // How frequently to check for idle connections to evict
-      },
-      logging: false,
-    }
-  );
-
-  // Define Paste model
-  Paste = sequelize.define('Paste', {
-    id: {
-      type: DataTypes.UUID,
-      defaultValue: Sequelize.UUIDV4,
-      primaryKey: true
-    },
-    title: {
-      type: DataTypes.STRING,
-      allowNull: false,
-      defaultValue: 'Untitled Paste'
-    },
-    content: {
-      type: DataTypes.TEXT,
-      allowNull: false
-    },
-    expiresAt: {
-      type: DataTypes.DATE,
-      allowNull: true
-    },
-    isPrivate: {
-      type: DataTypes.BOOLEAN,
-      defaultValue: false
-    },
-    isEditable: {
-      type: DataTypes.BOOLEAN,
-      defaultValue: true
-    },
-    customUrl: {
-      type: DataTypes.STRING,
-      allowNull: true,
-      unique: true
-    },
-    userId: {
-      type: DataTypes.UUID,
-      allowNull: true
-    },
-    views: {
-      type: DataTypes.INTEGER,
-      defaultValue: 0
-    }
-  });
-
-  // Define File model
-  File = sequelize.define('File', {
-    id: {
-      type: DataTypes.UUID,
-      defaultValue: Sequelize.UUIDV4,
-      primaryKey: true
-    },
-    filename: {
-      type: DataTypes.STRING,
-      allowNull: false
-    },
-    originalname: {
-      type: DataTypes.STRING,
-      allowNull: false
-    },
-    mimetype: {
-      type: DataTypes.STRING,
-      allowNull: false
-    },
-    size: {
-      type: DataTypes.INTEGER,
-      allowNull: false
-    },
-    buffer: {
-      type: DataTypes.BLOB('long'),
-      allowNull: false
-    }
-  });
-
-  // Define associations
-  Paste.hasMany(File, { onDelete: 'CASCADE' });
-  File.belongsTo(Paste);
-
-  // Test database connection
-  (async () => {
-    try {
-      await sequelize.authenticate();
-      console.log('Database connection established successfully');
-      await sequelize.sync();
-      console.log('Database tables synchronized successfully');
-      
-      // Test a simple query
-      const count = await Paste.count();
-      console.log(`Database has ${count} pastes`);
-      useDatabase = true;
-    } catch (error) {
-      console.error('Database connection failed:', error.message);
-      if (error.original) {
-        console.error('Original error:', error.original.message);
-      }
-      useDatabase = false;
-    }
-  })();
-  
-} catch (error) {
-  console.error('Error setting up database:', error.message);
-  if (error.original) {
-    console.error('Original error:', error.original.message);
+function initializeDatabase() {
+  // Don't retry connection too frequently
+  const now = Date.now();
+  if (now - lastConnectionAttempt < connectionRetryInterval && lastConnectionAttempt !== 0) {
+    console.log(`Skipping connection attempt, last attempt was ${Math.round((now - lastConnectionAttempt) / 1000)}s ago`);
+    return;
   }
-  useDatabase = false;
+  
+  lastConnectionAttempt = now;
+  
+  try {
+    // Log database connection attempt with more details
+    if (process.env.DATABASE_URL) {
+      // Safely log part of the connection string for debugging
+      const urlParts = process.env.DATABASE_URL.split('@');
+      if (urlParts.length > 1) {
+        console.log('Attempting to connect to:', `[credentials hidden]@${urlParts[1]}`);
+      } else {
+        console.log('DATABASE_URL is set but has unexpected format');
+      }
+    } else {
+      console.log('DATABASE_URL is not set, will attempt localhost connection');
+    }
+
+    // Initialize DB connection with better configuration for Supabase
+    sequelize = new Sequelize(
+      process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/pasteshare',
+      {
+        dialect: 'postgres',
+        dialectOptions: {
+          ssl: {
+            require: true,
+            rejectUnauthorized: false
+          },
+          keepAlive: true
+        },
+        pool: {
+          max: 2, // Reduced pool size for serverless
+          min: 0,
+          idle: 5000, // Reduced idle time
+          acquire: 15000,
+          evict: 1000
+        },
+        retry: {
+          max: 3,
+          timeout: 10000
+        },
+        logging: false,
+        benchmark: true // To measure query times
+      }
+    );
+
+    // Define Paste model
+    Paste = sequelize.define('Paste', {
+      id: {
+        type: DataTypes.UUID,
+        defaultValue: DataTypes.UUIDV4,
+        primaryKey: true
+      },
+      title: {
+        type: DataTypes.STRING,
+        allowNull: false,
+        defaultValue: 'Untitled Paste'
+      },
+      content: {
+        type: DataTypes.TEXT,
+        allowNull: false
+      },
+      expiresAt: {
+        type: DataTypes.DATE,
+        allowNull: true
+      },
+      isPrivate: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false
+      },
+      isEditable: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: true
+      },
+      customUrl: {
+        type: DataTypes.STRING,
+        allowNull: true,
+        unique: true
+      },
+      userId: {
+        type: DataTypes.UUID,
+        allowNull: true
+      },
+      views: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0
+      }
+    });
+
+    // Define File model
+    File = sequelize.define('File', {
+      id: {
+        type: DataTypes.UUID,
+        defaultValue: DataTypes.UUIDV4,
+        primaryKey: true
+      },
+      filename: {
+        type: DataTypes.STRING,
+        allowNull: false
+      },
+      originalname: {
+        type: DataTypes.STRING,
+        allowNull: false
+      },
+      mimetype: {
+        type: DataTypes.STRING,
+        allowNull: false
+      },
+      size: {
+        type: DataTypes.INTEGER,
+        allowNull: false
+      },
+      buffer: {
+        type: DataTypes.BLOB('long'),
+        allowNull: false
+      }
+    });
+
+    // Define associations
+    Paste.hasMany(File, { onDelete: 'CASCADE' });
+    File.belongsTo(Paste);
+
+    // Test database connection and sync
+    (async () => {
+      try {
+        await sequelize.authenticate();
+        console.log('Database connection established successfully');
+        
+        // Force sync in development only
+        const forceSync = process.env.NODE_ENV === 'development' && process.env.FORCE_SYNC === 'true';
+        await sequelize.sync({ force: forceSync });
+        console.log(`Database tables synchronized successfully (force: ${forceSync})`);
+        
+        // Test a simple query to validate connection
+        const count = await Paste.count();
+        console.log(`Database has ${count} pastes`);
+        
+        // Only set useDatabase to true if everything succeeded
+        useDatabase = true;
+        console.log('Database is now being used for storage');
+      } catch (error) {
+        console.error('Database connection or sync failed:', error.message);
+        if (error.original) {
+          console.error('Original error:', error.original.message);
+          console.error('Error code:', error.original.code);
+        }
+        useDatabase = false;
+        console.log('Falling back to in-memory storage');
+      }
+    })();
+    
+  } catch (error) {
+    console.error('Error setting up database:', error.message);
+    if (error.original) {
+      console.error('Original error:', error.original.message);
+    }
+    useDatabase = false;
+    console.log('Falling back to in-memory storage due to setup error');
+  }
 }
+
+// Initialize database connection
+initializeDatabase();
+
+// Middleware to check database connection before each request
+router.use((req, res, next) => {
+  // If we're not using the database, try to initialize it again
+  // This will respect the retry interval
+  if (!useDatabase) {
+    initializeDatabase();
+  }
+  next();
+});
 
 // Create a new paste
 router.post('/', upload.array('files', 5), async (req, res) => {
   try {
     const { title, content, expiresIn, isPrivate, customUrl, isEditable } = req.body;
+    
+    // Log request details
+    console.log(`POST /api/pastes - Creating paste with title: ${title || 'Untitled'}, mode: ${useDatabase ? 'database' : 'in-memory'}`);
     
     // Validate input
     if (!content) {
@@ -203,6 +256,8 @@ router.post('/', upload.array('files', 5), async (req, res) => {
           userId: null
         });
         
+        console.log(`Created paste in database with ID: ${paste.id}`);
+        
         // Handle files (if any)
         const fileRecords = [];
         if (req.files && req.files.length > 0) {
@@ -235,7 +290,8 @@ router.post('/', upload.array('files', 5), async (req, res) => {
               filename: f.originalname,
               size: f.size,
               url: `/api/pastes/${paste.id}/files/${f.id}`
-            }))
+            })),
+            storageType: 'database'
           }
         });
       } catch (error) {
@@ -281,6 +337,7 @@ router.post('/', upload.array('files', 5), async (req, res) => {
     
     // Add to store
     inMemoryPastes.push(paste);
+    console.log(`Created paste in memory with ID: ${paste.id}`);
     
     return res.status(201).json({
       message: 'Paste created successfully (in-memory mode)',
@@ -298,7 +355,8 @@ router.post('/', upload.array('files', 5), async (req, res) => {
           filename: f.originalname,
           size: f.size,
           url: `/api/pastes/${paste.id}/files/${f.id}`
-        }))
+        })),
+        storageType: 'memory'
       }
     });
   } catch (error) {
@@ -313,19 +371,23 @@ router.get('/', async (req, res) => {
     const limit = parseInt(req.query.limit) || 10;
     const now = new Date();
     
+    console.log(`GET /api/pastes - Retrieving recent pastes, mode: ${useDatabase ? 'database' : 'in-memory'}`);
+    
     if (useDatabase) {
       try {
         const publicPastes = await Paste.findAll({
           where: {
             isPrivate: false,
-            [Sequelize.Op.or]: [
+            [Op.or]: [
               { expiresAt: null },
-              { expiresAt: { [Sequelize.Op.gt]: now } }
+              { expiresAt: { [Op.gt]: now } }
             ]
           },
           order: [['createdAt', 'DESC']],
           limit
         });
+        
+        console.log(`Retrieved ${publicPastes.length} pastes from database`);
         
         return res.status(200).json(
           publicPastes.map(paste => ({
@@ -335,7 +397,8 @@ router.get('/', async (req, res) => {
             createdAt: paste.createdAt,
             expiresAt: paste.expiresAt,
             views: paste.views,
-            customUrl: paste.customUrl
+            customUrl: paste.customUrl,
+            storageType: 'database'
           }))
         );
       } catch (error) {
@@ -360,8 +423,11 @@ router.get('/', async (req, res) => {
         createdAt: paste.createdAt,
         expiresAt: paste.expiresAt,
         views: paste.views,
-        customUrl: paste.customUrl
+        customUrl: paste.customUrl,
+        storageType: 'memory'
       }));
+    
+    console.log(`Retrieved ${publicPastes.length} pastes from memory`);
     
     return res.status(200).json(publicPastes);
   } catch (error) {
@@ -627,7 +693,8 @@ router.getDatabaseStatus = function() {
     mode: useDatabase ? 'PostgreSQL' : 'In-Memory',
     details: {
       initialized: !!sequelize,
-      modelsLoaded: !!(Paste && File)
+      modelsLoaded: !!(Paste && File),
+      lastConnectionAttempt: new Date(lastConnectionAttempt).toISOString()
     }
   };
 };

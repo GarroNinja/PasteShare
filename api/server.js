@@ -3,18 +3,26 @@ const express = require('express');
 const cors = require('cors');
 const { json, urlencoded } = require('express');
 const morgan = require('morgan');
+const https = require('https');
 
 // Import paste routes
 const pasteRoutes = require('./pasteRoutes');
 
 // Print environments at startup
-console.log('Starting serverless function with:');
+console.log('=== PasteShare API Server Starting ===');
 console.log('NODE_ENV:', process.env.NODE_ENV);
 console.log('DATABASE_URL exists:', !!process.env.DATABASE_URL);
 if (process.env.DATABASE_URL) {
-  // Mask the actual password but show the connection format
-  const maskedUrl = process.env.DATABASE_URL.replace(/:[^:]*@/, ':****@');
-  console.log('DATABASE_URL format:', maskedUrl);
+  // Extract and log host information without credentials
+  try {
+    const url = new URL(process.env.DATABASE_URL);
+    console.log('Database host:', url.hostname);
+    console.log('Database port:', url.port);
+    console.log('Database name:', url.pathname.substring(1));
+    console.log('Using SSL:', url.protocol === 'postgres:' ? 'No' : 'Yes');
+  } catch (error) {
+    console.error('Error parsing DATABASE_URL:', error.message);
+  }
 }
 
 // Initialize Express app
@@ -42,6 +50,16 @@ app.use((req, res, next) => {
     return res.status(200).end();
   }
   
+  next();
+});
+
+// Request logging middleware
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    console.log(`${req.method} ${req.originalUrl} ${res.statusCode} ${duration}ms`);
+  });
   next();
 });
 
@@ -81,7 +99,12 @@ app.get('/api/health', (req, res) => {
       connected: databaseStatus.isConnected,
       details: databaseStatus.details || 'No additional details available'
     },
-    version: '1.0.0'
+    version: '1.0.1',
+    serverInfo: {
+      platform: process.platform,
+      nodeVersion: process.version,
+      memoryUsage: process.memoryUsage()
+    }
   });
 });
 
@@ -91,10 +114,65 @@ app.get('/api/database', (req, res) => {
     isConfigured: !!process.env.DATABASE_URL,
     isConnected: pasteRoutes.useDatabase === true,
     fallbackMode: pasteRoutes.useDatabase !== true,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    connectionInfo: pasteRoutes.getDatabaseStatus ? pasteRoutes.getDatabaseStatus() : null
   };
   
   res.status(200).json(dbInfo);
+});
+
+// Test Supabase connection directly
+app.get('/api/test-connection', (req, res) => {
+  if (!process.env.DATABASE_URL) {
+    return res.status(400).json({ 
+      success: false, 
+      message: 'DATABASE_URL is not configured' 
+    });
+  }
+  
+  try {
+    const url = new URL(process.env.DATABASE_URL);
+    const options = {
+      hostname: url.hostname,
+      port: url.port,
+      path: '/',
+      method: 'HEAD',
+      timeout: 5000
+    };
+    
+    const request = https.request(options, (response) => {
+      res.status(200).json({
+        success: true,
+        message: 'Connection test successful',
+        statusCode: response.statusCode,
+        headers: response.headers
+      });
+    });
+    
+    request.on('error', (error) => {
+      res.status(500).json({
+        success: false,
+        message: 'Connection test failed',
+        error: error.message
+      });
+    });
+    
+    request.on('timeout', () => {
+      request.destroy();
+      res.status(408).json({
+        success: false,
+        message: 'Connection test timed out'
+      });
+    });
+    
+    request.end();
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error testing connection',
+      error: error.message
+    });
+  }
 });
 
 // Handle route not found
@@ -111,11 +189,13 @@ app.use((err, req, res, next) => {
   console.error('Server error:', err);
   res.status(500).json({
     message: 'Server error',
-    error: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error'
+    error: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error',
+    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
   });
 });
 
 // Export the serverless function handler
 module.exports = (req, res) => {
+  console.log(`Function invoked: ${req.method} ${req.url}`);
   return app(req, res);
 }; 
