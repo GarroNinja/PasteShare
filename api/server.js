@@ -4,6 +4,31 @@ const cors = require('cors');
 const { json, urlencoded } = require('express');
 const morgan = require('morgan');
 const https = require('https');
+const path = require('path');
+const fs = require('fs');
+const dotenv = require('dotenv');
+
+// Try to load env from multiple locations for Vercel deployment
+const envPaths = [
+  path.resolve(process.cwd(), '.env'),
+  path.resolve(process.cwd(), '.env.production'),
+  path.resolve(process.cwd(), '.env.local')
+];
+
+let envLoaded = false;
+for (const envPath of envPaths) {
+  if (fs.existsSync(envPath)) {
+    console.log(`Loading environment variables from: ${envPath}`);
+    dotenv.config({ path: envPath });
+    envLoaded = true;
+    break;
+  }
+}
+
+if (!envLoaded) {
+  console.log('No specific .env file found, using default dotenv config');
+  dotenv.config();
+}
 
 // Import paste routes
 const pasteRoutes = require('./pasteRoutes');

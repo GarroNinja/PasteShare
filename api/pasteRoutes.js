@@ -102,6 +102,14 @@ async function restorePastesFromDatabase() {
   }
 }
 
+// Log deployment environment on startup
+console.log('==== PasteShare API Initializing ====');
+console.log('Environment:', process.env.NODE_ENV);
+console.log('Vercel Environment:', process.env.VERCEL_ENV || 'not running on Vercel');
+console.log('DATABASE_URL available:', !!process.env.DATABASE_URL);
+console.log('Database fallback allowed:', ALLOW_FALLBACK);
+console.log('=============================');
+
 function initializeDatabase() {
   // Don't retry connection too frequently
   const now = Date.now();
@@ -115,7 +123,14 @@ function initializeDatabase() {
   
   try {
     if (!process.env.DATABASE_URL) {
-      console.error('DATABASE_URL is not set!');
+      console.error('DATABASE_URL is not set in environment!');
+      // Log all environment variables in development (redacted for security)
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Available environment variables:', 
+          Object.keys(process.env)
+            .filter(key => !key.includes('SECRET') && !key.includes('KEY') && !key.includes('TOKEN') && !key.includes('PASS'))
+        );
+      }
       return;
     }
     
@@ -144,6 +159,7 @@ function initializeDatabase() {
       },
       retry: {
         max: 3,
+        match: [/Deadlock/i, /Lock/i, /Timeout/i, /Connection/i]
       },
       logging: false
     });
