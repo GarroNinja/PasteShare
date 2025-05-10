@@ -1,11 +1,17 @@
 # Dependencies
 node_modules/
-client/node_modules/
-server/node_modules/
+.pnp
+.pnp.js
 
-# Build outputs
-client/build/
-server/dist/
+# Testing
+coverage/
+.nyc_output/
+
+# Build
+dist/
+build/
+.next/
+out/
 
 # Environment variables
 .env
@@ -13,9 +19,29 @@ server/dist/
 .env.development.local
 .env.test.local
 .env.production.local
-client/.env*
-server/.env*
-.env.production
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Editor directories and files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+._*
+
+# Misc
+.vercel
+.cache/
+
+# Build outputs
+client/build/
+server/dist/
 
 # Database
 *.sqlite
@@ -23,16 +49,7 @@ server/.env*
 server/*.sqlite
 server/*.sqlite-journal
 
-# Logs
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-logs
-*.log
-
 # IDE
-.idea/
-.vscode/
 *.suo
 *.ntvs*
 *.njsproj
@@ -40,7 +57,6 @@ logs
 *.sw?
 
 # OS files
-.DS_Store
 Thumbs.db
 
 # Misc
