@@ -388,69 +388,33 @@ async function ensureDatabaseInitialized(force = false) {
   }
 }
 
-// Middleware to check database connection before each request
+// Middleware to enforce database connection for each request
 router.use(async (req, res, next) => {
   console.log(`DB Request: ${req.method} ${req.originalUrl}`);
   
-  // Skip database check for health endpoint to prevent endless loops
-  if (req.path === '/health') {
-    return next();
-  }
-  
-  // Check if DATABASE_URL is set
+  // Always require DATABASE_URL to be set
   if (!process.env.DATABASE_URL) {
-    console.error('DATABASE_URL is not set in environment!');
-    if (IS_PROD && !ALLOW_FALLBACK) {
-      return res.status(503).json({ 
-        message: 'Database configuration error', 
-        error: 'DATABASE_URL not found' 
-      });
-    }
+    console.error('DATABASE_URL is not configured!');
+    return res.status(500).json({
+      message: 'Database configuration error',
+      error: 'DATABASE_URL not found'
+    });
   }
   
   try {
-    // Use our helper function to ensure database is initialized
-    const dbReady = await ensureDatabaseInitialized(false); // Don't force reinitialization on every request
-    
-    if (dbReady) {
-      // Connected successfully!
-      next();
-      return;
+    // Force initialization on each invocation
+    const initialized = await ensureDatabaseInitialized(true);
+    if (!initialized) {
+      throw new Error('Database initialization failed');
     }
-    
-    // If we reach here, the database is not ready but didn't throw an error
-    console.warn('Database not ready, trying one more time with forced initialization');
-    
-    // Try one more time with forced reinitialization
-    const secondAttempt = await ensureDatabaseInitialized(true);
-    
-    if (secondAttempt) {
-      // Connected on second attempt!
-      next();
-      return;
-    }
-    
-    // If we reach here, the database is not available even after two attempts
-    
-    // Database check failed - falling back to in-memory storage
-    useDatabase = false;
-    console.log('Database unavailable, using in-memory storage fallback');
-    next();
+    // Database ready
+    return next();
   } catch (error) {
     console.error('Database connection failed:', error.message);
-    
-    // In production, return error if fallback not allowed
-    if (IS_PROD && !ALLOW_FALLBACK) {
-      return res.status(503).json({ 
-        message: 'Database unavailable', 
-        error: error.message 
-      });
-    }
-    
-    // In development or if fallback allowed, use in-memory storage
-    useDatabase = false;
-    console.log('Using in-memory storage fallback');
-    next();
+    return res.status(503).json({
+      message: 'Database unavailable',
+      error: error.message
+    });
   }
 });
 
