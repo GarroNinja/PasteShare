@@ -347,7 +347,6 @@ function initializeDatabase() {
           console.error('Original error:', error.original.message);
           console.error('Error code:', error.original.code);
         }
-        useDatabase = false;
         console.log('Falling back to in-memory storage');
       }
     })();
@@ -357,7 +356,6 @@ function initializeDatabase() {
     if (error.original) {
       console.error('Original error:', error.original.message);
     }
-    useDatabase = false;
     console.log('Falling back to in-memory storage due to setup error');
   }
 }
@@ -484,7 +482,6 @@ router.post('/', upload.array('files', 5), async (req, res) => {
         // Rollback transaction if there was an error
         if (transaction) await transaction.rollback();
         console.error('Database operation failed:', error);
-        useDatabase = false;
         // Fall through to in-memory implementation
       }
     }
@@ -592,12 +589,10 @@ router.get('/', async (req, res) => {
         if (publicPastes.length === 0 && inMemoryPastes.length > 0) {
           // If database returned no pastes but we have in-memory pastes, use those
           console.log('No pastes in database, falling back to in-memory pastes');
-          useDatabase = false; // Trigger fallback mechanism
           if (!ALLOW_FALLBACK) {
             console.error('Database query failed in production, aborting request');
             return res.status(503).json({ message: 'Database unavailable' });
           }
-          useDatabase = false; // fallback in development
         } else {
           // Return database results
           return res.status(200).json(
@@ -618,9 +613,6 @@ router.get('/', async (req, res) => {
         if (error.original) {
           console.error('Original error:', error.original.message);
         }
-        useDatabase = false;
-        // Fall through to in-memory implementation
-        
         // Try to restore pastes from database
         await restorePastesFromDatabase();
       }
@@ -734,14 +726,13 @@ router.get('/:id', async (req, res) => {
         } else {
           console.log(`Paste not found in database: ${id}`);
         }
-        // If paste not found in database, fall through to in-memory check
       } catch (error) {
         console.error('Database query failed:', error);
         if (error.original) {
           console.error('Original error:', error.original.message);
         }
-        useDatabase = false;
-        // Fall through to in-memory implementation
+        // Try to restore pastes from database
+        await restorePastesFromDatabase();
       }
     }
     
@@ -836,11 +827,10 @@ router.put('/:id', async (req, res) => {
             }
           });
         }
-        // If paste not found in database, fall through to in-memory check
       } catch (error) {
         console.error('Database query failed:', error);
-        useDatabase = false;
-        // Fall through to in-memory implementation
+        // Try to restore pastes from database
+        await restorePastesFromDatabase();
       }
     }
     
@@ -916,11 +906,10 @@ router.get('/:pasteId/files/:fileId', async (req, res) => {
         } else {
           console.log(`File not found in database: ${fileId} for paste ${pasteId}`);
         }
-        // If file not found in database, fall through to in-memory check
       } catch (error) {
         console.error('Database query failed:', error);
-        useDatabase = false;
-        // Fall through to in-memory implementation
+        // Try to restore pastes from database
+        await restorePastesFromDatabase();
       }
     }
     
@@ -966,18 +955,25 @@ router.inMemoryPastes = inMemoryPastes;
 
 // Helper: ensure we have a live DB connection (called before every request)
 async function ensureConnection() {
+  if (!sequelize) initializeDatabase();
   if (!sequelize) {
-    initializeDatabase();
+    useDatabase = false;
+    return;
   }
-  if (sequelize) {
-    try {
-      await sequelize.authenticate();
-      useDatabase = true;
-    } catch (err) {
-      console.error('Database ping failed:', err.message);
-      useDatabase = false;
-    }
+  try {
+    await sequelize.authenticate();
+    useDatabase = true;
+  } catch (err) {
+    console.error('Database ping failed:', err.message);
+    useDatabase = false;
   }
+}
+
+async function dbReady () {
+  try {
+    await sequelize.authenticate();   // inexpensive ping
+    return true;
+  } catch { return false; }
 }
 
 module.exports = router; 
