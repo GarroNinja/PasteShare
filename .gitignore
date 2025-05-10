@@ -30,10 +30,6 @@ yarn-error.log*
 logs
 *.log
 
-# Upload directory content (keep the directory itself)
-uploads/*
-!uploads/.gitkeep
-
 # IDE
 .idea/
 .vscode/
