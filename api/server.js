@@ -98,22 +98,33 @@ app.get('/api/health', (req, res) => {
     mode: pasteRoutes.useDatabase ? 'PostgreSQL' : 'In-Memory'
   };
   
+  // Count in-memory pastes if available
+  const inMemoryPasteCount = pasteRoutes.inMemoryPastes ? pasteRoutes.inMemoryPastes.length : 'Unknown';
+  
+  // Set strong cache control headers to prevent caching
+  res.setHeader('Cache-Control', 'no-store, max-age=0');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  
   res.status(200).json({ 
     status: 'UP', 
     message: 'Vercel serverless function is running',
     timestamp: new Date().toISOString(),
+    instanceId: Math.random().toString(36).substring(2, 15), // Generate random ID to identify different cold starts
     environment: process.env.NODE_ENV || 'unknown',
     database: {
       url: process.env.DATABASE_URL ? 'Configured' : 'Not configured',
       mode: databaseStatus.mode,
       connected: databaseStatus.isConnected,
-      details: databaseStatus.details || 'No additional details available'
+      details: databaseStatus.details || 'No additional details available',
+      inMemoryPastes: inMemoryPasteCount
     },
-    version: '1.0.1',
+    version: '1.0.2',
     serverInfo: {
       platform: process.platform,
       nodeVersion: process.version,
-      memoryUsage: process.memoryUsage()
+      memoryUsage: process.memoryUsage(),
+      uptime: process.uptime()
     }
   });
 });

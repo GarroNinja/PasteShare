@@ -34,7 +34,69 @@ const inMemoryPastes = [];
 let useDatabase = false; // Start with false and only enable after successful connection
 let sequelize, Paste, File;
 let lastConnectionAttempt = 0;
-const connectionRetryInterval = 60000; // 1 minute
+const connectionRetryInterval = 30000; // Reduced from 60000 to 30000 (30 seconds)
+
+// Add persistent cross-instance caching
+const CACHE_EXPIRATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+const CACHE_KEY_PREFIX = 'pasteshare_';
+
+// Helper function to restore pastes from database
+async function restorePastesFromDatabase() {
+  if (!useDatabase || !sequelize || !Paste) return;
+  
+  try {
+    console.log('Attempting to restore pastes from database...');
+    const now = new Date();
+    
+    // Query recent pastes from database to populate cache
+    const recentPastes = await Paste.findAll({
+      where: {
+        [Op.or]: [
+          { expiresAt: null },
+          { expiresAt: { [Op.gt]: now } }
+        ]
+      },
+      include: [{
+        model: File,
+        required: false
+      }],
+      order: [['createdAt', 'DESC']],
+      limit: 100 // Limit to recent 100 pastes
+    });
+    
+    console.log(`Restored ${recentPastes.length} pastes from database`);
+    
+    // Clear the in-memory array and repopulate it
+    inMemoryPastes.length = 0;
+    
+    recentPastes.forEach(paste => {
+      const pasteObj = paste.toJSON();
+      inMemoryPastes.push({
+        id: paste.id,
+        title: paste.title,
+        content: paste.content,
+        expiresAt: paste.expiresAt,
+        isPrivate: paste.isPrivate,
+        isEditable: paste.isEditable,
+        customUrl: paste.customUrl,
+        userId: paste.userId,
+        views: paste.views,
+        createdAt: paste.createdAt,
+        updatedAt: paste.updatedAt,
+        files: paste.Files ? paste.Files.map(file => ({
+          id: file.id,
+          filename: file.originalname || file.filename,
+          originalname: file.originalname || file.filename,
+          mimetype: file.mimetype,
+          size: file.size,
+          content: file.content
+        })) : []
+      });
+    });
+  } catch (error) {
+    console.error('Error restoring pastes from database:', error);
+  }
+}
 
 function initializeDatabase() {
   // Don't retry connection too frequently
@@ -73,15 +135,15 @@ function initializeDatabase() {
           keepAlive: true
         },
         pool: {
-          max: 2, // Reduced pool size for serverless
-          min: 0,
-          idle: 5000, // Reduced idle time
-          acquire: 15000,
-          evict: 1000
+          max: 5, // Increased from 2 to 5
+          min: 1, // Increased from 0 to 1, keep at least one connection
+          idle: 20000, // Increased from 5000 to 20000 (20 seconds)
+          acquire: 30000, // Increased from 15000 to 30000 (30 seconds)
+          evict: 5000  // Increased from 1000 to 5000 (5 seconds)
         },
         retry: {
-          max: 3,
-          timeout: 10000
+          max: 5, // Increased from 3 to 5
+          timeout: 20000 // Increased from 10000 to 20000 (20 seconds)
         },
         logging: false,
         benchmark: true // To measure query times
@@ -227,6 +289,9 @@ function initializeDatabase() {
         // Only set useDatabase to true if everything succeeded
         useDatabase = true;
         console.log('Database is now being used for storage');
+        
+        // Restore pastes from database to in-memory cache to survive cold starts
+        await restorePastesFromDatabase();
       } catch (error) {
         console.error('Database connection or sync failed:', error.message);
         if (error.original) {
@@ -252,11 +317,14 @@ function initializeDatabase() {
 initializeDatabase();
 
 // Middleware to check database connection before each request
-router.use((req, res, next) => {
+router.use(async (req, res, next) => {
   // If we're not using the database, try to initialize it again
   // This will respect the retry interval
   if (!useDatabase) {
     initializeDatabase();
+  } else if (inMemoryPastes.length === 0) {
+    // If we have a database connection but no in-memory pastes, restore them
+    await restorePastesFromDatabase();
   }
   next();
 });
@@ -439,6 +507,11 @@ router.get('/', async (req, res) => {
     
     console.log(`GET /api/pastes - Retrieving recent pastes, mode: ${useDatabase ? 'database' : 'in-memory'}`);
     
+    // Set cache control headers to prevent Vercel cache
+    res.setHeader('Cache-Control', 'no-store, max-age=0');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    
     if (useDatabase) {
       try {
         // Simplified query without complex where clauses
@@ -462,18 +535,25 @@ router.get('/', async (req, res) => {
         // Output full IDs for debugging
         console.log('Paste IDs:', publicPastes.map(p => p.id));
         
-        return res.status(200).json(
-          publicPastes.map(paste => ({
-            id: paste.id,
-            title: paste.title,
-            content: paste.content.length > 200 ? `${paste.content.slice(0, 200)}...` : paste.content,
-            createdAt: paste.createdAt,
-            expiresAt: paste.expiresAt,
-            views: paste.views,
-            customUrl: paste.customUrl,
-            storageType: 'database'
-          }))
-        );
+        if (publicPastes.length === 0 && inMemoryPastes.length > 0) {
+          // If database returned no pastes but we have in-memory pastes, use those
+          console.log('No pastes in database, falling back to in-memory pastes');
+          useDatabase = false; // Trigger fallback mechanism
+        } else {
+          // Return database results
+          return res.status(200).json(
+            publicPastes.map(paste => ({
+              id: paste.id,
+              title: paste.title,
+              content: paste.content.length > 200 ? `${paste.content.slice(0, 200)}...` : paste.content,
+              createdAt: paste.createdAt,
+              expiresAt: paste.expiresAt,
+              views: paste.views,
+              customUrl: paste.customUrl,
+              storageType: 'database'
+            }))
+          );
+        }
       } catch (error) {
         console.error('Database query failed:', error);
         if (error.original) {
@@ -481,6 +561,9 @@ router.get('/', async (req, res) => {
         }
         useDatabase = false;
         // Fall through to in-memory implementation
+        
+        // Try to restore pastes from database
+        await restorePastesFromDatabase();
       }
     }
     
@@ -813,9 +896,13 @@ router.getDatabaseStatus = function() {
     details: {
       initialized: !!sequelize,
       modelsLoaded: !!(Paste && File),
-      lastConnectionAttempt: new Date(lastConnectionAttempt).toISOString()
+      lastConnectionAttempt: new Date(lastConnectionAttempt).toISOString(),
+      inMemoryPastesCount: inMemoryPastes.length
     }
   };
 };
+
+// Expose inMemoryPastes for diagnostics
+router.inMemoryPastes = inMemoryPastes;
 
 module.exports = router; 
