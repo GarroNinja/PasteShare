@@ -7,7 +7,7 @@ A modern pastebin application for sharing code snippets, text, and files.
 
 ## Features
 
-- Code & text sharing with syntax highlighting
+- Code & text sharing
 - File attachments support
 - Custom URLs for easier sharing
 - Paste expiry options
