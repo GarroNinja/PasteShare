@@ -410,19 +410,26 @@ router.get('/:id', async (req, res) => {
       const { Paste, File } = models;
       
       try {
-        // First, attempt to find by ID
-        let paste = await Paste.findByPk(id, {
-          include: [
-            { 
-              model: File,
-              as: 'Files'
-            }
-          ]
-        });
+        // Check if the ID is a valid UUID
+        const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+        let paste = null;
         
-        // If not found by ID, try by customUrl (case-insensitive)
+        if (isValidUUID) {
+          // If it's a valid UUID, try to find by ID first
+          console.log(`ID appears to be a valid UUID, trying findByPk: ${id}`);
+          paste = await Paste.findByPk(id, {
+            include: [
+              { 
+                model: File,
+                as: 'Files'
+              }
+            ]
+          });
+        }
+        
+        // If not found or not a UUID, try by customUrl (case-insensitive)
         if (!paste) {
-          console.log(`Paste not found by ID, trying customUrl: ${id}`);
+          console.log(`Trying to find paste by customUrl: ${id}`);
           
           // Log the existing customUrls in the database to diagnose issues
           const allPastes = await Paste.findAll({
