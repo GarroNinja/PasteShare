@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "node vercel-pg-fix.js && npm install pg pg-hstore sequelize && cd client && npm install && CI=false npm run build",
+  "buildCommand": "npm install pg pg-hstore sequelize && cd client && npm install && CI=false npm run build",
   "installCommand": "npm install pg pg-hstore",
   "outputDirectory": "client/build",
   "rewrites": [

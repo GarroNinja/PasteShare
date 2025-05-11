@@ -9,9 +9,7 @@
     "client": "cd client && npm start",
     "dev": "bash ./start.sh",
     "install:all": "npm install && cd client && npm install && cd ../server && npm install",
-    "build": "cd client && npm run build && cd ../server && npm run build",
-    "postinstall": "node vercel-pg-fix.js",
-    "vercel-build": "node vercel-pg-fix.js"
+    "build": "cd client && npm run build && cd ../server && npm run build"
   },
   "keywords": [
     "pastebin",
