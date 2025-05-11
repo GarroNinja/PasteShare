@@ -3,7 +3,8 @@
 A modern pastebin application for sharing code snippets, text, and files.
 
 ## Screenshots
-![image](https://github.com/user-attachments/assets/9429dc2c-6fe5-438d-a687-077f53aecc56) ![image](https://github.com/user-attachments/assets/9e7dbd5d-5d99-489f-aab7-df518ded2dec)
+![Homepage Dark Mode](screenshots/homepage_dark.png)
+![Paste Page Dark Mode](screenshots/pastepage_dark.png)
 
 ## Features
 
@@ -14,7 +15,6 @@ A modern pastebin application for sharing code snippets, text, and files.
 - Private pastes
 - Editable pastes
 - Mobile responsive UI
-- Dark mode theme
 - Syntax highlighting with multiple theme options
 - Print-friendly view
 
@@ -65,11 +65,8 @@ For PostgreSQL, we recommend using a provider like:
 
 ## Advanced Features
 
-### Syntax Highlighting
-PasteShare supports over 30 different syntax highlighting themes and automatic language detection. Users can manually select both language and theme for optimal code readability.
-
-### Dark Mode
-The application features a custom dark mode with elegant theming, providing excellent contrast and reduced eye strain in low-light environments.
+### Syntax Highlighting and Themes Support
+PasteShare supports over 15 different languages for syntax highlighting with over 30 themes and automatic language detection. Users can manually select both language and theme for optimal code readability.
 
 ## Architecture
 
