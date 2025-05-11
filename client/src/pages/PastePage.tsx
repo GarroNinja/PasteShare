@@ -1,6 +1,16 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getApiBaseUrl } from '../lib/utils';
+import { getApiBaseUrl, apiFetch } from '../lib/utils';
+import SyntaxHighlighter from 'react-syntax-highlighter';
+import { 
+  a11yDark, a11yLight, agate, anOldHope, androidstudio, 
+  arduinoLight, atomOneDark, atomOneLight, 
+  dracula, docco, darcula, far, github, googlecode,
+  gruvboxDark, gruvboxLight, hopscotch, hybrid, 
+  monokai, monokaiSublime, nord, obsidian, 
+  ocean, paraisoDark, railscasts, solarizedDark, solarizedLight,
+  tomorrowNight, vs, vs2015, xcode, xt256, zenburn
+} from 'react-syntax-highlighter/dist/esm/styles/hljs';
 
 interface File {
   id: string;
@@ -40,6 +50,104 @@ export function PastePage() {
   const [editableContent, setEditableContent] = useState('');
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+  const [language, setLanguage] = useState<string | null>(null);
+  const [theme, setTheme] = useState(gruvboxDark);
+
+  // Auto-detect language based on content
+  useEffect(() => {
+    if (paste?.content) {
+      const detectedLanguage = detectLanguage(paste.content);
+      setLanguage(detectedLanguage);
+    }
+  }, [paste?.content]);
+
+  // Simple language detection based on common patterns
+  const detectLanguage = (content: string): string => {
+    const firstLines = content.trim().split('\n').slice(0, 10).join('\n');
+    
+    // Check for common language patterns
+    if (firstLines.includes('import React') || firstLines.includes('export default') || (firstLines.includes('function') && firstLines.includes('const'))) {
+      return 'javascript';
+    }
+    if (firstLines.includes('import ') && firstLines.includes('from ') && (firstLines.includes('<') || firstLines.includes('interface'))) {
+      return 'typescript';
+    }
+    if (firstLines.includes('class ') && firstLines.includes('public ') && firstLines.includes('void')) {
+      return 'java';
+    }
+    if (firstLines.includes('def ') && firstLines.includes(':')) {
+      return 'python';
+    }
+    if (firstLines.includes('#include <')) {
+      return 'cpp';
+    }
+    if (firstLines.includes('<html') || firstLines.includes('<div') || firstLines.includes('</')) {
+      return 'html';
+    }
+    if ((firstLines.includes('@media') || firstLines.includes('color:')) || (firstLines.includes('{') && firstLines.includes('}'))) {
+      return 'css';
+    }
+    if (firstLines.includes('<?php')) {
+      return 'php';
+    }
+    if (firstLines.includes('package main') || firstLines.includes('func ')) {
+      return 'go';
+    }
+    if (firstLines.includes('SELECT ') || firstLines.includes('FROM ')) {
+      return 'sql';
+    }
+    if (firstLines.includes('#!/bin/bash') || firstLines.includes('#!/bin/sh')) {
+      return 'bash';
+    }
+    
+    // Default case
+    return 'text';
+  };
+
+  // List of available themes
+  const availableThemes = [
+    // Light themes
+    { name: 'VS Code Light', value: vs },
+    { name: 'GitHub', value: github },
+    { name: 'Xcode', value: xcode },
+    { name: 'Arduino Light', value: arduinoLight },
+    { name: 'Atom One Light', value: atomOneLight },
+    { name: 'Google Code', value: googlecode },
+    { name: 'Solarized Light', value: solarizedLight },
+    { name: 'A11y Light', value: a11yLight },
+    { name: 'Gruvbox Light', value: gruvboxLight },
+    // Dark themes
+    { name: 'VS Code Dark', value: vs2015 },
+    { name: 'Atom One Dark', value: atomOneDark },
+    { name: 'Dracula', value: dracula },
+    { name: 'Monokai', value: monokai },
+    { name: 'Monokai Sublime', value: monokaiSublime },
+    { name: 'Gruvbox Dark', value: gruvboxDark },
+    { name: 'Nord', value: nord },
+    { name: 'Solarized Dark', value: solarizedDark },
+    { name: 'Tomorrow Night', value: tomorrowNight },
+    { name: 'Darcula (JetBrains)', value: darcula },
+    { name: 'A11y Dark', value: a11yDark },
+    { name: 'Agate', value: agate },
+    { name: 'Android Studio', value: androidstudio },
+    { name: 'An Old Hope', value: anOldHope },
+    { name: 'Far', value: far },
+    { name: 'Hopscotch', value: hopscotch },
+    { name: 'Hybrid', value: hybrid },
+    { name: 'Obsidian', value: obsidian },
+    { name: 'Ocean', value: ocean },
+    { name: 'Paraiso Dark', value: paraisoDark },
+    { name: 'Railscasts', value: railscasts },
+    { name: 'XT256', value: xt256 },
+    { name: 'Zenburn', value: zenburn }
+  ];
+
+  // List of common languages for manual selection
+  const commonLanguages = [
+    'text', 'javascript', 'typescript', 'python', 'java', 'cpp', 'csharp', 
+    'ruby', 'go', 'php', 'html', 'css', 'xml', 'json', 'yaml', 'markdown',
+    'sql', 'bash', 'powershell', 'rust'
+  ];
 
   useEffect(() => {
     // Skip if we've already fetched data with the same ID
@@ -55,20 +163,7 @@ export function PastePage() {
       }
 
       try {
-        const response = await fetch(`${getApiBaseUrl()}/pastes/${id}`);
-        
-        if (!response.ok) {
-          if (response.status === 404) {
-            setError("Paste not found or has expired");
-          } else {
-            const errorData = await response.json();
-            setError(errorData.message || "Failed to load paste");
-          }
-          setLoading(false);
-          return;
-        }
-        
-        const data = await response.json();
+        const data = await apiFetch(`pastes/${id}`);
         
         // Check if the response has the expected structure
         console.log("Paste response:", data);
@@ -181,25 +276,10 @@ export function PastePage() {
         }
       });
       
-      console.log("Download response status:", response.status);
-      console.log("Download response headers:", 
-        Array.from(response.headers.entries())
-          .map(([key, value]) => `${key}: ${value}`)
-          .join(', ')
-      );
+      console.log(`Download response: status=${response.status}, content-type=${response.headers.get('content-type')}`);
       
       if (!response.ok) {
-        let errorMessage = 'Failed to download file: ' + response.status;
-        try {
-          const errorText = await response.text();
-          console.error('Download error response:', errorText);
-          if (errorText) {
-            errorMessage += ` - ${errorText}`;
-          }
-        } catch (e) {
-          console.error('Failed to get error text:', e);
-        }
-        throw new Error(errorMessage);
+        throw new Error(`Failed to download file: ${response.status}`);
       }
       
       // Get the blob from the response
@@ -250,24 +330,14 @@ export function PastePage() {
     setEditError(null);
     
     try {
-      const response = await fetch(`${getApiBaseUrl()}/pastes/${id}`, {
+      const data = await apiFetch(`pastes/${id}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
         body: JSON.stringify({
           title: editableTitle,
           content: editableContent,
         }),
       });
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to update paste');
-      }
-      
-      const data = await response.json();
       console.log("Paste updated successfully:", data);
       
       // Update the paste with the new data
@@ -413,9 +483,64 @@ export function PastePage() {
             )}
           </div>
         ) : (
-          <pre className="p-4 overflow-x-auto font-mono text-sm bg-gray-50 dark:bg-[#1d2021] text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
-            {paste.content}
-          </pre>
+          <>
+            <div className="flex items-center justify-between bg-gray-100 dark:bg-[#282828] p-2 border-b border-gray-200 dark:border-[#3c3836]">
+              <div className="flex items-center space-x-2">
+                <label htmlFor="language-select" className="text-sm text-gray-600 dark:text-gray-400">
+                  Language:
+                </label>
+                <select 
+                  id="language-select"
+                  value={language || 'text'}
+                  onChange={(e) => setLanguage(e.target.value)}
+                  className="text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#3c3836] rounded px-2 py-1"
+                >
+                  {commonLanguages.map(lang => (
+                    <option key={lang} value={lang}>{lang}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-center space-x-2">
+                <label htmlFor="theme-select" className="text-sm text-gray-600 dark:text-gray-400">
+                  Theme:
+                </label>
+                <select 
+                  id="theme-select"
+                  value={availableThemes.findIndex(t => t.value === theme)}
+                  onChange={(e) => setTheme(availableThemes[parseInt(e.target.value)].value)}
+                  className="text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#3c3836] rounded px-2 py-1"
+                >
+                  <optgroup label="Light Themes">
+                    {availableThemes.slice(0, 9).map((theme, index) => (
+                      <option key={index} value={index}>{theme.name}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Dark Themes">
+                    {availableThemes.slice(9).map((theme, index) => (
+                      <option key={index + 9} value={index + 9}>{theme.name}</option>
+                    ))}
+                  </optgroup>
+                </select>
+              </div>
+            </div>
+            <div className="overflow-x-auto" style={{backgroundColor: theme === vs || theme === xcode || theme === github || theme === atomOneLight || theme === arduinoLight || theme === googlecode || theme === solarizedLight || theme === a11yLight || theme === gruvboxLight ? '#f8f8f8' : '#1d2021'}}>
+              <SyntaxHighlighter
+                language={language || 'text'}
+                style={theme}
+                customStyle={{
+                  margin: 0,
+                  padding: '1rem',
+                  fontSize: '0.875rem',
+                  backgroundColor: 'transparent',
+                  borderRadius: 0
+                }}
+                wrapLongLines={false}
+                className="syntax-highlighter-override"
+              >
+                {paste.content}
+              </SyntaxHighlighter>
+            </div>
+          </>
         )}
         
         <div className="p-3 bg-gray-50 dark:bg-[#1d2021] text-xs text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-[#3c3836]">

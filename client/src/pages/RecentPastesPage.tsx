@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { getApiBaseUrl } from '../lib/utils';
+import { apiFetch } from '../lib/utils';
+import SyntaxHighlighter from 'react-syntax-highlighter';
+import { gruvboxDark } from 'react-syntax-highlighter/dist/esm/styles/hljs';
 
 interface Paste {
   id: string;
@@ -18,6 +20,40 @@ export function RecentPastesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const fetchedRef = useRef(false);
+
+  // Simple language detection based on common patterns
+  const detectLanguage = (content: string): string => {
+    const firstLines = content.trim().split('\n').slice(0, 5).join('\n');
+    
+    // Check for common language patterns
+    if (firstLines.includes('import React') || firstLines.includes('export default') || (firstLines.includes('function') && firstLines.includes('const'))) {
+      return 'javascript';
+    }
+    if (firstLines.includes('import ') && firstLines.includes('from ') && (firstLines.includes('<') || firstLines.includes('interface'))) {
+      return 'typescript';
+    }
+    if (firstLines.includes('class ') && firstLines.includes('public ') && firstLines.includes('void')) {
+      return 'java';
+    }
+    if (firstLines.includes('def ') && firstLines.includes(':')) {
+      return 'python';
+    }
+    if (firstLines.includes('#include <')) {
+      return 'cpp';
+    }
+    if (firstLines.includes('<html') || firstLines.includes('<div') || firstLines.includes('</')) {
+      return 'html';
+    }
+    if ((firstLines.includes('@media') || firstLines.includes('color:')) || (firstLines.includes('{') && firstLines.includes('}'))) {
+      return 'css';
+    }
+    if (firstLines.includes('<?php')) {
+      return 'php';
+    }
+    
+    // Default case
+    return 'text';
+  };
 
   // Helper function to truncate paste content
   const truncateContent = (content: string, maxLength = 100) => {
@@ -46,18 +82,7 @@ export function RecentPastesPage() {
     
     const fetchPastes = async () => {
       try {
-        const response = await fetch(`${getApiBaseUrl()}/pastes`, {
-          method: 'GET',
-          credentials: 'include',
-          mode: 'cors',
-        });
-        
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.message || 'Failed to fetch pastes');
-        }
-        
-        const data = await response.json();
+        const data = await apiFetch('pastes');
         
         // Check if the response has the expected structure
         console.log("Recent pastes response:", data);
@@ -148,9 +173,26 @@ export function RecentPastesPage() {
                       Copy Link
                     </button>
                   </div>
-                  <pre className="overflow-hidden text-ellipsis whitespace-nowrap bg-gray-50 dark:bg-[#1d2021] p-2 rounded text-sm font-mono">
-                    {truncateContent(paste.content)}
-                  </pre>
+                  <div className="overflow-hidden rounded" style={{backgroundColor: '#1d2021'}}>
+                    <SyntaxHighlighter
+                      language={detectLanguage(paste.content)}
+                      style={gruvboxDark}
+                      customStyle={{
+                        margin: 0,
+                        padding: '0.5rem',
+                        fontSize: '0.75rem',
+                        height: '40px',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        backgroundColor: 'transparent',
+                        borderRadius: 0
+                      }}
+                      className="syntax-highlighter-override"
+                    >
+                      {truncateContent(paste.content)}
+                    </SyntaxHighlighter>
+                  </div>
                   <div className="mt-2 flex justify-between text-xs text-gray-500 dark:text-gray-400">
                     <span>Created: {new Date(paste.createdAt).toLocaleString()}</span>
                     <div className="flex items-center gap-2">
