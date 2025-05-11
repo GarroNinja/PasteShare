@@ -6,6 +6,25 @@ const morgan = require('morgan');
 const https = require('https');
 const { URL } = require('url');
 
+// Import required PostgreSQL dependencies
+try {
+  // First, try to load the pg module
+  const pg = require('pg');
+  console.log('PostgreSQL module loaded successfully:', pg.version);
+} catch (error) {
+  console.error('CRITICAL ERROR - Failed to load pg module:', error.message);
+  console.error('This may indicate that pg is not installed correctly.');
+  console.error('Please run: npm install pg pg-hstore pg-native');
+  
+  // Try to install pg as a last resort
+  try {
+    require('child_process').execSync('npm install pg pg-hstore --no-save', { stdio: 'inherit' });
+    console.log('Auto-installed pg module as emergency fix');
+  } catch (installError) {
+    console.error('Failed to auto-install pg:', installError.message);
+  }
+}
+
 // Fail fast if DATABASE_URL is missing - required in all environments
 if (!process.env.DATABASE_URL) {
   console.error('FATAL ERROR: DATABASE_URL environment variable is required');

@@ -9,7 +9,8 @@
     "client": "cd client && npm start",
     "dev": "bash ./start.sh",
     "install:all": "npm install && cd client && npm install && cd ../server && npm install",
-    "build": "cd client && npm run build && cd ../server && npm run build"
+    "build": "cd client && npm run build && cd ../server && npm run build",
+    "postinstall": "node vercel-pg-fix.js"
   },
   "keywords": [
     "pastebin",
@@ -18,6 +19,12 @@
   ],
   "author": "",
   "license": "ISC",
+  "dependencies": {
+    "pg": "^8.11.3",
+    "pg-hstore": "^2.3.4",
+    "pg-native": "^3.0.1",
+    "sequelize": "^6.37.1"
+  },
   "devDependencies": {
     "concurrently": "^7.6.0",
     "cross-env": "^7.0.3"
