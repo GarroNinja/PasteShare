@@ -76,7 +76,37 @@ export function PastePage() {
     const firstLines = content.trim().split('\n').slice(0, 10).join('\n');
     
     // Check for common language patterns
-    // JavaScript detection - more specific patterns first
+    // C/C++ detection - should come before JavaScript to avoid misdetection
+    if (firstLines.includes('#include <')) {
+      // C++ specific patterns
+      if (firstLines.includes('iostream') || 
+          firstLines.includes('vector') || 
+          firstLines.includes('namespace') ||
+          firstLines.includes('template') || 
+          firstLines.includes('std::') || 
+          firstLines.includes('::') ||
+          firstLines.includes('->') ||
+          firstLines.includes('cout') ||
+          firstLines.includes('cin') ||
+          firstLines.match(/class\s+\w+\s*(\:\s*\w+\s*)?{/) ||
+          firstLines.match(/void\s+\w+::\w+/) ||
+          firstLines.match(/public:|private:|protected:/) ||
+          firstLines.includes('new ') && firstLines.includes('delete ')) {
+        return 'cpp';
+      }
+      // Plain C detection
+      if (firstLines.includes('stdio.h') || 
+          firstLines.includes('stdlib.h') || 
+          (firstLines.includes('int main') && !firstLines.includes('class')) ||
+          firstLines.includes('printf') ||
+          firstLines.includes('scanf') ||
+          firstLines.match(/struct\s+\w+\s*{/)) {
+        return 'c';
+      }
+      return 'cpp'; // Default to cpp for other includes
+    }
+    
+    // JavaScript detection - more specific patterns
     if (firstLines.includes('import React') || 
         firstLines.includes('export default') || 
         firstLines.includes('export const') ||
@@ -105,16 +135,6 @@ export function PastePage() {
     }
     if (firstLines.includes('def ') && firstLines.includes(':')) {
       return 'python';
-    }
-    if (firstLines.includes('#include <')) {
-      if (firstLines.includes('iostream') || firstLines.includes('vector') || firstLines.includes('namespace')) {
-        return 'cpp';
-      }
-      // Plain C detection
-      if (firstLines.includes('stdio.h') || firstLines.includes('stdlib.h') || (firstLines.includes('int main') && !firstLines.includes('class'))) {
-        return 'c';
-      }
-      return 'cpp'; // Default to cpp for other includes
     }
     if (firstLines.includes('<html') || firstLines.includes('<div') || firstLines.includes('</')) {
       return 'html';
