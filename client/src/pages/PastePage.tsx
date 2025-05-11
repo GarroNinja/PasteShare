@@ -228,8 +228,6 @@ export function PastePage() {
         const data = await apiFetch(`pastes/${id}`);
         
         // Check if the response has the expected structure
-        console.log("Paste response:", data);
-        
         if (data.paste) {
           // Use the correct path from the API response
           setPaste(data.paste);
@@ -237,13 +235,11 @@ export function PastePage() {
           setEditableTitle(data.paste.title || '');
           setEditableContent(data.paste.content || '');
         } else {
-          console.error("Invalid API response structure:", data);
           setError("Invalid API response format");
         }
         
         setLoading(false);
       } catch (err) {
-        console.error("Error fetching paste:", err);
         setError("Failed to load paste. Please try again later.");
         setLoading(false);
       }

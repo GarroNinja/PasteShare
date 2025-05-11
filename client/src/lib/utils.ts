@@ -60,8 +60,6 @@ export async function apiFetch(
   const baseUrl = getApiBaseUrl();
   const url = `${baseUrl}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
   
-  console.log(`Fetching from: ${url}`);
-  
   try {
     // Add default headers and credentials
     const fetchOptions: RequestInit = {
@@ -74,9 +72,6 @@ export async function apiFetch(
     };
     
     const response = await fetch(url, fetchOptions);
-    
-    // Log response status for debugging
-    console.log(`Response from ${url}: status=${response.status}`);
     
     // Check if response is OK
     if (!response.ok) {
@@ -98,6 +93,7 @@ export async function apiFetch(
     // Parse JSON response
     return await response.json();
   } catch (error) {
+    // Still log errors but remove the debug logs
     console.error(`API request failed for ${url}:`, error);
     throw error;
   }

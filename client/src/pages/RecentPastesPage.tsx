@@ -162,20 +162,16 @@ export function RecentPastesPage() {
         const data = await apiFetch('pastes');
         
         // Check if the response has the expected structure
-        console.log("Recent pastes response:", data);
-        
         if (Array.isArray(data)) {
           setPastes(data);
         } else if (data.pastes && Array.isArray(data.pastes)) {
           setPastes(data.pastes);
         } else {
-          console.error("Invalid API response structure:", data);
           setError("Invalid API response format");
         }
         
         setLoading(false);
       } catch (error) {
-        console.error('Error fetching pastes:', error);
         setError(error instanceof Error ? error.message : 'Failed to load pastes');
         setLoading(false);
       }

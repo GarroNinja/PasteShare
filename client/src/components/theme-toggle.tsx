@@ -5,14 +5,9 @@ import { useTheme } from "./theme-provider";
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme();
 
-  const toggleTheme = () => {
-    setTheme(theme === "light" ? "dark" : "light");
-    console.log("Theme toggled to:", theme === "light" ? "dark" : "light");
-  };
-
   return (
     <button
-      onClick={toggleTheme}
+      onClick={() => setTheme(theme === "light" ? "dark" : "light")}
       className="p-2 rounded-full bg-gray-200 dark:bg-[#3c3836] hover:bg-gray-300 dark:hover:bg-[#504945] transition-colors"
       aria-label={`Change theme to ${theme === "light" ? "dark" : "light"} mode`}
     >
