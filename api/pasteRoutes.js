@@ -34,8 +34,8 @@ let sequelize, Paste, File;
 let useDatabase = false;
 let lastConnectionAttempt = 0;
 let connectionAttempts = 0;
-const MAX_CONNECTION_ATTEMPTS = 5;
-const RETRY_INTERVALS = [1000, 5000, 15000, 30000, 60000]; // Exponential backoff
+const MAX_CONNECTION_ATTEMPTS = 10; // Increase max attempts
+const RETRY_INTERVALS = [500, 1000, 2000, 5000, 10000, 15000, 30000]; // Shorter initial retries
 
 // Initialize the database with proper connection parameters
 function initializeDatabase() {
@@ -54,7 +54,7 @@ function initializeDatabase() {
   // Required: DATABASE_URL environment variable
   if (!process.env.DATABASE_URL) {
     console.error('FATAL ERROR: DATABASE_URL environment variable is not set');
-    throw new Error('DATABASE_URL is required - application cannot start without it');
+    return { success: false, reason: 'DATABASE_URL is missing' };
   }
   
   try {
@@ -63,28 +63,39 @@ function initializeDatabase() {
     console.log(`Attempting to connect to database: ${urlObj.hostname}:${urlObj.port}${urlObj.pathname}`);
     console.log(`Connection attempt ${connectionAttempts}/${MAX_CONNECTION_ATTEMPTS}`);
 
-    // Initialize DB connection with optimized configuration
-    sequelize = new Sequelize(process.env.DATABASE_URL, {
+    // Make sure we're using the correct URL format for Supabase
+    let connectionString = process.env.DATABASE_URL;
+    
+    // Always use the Supabase transaction pooler at port 6543 which is better for serverless
+    if (urlObj.hostname.includes('supabase')) {
+      // Force port 6543 for Supabase connection pooling 
+      connectionString = connectionString.replace(/:5432\//g, ':6543/').replace(/:5432$/g, ':6543');
+      console.log('Using Supabase connection pooler at port 6543');
+    }
+
+    // Initialize DB connection with optimized configuration for Supabase
+    sequelize = new Sequelize(connectionString, {
       dialect: 'postgres',
       dialectOptions: {
         ssl: {
           require: true,
           rejectUnauthorized: false
         },
-        keepAlive: true
+        keepAlive: true,
+        connectTimeout: 30000 // Increased timeout
       },
       pool: {
-        max: 2, // Keep minimal pool size for serverless functions
+        max: 3, // Reduced for serverless environment
         min: 0,
-        idle: 5000,
-        acquire: 15000,
+        idle: 10000,
+        acquire: 30000,
         evict: 1000
       },
       retry: {
-        max: 3,
-        timeout: 10000
+        max: 5,
+        timeout: 30000 // Increased timeout
       },
-      logging: process.env.NODE_ENV === 'development', // Only log in development
+      logging: console.log, // Always log for debugging
       benchmark: true // Monitor query performance
     });
 
@@ -197,45 +208,100 @@ console.log('Initial database setup result:', dbSetup);
 
 // Immediately test the connection after setup
 (async () => {
-  try {
-    if (!sequelize) {
-      console.error('Sequelize instance not initialized');
-      useDatabase = false;
-      return;
+  // Critical: Force the use of database in Vercel and never fall back to in-memory
+  const isVercel = !!process.env.VERCEL;
+  let connectSuccess = false;
+  
+  // Try multiple connection attempts
+  for (let attempt = 1; attempt <= MAX_CONNECTION_ATTEMPTS; attempt++) {
+    try {
+      if (!sequelize) {
+        console.error(`Connection attempt ${attempt}: Sequelize instance not initialized`);
+        // Wait before trying again with increasing delays
+        const waitTime = RETRY_INTERVALS[Math.min(attempt - 1, RETRY_INTERVALS.length - 1)];
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+        initializeDatabase();
+        continue;
+      }
+      
+      // Explicitly test connection with timeout
+      const timeout = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Connection timeout')), 15000)
+      );
+      await Promise.race([sequelize.authenticate(), timeout]);
+      
+      console.log(`Connection attempt ${attempt}: Database connection established successfully`);
+      connectSuccess = true;
+      
+      try {
+        // Only sync tables if needed (avoid frequent schema changes)
+        const [tables] = await sequelize.query(`
+          SELECT table_name 
+          FROM information_schema.tables 
+          WHERE table_schema = 'public'
+        `);
+        
+        const tableNames = tables.map(t => t.table_name.toLowerCase());
+        console.log('Existing tables:', tableNames);
+        
+        const needsSync = !tableNames.includes('pastes') || !tableNames.includes('files');
+        
+        if (needsSync) {
+          console.log('Tables do not exist, performing sync');
+          await sequelize.sync({ alter: false }); // Don't alter in production
+          console.log('Database tables synchronized successfully');
+        } else {
+          console.log('Database tables already exist, skipping sync');
+        }
+        
+        // Test with a simple query
+        const pasteCount = await Paste.count();
+        console.log(`Database has ${pasteCount} pastes`);
+      } catch (syncError) {
+        console.error(`Error during sync/count: ${syncError.message}`);
+        // Continue anyway as the connection was successful
+      }
+      
+      // Enable database usage 
+      useDatabase = true;
+      console.log('Database connection successful - PostgreSQL will be used for storage');
+      break; // Exit the retry loop
+    } catch (error) {
+      console.error(`Connection attempt ${attempt} failed:`, error.message);
+      
+      if (attempt < MAX_CONNECTION_ATTEMPTS) {
+        const waitTime = RETRY_INTERVALS[Math.min(attempt - 1, RETRY_INTERVALS.length - 1)];
+        console.log(`Will retry in ${waitTime}ms...`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+      }
+    }
+  }
+  
+  // If we're in Vercel and couldn't connect to the database, crash the function
+  // This is better than silently using in-memory storage
+  if (isVercel && !connectSuccess) {
+    console.error('CRITICAL ERROR: Failed to connect to database after multiple attempts in Vercel environment');
+    console.error('DATABASE_URL:', process.env.DATABASE_URL ? 'Provided' : 'Missing');
+    
+    // Try to validate DATABASE_URL
+    try {
+      const url = new URL(process.env.DATABASE_URL);
+      console.error('Database URL parse check:', { 
+        host: url.hostname, 
+        port: url.port,
+        protocol: url.protocol,
+        pathname: url.pathname
+      });
+    } catch (e) {
+      console.error('DATABASE_URL is malformed:', e.message);
     }
     
-    await sequelize.authenticate();
-    console.log('Database connection established successfully');
-    
-    // Only sync tables if needed (avoid frequent schema changes)
-    const [tables] = await sequelize.query(`
-      SELECT table_name 
-      FROM information_schema.tables 
-      WHERE table_schema = 'public'
-    `);
-    
-    const tableNames = tables.map(t => t.table_name.toLowerCase());
-    console.log('Existing tables:', tableNames);
-    
-    const needsSync = !tableNames.includes('pastes') || !tableNames.includes('files');
-    
-    if (needsSync) {
-      console.log('Tables do not exist, performing sync');
-      await sequelize.sync({ alter: true });
-      console.log('Database tables synchronized successfully');
-    } else {
-      console.log('Database tables already exist, skipping sync');
-    }
-    
-    // Test with a simple query
-    const pasteCount = await Paste.count();
-    console.log(`Database has ${pasteCount} pastes`);
-    
-    // Enable database usage 
-    useDatabase = true;
-    console.log('Database connection successful - PostgreSQL will be used for storage');
-  } catch (error) {
-    console.error('Database authentication or sync failed:', error.message);
+    // In Vercel, throw an error to crash the function to alert user
+    throw new Error('Cannot start without database connection in production');
+  }
+  
+  if (!connectSuccess) {
+    console.error('Failed to connect to database after multiple attempts');
     useDatabase = false;
     console.error('Failing over to in-memory storage - DATABASE CONNECTION FAILED');
   }
@@ -243,6 +309,60 @@ console.log('Initial database setup result:', dbSetup);
 
 // In-memory storage fallback (only used if database connection fails)
 const inMemoryPastes = [];
+
+// Add a function to test the database connection directly
+async function testDatabase() {
+  // If database isn't initialized, try to initialize it
+  if (!sequelize) {
+    const setup = initializeDatabase();
+    if (!setup.success) {
+      return {
+        connected: false,
+        error: setup.reason || 'Failed to initialize database'
+      };
+    }
+  }
+  
+  try {
+    // Test with a timeout to avoid hanging
+    const timeout = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Connection timeout')), 10000)
+    );
+    
+    // Authenticate and get basic information
+    await Promise.race([sequelize.authenticate(), timeout]);
+    
+    // Test a basic query to verify tables
+    let tableInfo;
+    try {
+      const [tables] = await sequelize.query(`
+        SELECT table_name 
+        FROM information_schema.tables 
+        WHERE table_schema = 'public'
+      `);
+      tableInfo = tables.map(t => t.table_name);
+    } catch (queryError) {
+      return {
+        connected: true,
+        queryWorking: false,
+        error: queryError.message
+      };
+    }
+    
+    return {
+      connected: true,
+      queryWorking: true,
+      tables: tableInfo,
+      pasteTableExists: tableInfo.includes('pastes'),
+      fileTableExists: tableInfo.includes('files')
+    };
+  } catch (error) {
+    return {
+      connected: false,
+      error: error.message
+    };
+  }
+}
 
 // Update getDatabaseStatus to provide more accurate information
 function getDatabaseStatus() {
@@ -261,13 +381,39 @@ function getDatabaseStatus() {
   };
 }
 
+// Export functions for external use
+router.getDatabaseStatus = getDatabaseStatus;
+router.testDatabase = testDatabase;
+router.useDatabase = useDatabase;
+router.connectionAttempts = connectionAttempts;
+
 // Middleware to check database connection before each request
 router.use((req, res, next) => {
-  // If we're not using the database, try to initialize it again
-  // This will respect the retry interval
-  if (!useDatabase) {
-    initializeDatabase();
+  // In production/Vercel, database connection is mandatory
+  const isVercel = !!process.env.VERCEL;
+  const isProduction = process.env.NODE_ENV === 'production';
+  
+  if (!useDatabase && (isVercel || isProduction)) {
+    console.error('Request received but database is not connected in production/Vercel environment');
+    return res.status(503).json({ 
+      error: 'Database connection is required but unavailable',
+      message: 'Server is misconfigured. Database connection is required in production.',
+      dbStatus: getDatabaseStatus()
+    });
   }
+  
+  // In development, we may retry the connection or fallback to in-memory
+  if (!useDatabase && !isVercel && !isProduction) {
+    // Attempt reconnection no more than once per minute
+    const now = Date.now();
+    if (now - lastConnectionAttempt > 60000) {
+      console.log('Retrying database connection on request');
+      initializeDatabase();
+    } else {
+      console.log('Using in-memory storage (database connection failed)');
+    }
+  }
+  
   next();
 });
 
@@ -814,8 +960,5 @@ router.get('/:pasteId/files/:fileId', async (req, res) => {
     return res.status(500).json({ message: 'Server error retrieving file' });
   }
 });
-
-// Export database status
-router.getDatabaseStatus = getDatabaseStatus;
 
 module.exports = router; 

@@ -183,7 +183,7 @@ app.get('/api/database', (req, res) => {
 });
 
 // Test Supabase connection directly
-app.get('/api/test-connection', (req, res) => {
+app.get('/api/test-connection', async (req, res) => {
   if (!process.env.DATABASE_URL) {
     return res.status(400).json({ 
       success: false, 
@@ -194,8 +194,8 @@ app.get('/api/test-connection', (req, res) => {
   try {
     const url = new URL(process.env.DATABASE_URL);
     
-    // For Supabase, we need to test HTTPS connection
-    if (url.hostname.includes('supabase')) {
+    // First check basic connectivity to host
+    const hostConnectTest = await new Promise((resolve) => {
       const options = {
         hostname: url.hostname,
         port: 443, // HTTPS port
@@ -205,47 +205,62 @@ app.get('/api/test-connection', (req, res) => {
       };
       
       const request = https.request(options, (response) => {
-        res.status(200).json({
+        resolve({
           success: true,
-          message: 'Connection test to Supabase host successful',
-          statusCode: response.statusCode,
-          database: {
-            host: url.hostname,
-            port: url.port,
-            database: url.pathname.substring(1)
-          }
+          statusCode: response.statusCode
         });
       });
       
       request.on('error', (error) => {
-        res.status(500).json({
+        resolve({
           success: false,
-          message: 'Connection test failed',
           error: error.message
         });
       });
       
       request.on('timeout', () => {
         request.destroy();
-        res.status(408).json({
+        resolve({
           success: false,
-          message: 'Connection test timed out'
+          error: 'Connection timed out'
         });
       });
       
       request.end();
-    } else {
-      // For non-Supabase hosts, just return the parsed URL info
-      res.status(200).json({
-        success: true,
-        message: 'Database URL is valid',
-        database: {
-          host: url.hostname,
-          port: url.port,
-          database: url.pathname.substring(1)
-        }
-      });
+    });
+    
+    // For Supabase, also perform a PostgreSQL connection test using the pasteRoutes module
+    let pgTest = { attempted: false };
+    if (url.hostname.includes('supabase') && pasteRoutes.testDatabase) {
+      pgTest = {
+        attempted: true,
+        result: await pasteRoutes.testDatabase()
+      };
     }
+    
+    res.status(200).json({
+      success: hostConnectTest.success,
+      message: hostConnectTest.success 
+        ? 'Connection test completed' 
+        : 'Connection test failed',
+      hostname: url.hostname,
+      hostConnectivity: hostConnectTest,
+      database: {
+        host: url.hostname,
+        port: url.port,
+        database: url.pathname.substring(1),
+        username: url.username ? '(configured)' : '(missing)',
+        passwordConfigured: !!url.password,
+        ssl: url.searchParams.get('sslmode') || 'default',
+        poolingEnabled: url.port === '6543'
+      },
+      postgresTest: pgTest,
+      currentState: {
+        usingDatabase: !!pasteRoutes.useDatabase,
+        connectionsAttempted: pasteRoutes.connectionAttempts || 0,
+        mode: pasteRoutes.useDatabase ? 'PostgreSQL' : 'In-Memory'
+      }
+    });
   } catch (error) {
     res.status(500).json({
       success: false,
