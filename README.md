@@ -14,6 +14,9 @@ A modern pastebin application for sharing code snippets, text, and files.
 - Private pastes
 - Editable pastes
 - Mobile responsive UI
+- Dark mode theme
+- Syntax highlighting with multiple theme options
+- Print-friendly view
 
 ## Quick Start
 
@@ -60,6 +63,14 @@ For PostgreSQL, we recommend using a provider like:
 - Neon
 - Vercel Postgres
 
+## Advanced Features
+
+### Syntax Highlighting
+PasteShare supports over 30 different syntax highlighting themes and automatic language detection. Users can manually select both language and theme for optimal code readability.
+
+### Dark Mode
+The application features a custom dark mode with elegant theming, providing excellent contrast and reduced eye strain in low-light environments.
+
 ## Architecture
 
 The application uses a serverless-optimized architecture:
@@ -75,4 +86,5 @@ The application uses a serverless-optimized architecture:
 - **Backend**: Node.js, Express
 - **Database**: PostgreSQL
 - **ORM**: Sequelize
+- **Syntax Highlighting**: react-syntax-highlighter
 - **Deployment**: Vercel Serverless Functions
