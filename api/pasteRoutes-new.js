@@ -640,5 +640,145 @@ router.get('/:pasteId/files/:fileId', async (req, res) => {
   }
 });
 
+// Edit a paste
+router.put('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, content } = req.body;
+    const now = new Date();
+    
+    console.log(`Updating paste with ID/URL: ${id}, DB mode: ${req.useDatabase}`);
+    
+    if (req.useDatabase) {
+      const { models } = req.db;
+      const { Paste } = models;
+      
+      try {
+        // Check if the ID is a valid UUID
+        const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+        let paste = null;
+        
+        if (isValidUUID) {
+          // If it's a valid UUID, try to find by ID first
+          console.log(`ID appears to be a valid UUID, trying findByPk: ${id}`);
+          paste = await Paste.findByPk(id);
+        }
+        
+        // If not found or not a UUID, try by customUrl (case-insensitive)
+        if (!paste) {
+          console.log(`Trying to find paste by customUrl: ${id}`);
+          
+          // Try with case-insensitive lookup
+          paste = await Paste.findOne({
+            where: {
+              customUrl: Sequelize.where(
+                Sequelize.fn('LOWER', Sequelize.col('customUrl')), 
+                Sequelize.fn('LOWER', id)
+              )
+            }
+          });
+        }
+        
+        if (paste) {
+          // Check if expired
+          if (paste.expiresAt && new Date(paste.expiresAt) < now) {
+            return res.status(404).json({ message: 'Paste has expired' });
+          }
+          
+          // Check if editable
+          if (!paste.isEditable) {
+            return res.status(403).json({ message: 'This paste is not editable' });
+          }
+          
+          // Update paste
+          if (title !== undefined) paste.title = title;
+          if (content !== undefined) paste.content = content;
+          
+          // Save changes
+          await paste.save();
+          
+          return res.status(200).json({
+            message: 'Paste updated successfully',
+            paste: {
+              id: paste.id,
+              title: paste.title,
+              content: paste.content,
+              expiresAt: paste.expiresAt,
+              isPrivate: paste.isPrivate,
+              isEditable: paste.isEditable,
+              customUrl: paste.customUrl,
+              createdAt: paste.createdAt,
+              updatedAt: paste.updatedAt,
+              views: paste.views,
+              storageType: 'database'
+            }
+          });
+        } else {
+          return res.status(404).json({ message: 'Paste not found' });
+        }
+      } catch (error) {
+        console.error('Database query failed:', error);
+        console.error('Error details:', error.message);
+        
+        // Log the full error stack for debugging
+        if (error.stack) {
+          console.error('Error stack:', error.stack);
+        }
+        
+        return res.status(500).json({ 
+          message: 'Error updating paste in database',
+          error: error.message 
+        });
+      }
+    } else if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+      // In-memory implementation (fallback - development only)
+      const paste = inMemoryPastes.find(p => 
+        (p.id === id || p.customUrl === id) && 
+        (!p.expiresAt || p.expiresAt > now)
+      );
+      
+      if (!paste) {
+        return res.status(404).json({ message: 'Paste not found or has expired' });
+      }
+      
+      // Check if editable
+      if (!paste.isEditable) {
+        return res.status(403).json({ message: 'This paste is not editable' });
+      }
+      
+      // Update paste
+      if (title !== undefined) paste.title = title;
+      if (content !== undefined) paste.content = content;
+      paste.updatedAt = new Date();
+      
+      return res.status(200).json({
+        message: 'Paste updated successfully',
+        paste: {
+          id: paste.id,
+          title: paste.title,
+          content: paste.content,
+          expiresAt: paste.expiresAt,
+          isPrivate: paste.isPrivate,
+          isEditable: paste.isEditable,
+          customUrl: paste.customUrl,
+          createdAt: paste.createdAt,
+          updatedAt: paste.updatedAt,
+          views: paste.views,
+          storageType: 'memory'
+        }
+      });
+    } else {
+      // Production environment without database connection
+      return res.status(503).json({
+        error: 'Service unavailable',
+        message: 'Database connection required for this operation'
+      });
+    }
+  } catch (error) {
+    console.error('Update paste error:', error);
+    return res.status(500).json({ message: 'Server error updating paste' });
+  }
+});
+
 // Export the router
 module.exports = router; 
