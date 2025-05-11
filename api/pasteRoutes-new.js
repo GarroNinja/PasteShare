@@ -423,10 +423,22 @@ router.get('/:id', async (req, res) => {
         // If not found by ID, try by customUrl (case-insensitive)
         if (!paste) {
           console.log(`Paste not found by ID, trying customUrl: ${id}`);
+          
+          // Log the existing customUrls in the database to diagnose issues
+          const allPastes = await Paste.findAll({
+            attributes: ['id', 'customUrl']
+          });
+          
+          console.log('Current custom URLs in database:');
+          allPastes.forEach(p => {
+            if (p.customUrl) {
+              console.log(`ID: ${p.id}, customUrl: ${p.customUrl}`);
+            }
+          });
+          
+          // Try with case-insensitive lookup
           paste = await Paste.findOne({
             where: {
-              // Use case-insensitive comparison with Sequelize's ILIKE (if Postgres)
-              // or convert both to lowercase for comparison
               customUrl: Sequelize.where(
                 Sequelize.fn('LOWER', Sequelize.col('customUrl')), 
                 Sequelize.fn('LOWER', id)
@@ -485,6 +497,19 @@ router.get('/:id', async (req, res) => {
         }
       } catch (error) {
         console.error('Database query failed:', error);
+        console.error('Error details:', error.message);
+        
+        // Log the full error stack for debugging
+        if (error.stack) {
+          console.error('Error stack:', error.stack);
+        }
+        
+        // Log database connection info
+        console.log('DB connection info:', {
+          models: !!req.db.models,
+          sequelize: !!req.db.sequelize
+        });
+        
         return res.status(500).json({ 
           message: 'Error retrieving paste from database',
           error: error.message 
