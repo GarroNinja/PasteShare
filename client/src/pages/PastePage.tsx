@@ -52,7 +52,11 @@ export function PastePage() {
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [language, setLanguage] = useState<string | null>(null);
-  const [theme, setTheme] = useState(gruvboxDark);
+  const [theme, setTheme] = useState(() => {
+    // Check if the document has dark mode class to determine current theme
+    const isDarkMode = document.documentElement.classList.contains('dark');
+    return isDarkMode ? gruvboxDark : gruvboxLight;
+  });
   
   // Notification state
   const [showNotification, setShowNotification] = useState(false);

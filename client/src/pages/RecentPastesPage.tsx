@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { apiFetch } from '../lib/utils';
 import SyntaxHighlighter from 'react-syntax-highlighter';
-import { gruvboxDark } from 'react-syntax-highlighter/dist/esm/styles/hljs';
+import { gruvboxDark, gruvboxLight } from 'react-syntax-highlighter/dist/esm/styles/hljs';
 import CopyNotification from '../components/CopyNotification';
 
 interface Paste {
@@ -21,6 +21,12 @@ export function RecentPastesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const fetchedRef = useRef(false);
+  
+  // Get the appropriate theme based on current mode
+  const [syntaxTheme] = useState(() => {
+    const isDarkMode = document.documentElement.classList.contains('dark');
+    return isDarkMode ? gruvboxDark : gruvboxLight;
+  });
   
   // Notification state
   const [showNotification, setShowNotification] = useState(false);
@@ -256,7 +262,7 @@ export function RecentPastesPage() {
                   <div className="overflow-hidden rounded" style={{backgroundColor: '#1d2021'}}>
                     <SyntaxHighlighter
                       language={detectLanguage(paste.content)}
-                      style={gruvboxDark}
+                      style={syntaxTheme}
                       customStyle={{
                         margin: 0,
                         padding: '0.5rem',
