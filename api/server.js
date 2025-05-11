@@ -131,7 +131,7 @@ app.use((err, req, res, next) => {
 });
 
 // Mount the paste routes
-app.use('/api/pastes', require('./pasteRoutes'));
+app.use('/api/pastes', pasteRoutes);
 
 // Health check route
 app.get('/api/health', (req, res) => {

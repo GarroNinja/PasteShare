@@ -7,7 +7,7 @@
     "start": "node server/dist/server.js",
     "server": "cd server && npm run dev",
     "client": "cd client && npm start",
-    "dev": "bash ./start.sh",
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
     "install:all": "npm install && cd client && npm install && cd ../server && npm install",
     "build": "cd client && npm run build && cd ../server && npm run build"
   },

@@ -34,14 +34,8 @@ export function getExpiryDate(seconds: number): Date | null {
 
 // Get the server API base URL
 export function getApiBaseUrl(): string {
-  // Check if we're in production environment
+  // In production (Vercel deployment), use the current origin with /api path
   if (process.env.NODE_ENV === 'production') {
-    // If REACT_APP_API_URL is defined, use it
-    if (process.env.REACT_APP_API_URL) {
-      return process.env.REACT_APP_API_URL;
-    }
-    
-    // For Vercel deployment, use the current hostname with /api path
     const { protocol, host } = window.location;
     return `${protocol}//${host}/api`;
   }

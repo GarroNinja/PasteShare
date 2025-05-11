@@ -4,12 +4,7 @@
   "installCommand": "npm install pg pg-hstore",
   "outputDirectory": "client/build",
   "rewrites": [
-    { "source": "/api/pastes", "destination": "/api/server.js" },
-    { "source": "/api/pastes/:id", "destination": "/api/server.js" },
-    { "source": "/api/pastes/:id/files/:fileId", "destination": "/api/server.js" },
-    { "source": "/api/health", "destination": "/api/server.js" },
-    { "source": "/api/database", "destination": "/api/server.js" },
-    { "source": "/api/test-connection", "destination": "/api/server.js" },
+    { "source": "/api/(.*)", "destination": "/api/server.js" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [
@@ -38,8 +33,7 @@
   "functions": {
     "api/server.js": {
       "memory": 1024,
-      "maxDuration": 10,
-      "includeFiles": "node_modules/**"
+      "maxDuration": 10
     }
   },
   "env": {

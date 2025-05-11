@@ -1,5 +1,6 @@
 // Database connection module for serverless environment
 const { Sequelize, DataTypes } = require('sequelize');
+const { Op } = Sequelize;
 
 // Create a database connection
 const createConnection = () => {
@@ -71,7 +72,7 @@ const createConnection = () => {
       },
       isEditable: {
         type: DataTypes.BOOLEAN,
-        defaultValue: true
+        defaultValue: false
       },
       customUrl: {
         type: DataTypes.STRING,
@@ -187,5 +188,7 @@ const createConnection = () => {
 };
 
 module.exports = {
-  createConnection
+  createConnection,
+  Sequelize,
+  Op
 }; 

@@ -26,80 +26,33 @@ const loadEnvFiles = () => {
 
 loadEnvFiles();
 
-// Enhanced database URL validation and configuration
-const getDatabaseConfig = () => {
-  console.log('Environment: ', process.env.NODE_ENV);
-  console.log('DATABASE_URL exists: ', !!process.env.DATABASE_URL);
-  
-  // Strict check for DATABASE_URL - no fallbacks
-  if (!process.env.DATABASE_URL) {
-    console.error('ERROR: DATABASE_URL is not set in environment');
-    throw new Error('DATABASE_URL is not set in environment');
-  }
-  
-  // Only use DATABASE_URL - no localhost fallbacks
-  const dbUrl = process.env.DATABASE_URL;
-  
-  try {
-    // Log sanitized URL (without password)
-    const urlObj = new URL(dbUrl);
-    console.log(`Connecting to database at ${urlObj.host}${urlObj.pathname} (${process.env.NODE_ENV} mode)`);
-    
-    // Force port 6543 for Supabase connection pooling if needed
-    let connectionString = dbUrl;
-    if (urlObj.hostname.includes('supabase') && urlObj.port !== '6543') {
-      connectionString = connectionString.replace(/:5432\//g, ':6543/').replace(/:5432$/g, ':6543');
-      console.log('Using Supabase connection pooler at port 6543');
-    }
-  } catch (e: any) {
-    console.error('Invalid DATABASE_URL format:', e.message);
-    throw e; // Rethrow to prevent application from starting with bad URL
-  }
-  
-  const isSupabase = dbUrl.includes('supabase');
-  
-  return {
-    url: dbUrl,
-    options: {
-      dialect: 'postgres' as const,
-      dialectOptions: {
-        ssl: {
-          require: true,
-          rejectUnauthorized: false
-        },
-        keepAlive: true,
-        connectTimeout: 30000 // Increased timeout for Supabase
-      },
-      logging: process.env.NODE_ENV === 'development',
-      pool: {
-        max: process.env.NODE_ENV === 'production' ? 3 : 5,
-        min: 0,
-        acquire: 30000,
-        idle: 10000
-      },
-      retry: {
-        max: 10, // Increase max retries
-        timeout: 30000 // Extend retry timeout
-      }
-    }
-  };
-};
+// Check for required DATABASE_URL
+if (!process.env.DATABASE_URL) {
+  throw new Error('DATABASE_URL environment variable is not set!');
+}
 
-// Initialize database connection
-const dbConfig = getDatabaseConfig();
-const sequelize = new Sequelize(dbConfig.url, dbConfig.options);
+// Initialize Sequelize with DATABASE_URL
+const sequelize = new Sequelize(process.env.DATABASE_URL, {
+  dialect: 'postgres',
+  dialectOptions: {
+    ssl: {
+      require: true,
+      rejectUnauthorized: false
+    }
+  },
+  logging: process.env.NODE_ENV === 'development',
+  pool: {
+    max: 3,
+    min: 0,
+    acquire: 30000,
+    idle: 10000
+  }
+});
 
-// Test connection function that can be used for health checks
+// Test connection function for health checks
 export const testConnection = async () => {
   try {
-    // Add timeout to prevent hanging
-    const timeout = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Connection timeout')), 15000)
-    );
-    
-    // Race the authentication with the timeout
-    await Promise.race([sequelize.authenticate(), timeout]);
-    
+    await sequelize.authenticate();
     return { connected: true, message: 'Database connection is healthy' };
   } catch (error) {
     console.error('Unable to connect to the database:', error);

@@ -7,7 +7,7 @@ interface FileAttributes {
   originalname: string;
   mimetype: string;
   size: number;
-  path: string;
+  content: string;  // Base64 encoded file content
   pasteId: string;
   createdAt?: Date;
   updatedAt?: Date;
@@ -22,7 +22,7 @@ class File extends Model<FileAttributes, FileInput> implements FileAttributes {
   public originalname!: string;
   public mimetype!: string;
   public size!: number;
-  public path!: string;
+  public content!: string;
   public pasteId!: string;
   
   public readonly createdAt!: Date;
@@ -52,8 +52,8 @@ File.init(
       type: DataTypes.INTEGER,
       allowNull: false,
     },
-    path: {
-      type: DataTypes.STRING,
+    content: {
+      type: DataTypes.TEXT('long'),
       allowNull: false,
     },
     pasteId: {
