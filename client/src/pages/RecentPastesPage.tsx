@@ -39,7 +39,14 @@ export function RecentPastesPage() {
       return 'python';
     }
     if (firstLines.includes('#include <')) {
-      return 'cpp';
+      if (firstLines.includes('iostream') || firstLines.includes('vector') || firstLines.includes('namespace')) {
+        return 'cpp';
+      }
+      // Plain C detection
+      if (firstLines.includes('stdio.h') || firstLines.includes('stdlib.h') || (firstLines.includes('int main') && !firstLines.includes('class'))) {
+        return 'c';
+      }
+      return 'cpp'; // Default to cpp for other includes
     }
     if (firstLines.includes('<html') || firstLines.includes('<div') || firstLines.includes('</')) {
       return 'html';
@@ -49,6 +56,26 @@ export function RecentPastesPage() {
     }
     if (firstLines.includes('<?php')) {
       return 'php';
+    }
+    if (firstLines.includes('package main') || firstLines.includes('func ')) {
+      return 'go';
+    }
+    if (firstLines.includes('SELECT ') || firstLines.includes('FROM ')) {
+      return 'sql';
+    }
+    if (firstLines.includes('#!/bin/bash') || firstLines.includes('#!/bin/sh')) {
+      return 'bash';
+    }
+    // Kotlin detection
+    if (firstLines.includes('fun ') || (firstLines.includes('val ') && firstLines.includes('var ')) || 
+        (firstLines.includes('package ') && firstLines.includes('import ') && !firstLines.includes('golang'))) {
+      return 'kotlin';
+    }
+    // Lua detection
+    if ((firstLines.includes('function') && firstLines.includes('end')) || 
+        (firstLines.includes('local ') && !firstLines.includes(';')) ||
+        firstLines.includes('--[[') || (firstLines.match(/--[^\[]/) && firstLines.includes('then'))) {
+      return 'lua';
     }
     
     // Default case
