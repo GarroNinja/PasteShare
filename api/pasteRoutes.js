@@ -82,18 +82,18 @@ function initializeDatabase() {
           rejectUnauthorized: false
         },
         keepAlive: true,
-        connectTimeout: 30000 // Increased timeout
+        connectTimeout: 60000 // Increased timeout further
       },
       pool: {
         max: 3, // Reduced for serverless environment
         min: 0,
         idle: 10000,
-        acquire: 30000,
+        acquire: 60000, // Increased from 30000
         evict: 1000
       },
       retry: {
-        max: 5,
-        timeout: 30000 // Increased timeout
+        max: 10, // Increased from 5
+        timeout: 60000 // Increased from 30000
       },
       logging: console.log, // Always log for debugging
       benchmark: true // Monitor query performance
@@ -139,9 +139,15 @@ function initializeDatabase() {
       views: {
         type: DataTypes.INTEGER,
         defaultValue: 0
+      },
+      createdAt: {
+        type: DataTypes.DATE
+      },
+      updatedAt: {
+        type: DataTypes.DATE
       }
     }, {
-      tableName: 'pastes', // Use lowercase to match Supabase
+      tableName: 'pastes',
       timestamps: true,
       paranoid: false,
       underscored: false,
@@ -172,24 +178,36 @@ function initializeDatabase() {
         allowNull: false
       },
       content: {
-        type: DataTypes.TEXT('long'), // Use TEXT instead of BLOB for better compatibility
+        type: DataTypes.TEXT('long'),
         allowNull: false
+      },
+      pasteId: {
+        type: DataTypes.UUID,
+        allowNull: false
+      },
+      createdAt: {
+        type: DataTypes.DATE
+      },
+      updatedAt: {
+        type: DataTypes.DATE
       }
     }, {
-      tableName: 'files', // Use lowercase to match Supabase
+      tableName: 'files',
       timestamps: true,
       paranoid: false,
       underscored: false,
       freezeTableName: true
     });
 
-    // Define associations to match Supabase schema exactly
+    // Define associations to match Supabase schema
     Paste.hasMany(File, { 
       onDelete: 'CASCADE',
-      foreignKey: 'pasteId' // Use lowercase to match Supabase
+      foreignKey: 'pasteId',
+      as: 'Files'
     });
     File.belongsTo(Paste, {
-      foreignKey: 'pasteId' // Use lowercase to match Supabase
+      foreignKey: 'pasteId',
+      as: 'Paste'
     });
 
     return { success: true };
@@ -257,9 +275,15 @@ console.log('Initial database setup result:', dbSetup);
         // Test with a simple query
         const pasteCount = await Paste.count();
         console.log(`Database has ${pasteCount} pastes`);
+        
+        // Enable database usage - CRITICAL: Always set this flag to true after successful connection
+        useDatabase = true;
+        console.log('Database connection and query successful - setting useDatabase = true');
       } catch (syncError) {
         console.error(`Error during sync/count: ${syncError.message}`);
-        // Continue anyway as the connection was successful
+        // If query fails but connection worked, still set useDatabase to true
+        useDatabase = true;
+        console.log('Database connection successful but query failed - still setting useDatabase = true');
       }
       
       // Enable database usage 
@@ -341,6 +365,10 @@ async function testDatabase() {
         WHERE table_schema = 'public'
       `);
       tableInfo = tables.map(t => t.table_name);
+      
+      // Critical fix: Enable database usage if we got this far
+      useDatabase = true;
+      console.log('Database connection and query successful - setting useDatabase = true');
     } catch (queryError) {
       return {
         connected: true,
@@ -354,7 +382,8 @@ async function testDatabase() {
       queryWorking: true,
       tables: tableInfo,
       pasteTableExists: tableInfo.includes('pastes'),
-      fileTableExists: tableInfo.includes('files')
+      fileTableExists: tableInfo.includes('files'),
+      databaseEnabled: useDatabase
     };
   } catch (error) {
     return {
@@ -437,6 +466,16 @@ router.post('/', upload.array('files', 5), async (req, res) => {
     }
     
     if (useDatabase) {
+      // First verify database connection
+      try {
+        await sequelize.authenticate();
+        console.log('Database connection verified before creating paste');
+      } catch (authError) {
+        console.error('Database connection failed before creating paste:', authError);
+        useDatabase = false;
+        // Fall through to in-memory implementation
+      }
+      
       // Use transaction to ensure both paste and files are created or nothing is
       let transaction;
       
@@ -518,7 +557,8 @@ router.post('/', upload.array('files', 5), async (req, res) => {
         // Rollback transaction if there was an error
         if (transaction) await transaction.rollback();
         console.error('Database operation failed:', error);
-        useDatabase = false;
+        // Don't disable database mode completely on a single failure
+        // useDatabase = false;
         // Fall through to in-memory implementation
       }
     }
@@ -597,11 +637,14 @@ router.get('/', async (req, res) => {
     
     if (useDatabase) {
       try {
-        // Simplified query without complex where clauses
+        // First, check database connection
+        await sequelize.authenticate();
+        console.log('Database connection verified before query');
+        
+        // Use query with proper Sequelize column names matching the camelCase in Supabase
         const publicPastes = await Paste.findAll({
           where: {
             isPrivate: false,
-            // Handle expiration separately to avoid issues
             [Op.or]: [
               { expiresAt: null },
               { expiresAt: { [Op.gt]: now } }
@@ -635,7 +678,18 @@ router.get('/', async (req, res) => {
         if (error.original) {
           console.error('Original error:', error.original.message);
         }
-        useDatabase = false;
+        
+        // Try a simpler query
+        try {
+          console.log('Attempting simplified query...');
+          const simpleQuery = await sequelize.query('SELECT * FROM pastes LIMIT 1');
+          console.log('Simple query result:', simpleQuery[0]);
+        } catch (simpleError) {
+          console.error('Even simple query failed:', simpleError.message);
+        }
+        
+        // Don't disable database for a single query failure
+        // useDatabase = false;
         // Fall through to in-memory implementation
       }
     }
@@ -678,16 +732,30 @@ router.get('/:id', async (req, res) => {
     
     if (useDatabase) {
       try {
+        // First, check database connection
+        await sequelize.authenticate();
+        console.log('Database connection verified before paste query');
+        
         // First, attempt to find by ID
         let paste = await Paste.findByPk(id, {
-          include: [File]
+          include: [
+            { 
+              model: File,
+              as: 'Files'
+            }
+          ]
         });
         
         // If not found by ID, try by customUrl
         if (!paste) {
           paste = await Paste.findOne({
             where: { customUrl: id },
-            include: [File]
+            include: [
+              { 
+                model: File,
+                as: 'Files'
+              }
+            ]
           });
         }
         
@@ -933,8 +1001,18 @@ router.get('/:pasteId/files/:fileId', async (req, res) => {
         // If file not found in database, fall through to in-memory check
       } catch (error) {
         console.error('Database query failed:', error);
-        useDatabase = false;
-        // Fall through to in-memory implementation
+        if (error.original) {
+          console.error('Original error:', error.original.message);
+        }
+        
+        // Try a simpler query
+        try {
+          console.log('Attempting simplified file query...');
+          const simpleQuery = await sequelize.query(`SELECT * FROM files WHERE id='${fileId}' LIMIT 1`);
+          console.log('Simple file query result:', simpleQuery[0]);
+        } catch (simpleError) {
+          console.error('Even simple file query failed:', simpleError.message);
+        }
       }
     }
     

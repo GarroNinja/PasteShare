@@ -236,6 +236,12 @@ app.get('/api/test-connection', async (req, res) => {
         attempted: true,
         result: await pasteRoutes.testDatabase()
       };
+      
+      // Force enable database usage if connection succeeded
+      if (pgTest.result && pgTest.result.connected && pgTest.result.queryWorking) {
+        pasteRoutes.useDatabase = true;
+        console.log('Test endpoint: Forcing database usage to true based on successful connection test');
+      }
     }
     
     res.status(200).json({
@@ -256,7 +262,7 @@ app.get('/api/test-connection', async (req, res) => {
       },
       postgresTest: pgTest,
       currentState: {
-        usingDatabase: !!pasteRoutes.useDatabase,
+        usingDatabase: pasteRoutes.useDatabase,
         connectionsAttempted: pasteRoutes.connectionAttempts || 0,
         mode: pasteRoutes.useDatabase ? 'PostgreSQL' : 'In-Memory'
       }

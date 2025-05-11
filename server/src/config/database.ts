@@ -44,6 +44,13 @@ const getDatabaseConfig = () => {
     // Log sanitized URL (without password)
     const urlObj = new URL(dbUrl);
     console.log(`Connecting to database at ${urlObj.host}${urlObj.pathname} (${process.env.NODE_ENV} mode)`);
+    
+    // Force port 6543 for Supabase connection pooling if needed
+    let connectionString = dbUrl;
+    if (urlObj.hostname.includes('supabase') && urlObj.port !== '6543') {
+      connectionString = connectionString.replace(/:5432\//g, ':6543/').replace(/:5432$/g, ':6543');
+      console.log('Using Supabase connection pooler at port 6543');
+    }
   } catch (e: any) {
     console.error('Invalid DATABASE_URL format:', e.message);
     throw e; // Rethrow to prevent application from starting with bad URL
@@ -56,11 +63,12 @@ const getDatabaseConfig = () => {
     options: {
       dialect: 'postgres' as const,
       dialectOptions: {
-        ssl: isSupabase ? {
+        ssl: {
           require: true,
           rejectUnauthorized: false
-        } : false,
-        keepAlive: true
+        },
+        keepAlive: true,
+        connectTimeout: 30000 // Increased timeout for Supabase
       },
       logging: process.env.NODE_ENV === 'development',
       pool: {
@@ -70,7 +78,8 @@ const getDatabaseConfig = () => {
         idle: 10000
       },
       retry: {
-        max: 5
+        max: 10, // Increase max retries
+        timeout: 30000 // Extend retry timeout
       }
     }
   };
@@ -83,7 +92,14 @@ const sequelize = new Sequelize(dbConfig.url, dbConfig.options);
 // Test connection function that can be used for health checks
 export const testConnection = async () => {
   try {
-    await sequelize.authenticate();
+    // Add timeout to prevent hanging
+    const timeout = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Connection timeout')), 15000)
+    );
+    
+    // Race the authentication with the timeout
+    await Promise.race([sequelize.authenticate(), timeout]);
+    
     return { connected: true, message: 'Database connection is healthy' };
   } catch (error) {
     console.error('Unable to connect to the database:', error);
