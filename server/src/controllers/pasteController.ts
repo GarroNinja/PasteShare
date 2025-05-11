@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { Paste, File, User } from '../models';
+import { Paste, File } from '../models';
 import { Op } from 'sequelize';
 import { deleteFile } from '../middleware/upload';
 import path from 'path';
@@ -66,6 +66,7 @@ export const createPaste = async (req: Request, res: Response) => {
           mimetype: file.mimetype,
           size: file.size,
           path: absolutePath,
+          content: Buffer.from("").toString("base64"),
           pasteId: paste.id,
         });
         
@@ -122,8 +123,6 @@ export const getPasteById = async (req: Request, res: Response) => {
           attributes: ['id', 'originalname', 'size', 'mimetype'],
         },
         {
-          model: User,
-          as: 'user',
           attributes: ['id', 'username'],
         },
       ],
@@ -172,7 +171,7 @@ export const getPasteById = async (req: Request, res: Response) => {
         customUrl: paste.customUrl,
         createdAt: paste.createdAt,
         views: paste.views,
-        user: paste.get('user'),
+        user: null,
         files: formattedFiles,
         canEdit,
       },
