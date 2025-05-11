@@ -108,22 +108,22 @@ export const getPasteById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     
-    // Find paste by ID or custom URL
+    // Check if the ID is a valid UUID format
+    const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    
+    // Build the query condition based on whether id is a UUID
+    const whereCondition = isValidUUID 
+      ? { [Op.or]: [{ id }, { customUrl: id }] } 
+      : { customUrl: id }; // Only check customUrl if not a UUID
+
+    // Find paste using the appropriate condition
     const paste = await Paste.findOne({
-      where: {
-        [Op.or]: [
-          { id },
-          { customUrl: id }
-        ]
-      },
+      where: whereCondition,
       include: [
         {
           model: File,
           as: 'files',
           attributes: ['id', 'originalname', 'size', 'mimetype'],
-        },
-        {
-          attributes: ['id', 'username'],
         },
       ],
     });
@@ -389,14 +389,17 @@ export const editPaste = async (req: Request, res: Response) => {
     const { id } = req.params;
     const { title, content } = req.body;
     
-    // Find paste by ID or custom URL
+    // Check if the ID is a valid UUID format
+    const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    
+    // Build the query condition based on whether id is a UUID
+    const whereCondition = isValidUUID 
+      ? { [Op.or]: [{ id }, { customUrl: id }] } 
+      : { customUrl: id }; // Only check customUrl if not a UUID
+      
+    // Find paste using the appropriate condition
     const paste = await Paste.findOne({
-      where: {
-        [Op.or]: [
-          { id },
-          { customUrl: id }
-        ]
-      },
+      where: whereCondition,
     });
     
     if (!paste) {
