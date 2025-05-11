@@ -562,8 +562,8 @@ export function PastePage() {
           </div>
         ) : (
           <>
-            <div className="flex items-center justify-between bg-gray-100 dark:bg-[#282828] p-2 border-b border-gray-200 dark:border-[#3c3836]">
-              <div className="flex items-center space-x-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-gray-100 dark:bg-[#282828] p-2 border-b border-gray-200 dark:border-[#3c3836]">
+              <div className="flex items-center space-x-2 mb-2 sm:mb-0">
                 <label htmlFor="language-select" className="text-sm text-gray-600 dark:text-gray-400">
                   Language:
                 </label>
@@ -571,7 +571,7 @@ export function PastePage() {
                   id="language-select"
                   value={language || 'text'}
                   onChange={(e) => setLanguage(e.target.value)}
-                  className="text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#3c3836] rounded px-2 py-1"
+                  className="text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#3c3836] rounded px-2 py-1 w-28"
                 >
                   {commonLanguages.map(lang => (
                     <option key={lang} value={lang}>{lang}</option>
@@ -586,7 +586,7 @@ export function PastePage() {
                   id="theme-select"
                   value={availableThemes.findIndex(t => t.value === theme)}
                   onChange={(e) => setTheme(availableThemes[parseInt(e.target.value)].value)}
-                  className="text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#3c3836] rounded px-2 py-1"
+                  className="text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#3c3836] rounded px-2 py-1 w-36"
                 >
                   <optgroup label="Light Themes">
                     {availableThemes.slice(0, 9).map((theme, index) => (
