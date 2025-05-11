@@ -23,9 +23,9 @@ export function RecentPastesPage() {
   const fetchedRef = useRef(false);
   
   // Notification state
-  const [showCopyNotification, setShowCopyNotification] = useState(false);
-  const [copyNotificationMessage, setCopyNotificationMessage] = useState('');
-  const [notificationButtonId, setNotificationButtonId] = useState<string | null>(null);
+  const [showNotification, setShowNotification] = useState(false);
+  const [notificationMessage, setNotificationMessage] = useState('');
+  const [notificationButtonType, setNotificationButtonType] = useState('');
 
   // Simple language detection based on common patterns
   const detectLanguage = (content: string): string => {
@@ -103,9 +103,9 @@ export function RecentPastesPage() {
       await navigator.clipboard.writeText(pasteUrl);
       
       // Use the notification system instead of alert
-      setNotificationButtonId(pasteId);
-      setCopyNotificationMessage('Link copied to clipboard!');
-      setShowCopyNotification(true);
+      setNotificationButtonType('link');
+      setNotificationMessage('Link copied to clipboard!');
+      setShowNotification(true);
     } catch (err) {
       console.error("Failed to copy link:", err);
     }
@@ -182,6 +182,15 @@ export function RecentPastesPage() {
 
   return (
     <PageWrapper>
+      {showNotification && (
+        <CopyNotification 
+          message={notificationMessage}
+          isVisible={showNotification}
+          onClose={() => setShowNotification(false)}
+          buttonType={notificationButtonType}
+        />
+      )}
+      
       {pastes.length === 0 ? (
         <div className="bg-white dark:bg-[#282828] rounded-lg shadow-sm border border-gray-200 dark:border-[#3c3836] p-8 text-center">
           <p className="text-gray-500 dark:text-gray-400">No pastes available.</p>
@@ -203,21 +212,12 @@ export function RecentPastesPage() {
                 <div className="p-4">
                   <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-2">
                     <h2 className="text-lg font-medium mb-2 sm:mb-0 pr-20 sm:pr-0 truncate max-w-full">{paste.title || 'Untitled Paste'}</h2>
-                    <div className="relative">
-                      <button
-                        onClick={(e) => copyLinkToClipboard(paste.id, paste.customUrl, e)}
-                        className="absolute top-4 right-4 sm:static sm:ml-2 sm:flex-shrink-0 px-3 py-1 text-sm bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-900/50 z-10"
-                      >
-                        Copy Link
-                      </button>
-                      {showCopyNotification && notificationButtonId === paste.id && (
-                        <CopyNotification 
-                          message={copyNotificationMessage}
-                          isVisible={showCopyNotification}
-                          onClose={() => setShowCopyNotification(false)}
-                        />
-                      )}
-                    </div>
+                    <button
+                      onClick={(e) => copyLinkToClipboard(paste.id, paste.customUrl, e)}
+                      className="absolute top-4 right-4 sm:static sm:ml-2 sm:flex-shrink-0 px-3 py-1 text-sm bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-900/50 z-10"
+                    >
+                      Copy Link
+                    </button>
                   </div>
                   <div className="overflow-hidden rounded" style={{backgroundColor: '#1d2021'}}>
                     <SyntaxHighlighter
