@@ -16,6 +16,11 @@ export function Navbar() {
         <div className="flex justify-between items-center">
           <div className="flex items-center space-x-10">
             <Link to="/" className="flex items-center">
+              <img 
+                src="/favicon.svg" 
+                alt="PasteShare Logo" 
+                className="h-6 w-6 mr-2" 
+              />
               <span className="text-green-600 dark:text-[#98971a] text-xl font-bold">
                 PasteShare
               </span>
