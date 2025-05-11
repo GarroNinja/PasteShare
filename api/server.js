@@ -4,16 +4,25 @@ const cors = require('cors');
 const { json, urlencoded } = require('express');
 const morgan = require('morgan');
 const https = require('https');
+const { URL } = require('url');
+
+// Fail fast if DATABASE_URL is missing in production
+if (process.env.NODE_ENV === 'production' && !process.env.DATABASE_URL) {
+  console.error('FATAL ERROR: DATABASE_URL environment variable is required in production');
+  throw new Error('DATABASE_URL environment variable is required in production');
+}
 
 // Import paste routes
 const pasteRoutes = require('./pasteRoutes');
 
-// Print environments at startup
+// Print environments at startup for debugging
 console.log('=== PasteShare API Server Starting ===');
 console.log('NODE_ENV:', process.env.NODE_ENV);
+console.log('Is Vercel environment:', !!process.env.VERCEL);
 console.log('DATABASE_URL exists:', !!process.env.DATABASE_URL);
+
+// Log database information safely (without credentials)
 if (process.env.DATABASE_URL) {
-  // Extract and log host information without credentials
   try {
     const url = new URL(process.env.DATABASE_URL);
     console.log('Database host:', url.hostname);
@@ -23,6 +32,11 @@ if (process.env.DATABASE_URL) {
   } catch (error) {
     console.error('Error parsing DATABASE_URL:', error.message);
   }
+}
+
+// Validate required environment variables
+if (!process.env.DATABASE_URL && process.env.NODE_ENV === 'production') {
+  console.error('ERROR: DATABASE_URL is not set in production environment');
 }
 
 // Initialize Express app
@@ -53,12 +67,15 @@ app.use((req, res, next) => {
   next();
 });
 
-// Request logging middleware
+// Request logging middleware with unique request ID
 app.use((req, res, next) => {
+  const requestId = Math.random().toString(36).substring(2, 10);
+  req.requestId = requestId;
+  
   const start = Date.now();
   res.on('finish', () => {
     const duration = Date.now() - start;
-    console.log(`${req.method} ${req.originalUrl} ${res.statusCode} ${duration}ms`);
+    console.log(`[${requestId}] ${req.method} ${req.originalUrl} ${res.statusCode} ${duration}ms`);
   });
   next();
 });
@@ -103,13 +120,15 @@ app.get('/api/health', (req, res) => {
     message: 'Vercel serverless function is running',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'unknown',
+    isVercel: !!process.env.VERCEL,
+    requestId: req.requestId,
     database: {
       url: process.env.DATABASE_URL ? 'Configured' : 'Not configured',
       mode: databaseStatus.mode,
       connected: databaseStatus.isConnected,
       details: databaseStatus.details || 'No additional details available'
     },
-    version: '1.0.1',
+    version: '1.0.2',
     serverInfo: {
       platform: process.platform,
       nodeVersion: process.version,
@@ -122,10 +141,16 @@ app.get('/api/health', (req, res) => {
 app.get('/api/database', (req, res) => {
   const dbInfo = {
     isConfigured: !!process.env.DATABASE_URL,
-    isConnected: pasteRoutes.useDatabase === true,
-    fallbackMode: pasteRoutes.useDatabase !== true,
+    isConnected: pasteRoutes.getDatabaseStatus ? pasteRoutes.getDatabaseStatus().isConnected : false,
+    fallbackMode: !pasteRoutes.getDatabaseStatus || !pasteRoutes.getDatabaseStatus().isConnected,
     timestamp: new Date().toISOString(),
-    connectionInfo: pasteRoutes.getDatabaseStatus ? pasteRoutes.getDatabaseStatus() : null
+    connectionInfo: pasteRoutes.getDatabaseStatus ? pasteRoutes.getDatabaseStatus() : null,
+    environmentVariables: {
+      NODE_ENV: process.env.NODE_ENV,
+      VERCEL: !!process.env.VERCEL,
+      VERCEL_ENV: process.env.VERCEL_ENV,
+      VERCEL_REGION: process.env.VERCEL_REGION
+    }
   };
   
   res.status(200).json(dbInfo);
@@ -142,40 +167,59 @@ app.get('/api/test-connection', (req, res) => {
   
   try {
     const url = new URL(process.env.DATABASE_URL);
-    const options = {
-      hostname: url.hostname,
-      port: url.port,
-      path: '/',
-      method: 'HEAD',
-      timeout: 5000
-    };
     
-    const request = https.request(options, (response) => {
+    // For Supabase, we need to test HTTPS connection
+    if (url.hostname.includes('supabase')) {
+      const options = {
+        hostname: url.hostname,
+        port: 443, // HTTPS port
+        path: '/',
+        method: 'HEAD',
+        timeout: 5000
+      };
+      
+      const request = https.request(options, (response) => {
+        res.status(200).json({
+          success: true,
+          message: 'Connection test to Supabase host successful',
+          statusCode: response.statusCode,
+          database: {
+            host: url.hostname,
+            port: url.port,
+            database: url.pathname.substring(1)
+          }
+        });
+      });
+      
+      request.on('error', (error) => {
+        res.status(500).json({
+          success: false,
+          message: 'Connection test failed',
+          error: error.message
+        });
+      });
+      
+      request.on('timeout', () => {
+        request.destroy();
+        res.status(408).json({
+          success: false,
+          message: 'Connection test timed out'
+        });
+      });
+      
+      request.end();
+    } else {
+      // For non-Supabase hosts, just return the parsed URL info
       res.status(200).json({
         success: true,
-        message: 'Connection test successful',
-        statusCode: response.statusCode,
-        headers: response.headers
+        message: 'Database URL is valid',
+        database: {
+          host: url.hostname,
+          port: url.port,
+          database: url.pathname.substring(1)
+        }
       });
-    });
-    
-    request.on('error', (error) => {
-      res.status(500).json({
-        success: false,
-        message: 'Connection test failed',
-        error: error.message
-      });
-    });
-    
-    request.on('timeout', () => {
-      request.destroy();
-      res.status(408).json({
-        success: false,
-        message: 'Connection test timed out'
-      });
-    });
-    
-    request.end();
+    }
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -196,7 +240,7 @@ app.use((req, res) => {
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error('Server error:', err);
+  console.error(`[${req.requestId || 'unknown'}] Server error:`, err);
   res.status(500).json({
     message: 'Server error',
     error: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error',

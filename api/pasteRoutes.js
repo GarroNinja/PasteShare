@@ -29,64 +29,64 @@ const upload = multer({
   }
 });
 
-// Fallback in-memory storage if database connection fails
-const inMemoryPastes = [];
-let useDatabase = false; // Start with false and only enable after successful connection
+// Database connection variables
 let sequelize, Paste, File;
+let useDatabase = false;
 let lastConnectionAttempt = 0;
-const connectionRetryInterval = 60000; // 1 minute
+let connectionAttempts = 0;
+const MAX_CONNECTION_ATTEMPTS = 5;
+const RETRY_INTERVALS = [1000, 5000, 15000, 30000, 60000]; // Exponential backoff
 
+// Initialize the database with proper connection parameters
 function initializeDatabase() {
-  // Don't retry connection too frequently
+  // Don't retry connection too frequently using exponential backoff
   const now = Date.now();
-  if (now - lastConnectionAttempt < connectionRetryInterval && lastConnectionAttempt !== 0) {
+  const retryInterval = RETRY_INTERVALS[Math.min(connectionAttempts, RETRY_INTERVALS.length - 1)];
+  
+  if (now - lastConnectionAttempt < retryInterval && lastConnectionAttempt !== 0) {
     console.log(`Skipping connection attempt, last attempt was ${Math.round((now - lastConnectionAttempt) / 1000)}s ago`);
-    return;
+    return { success: false, reason: 'Throttled' };
   }
   
   lastConnectionAttempt = now;
+  connectionAttempts++;
+  
+  // Required: DATABASE_URL environment variable
+  if (!process.env.DATABASE_URL) {
+    console.error('DATABASE_URL environment variable is not set');
+    return { success: false, reason: 'No DATABASE_URL' };
+  }
   
   try {
-    // Log database connection attempt with more details
-    if (process.env.DATABASE_URL) {
-      // Safely log part of the connection string for debugging
-      const urlParts = process.env.DATABASE_URL.split('@');
-      if (urlParts.length > 1) {
-        console.log('Attempting to connect to:', `[credentials hidden]@${urlParts[1]}`);
-      } else {
-        console.log('DATABASE_URL is set but has unexpected format');
-      }
-    } else {
-      console.log('DATABASE_URL is not set, will attempt localhost connection');
-    }
+    // Log sanitized database connection details
+    const urlObj = new URL(process.env.DATABASE_URL);
+    console.log(`Attempting to connect to database: ${urlObj.hostname}:${urlObj.port}${urlObj.pathname}`);
+    console.log(`Connection attempt ${connectionAttempts}/${MAX_CONNECTION_ATTEMPTS}`);
 
-    // Initialize DB connection with better configuration for Supabase
-    sequelize = new Sequelize(
-      process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/pasteshare',
-      {
-        dialect: 'postgres',
-        dialectOptions: {
-          ssl: {
-            require: true,
-            rejectUnauthorized: false
-          },
-          keepAlive: true
+    // Initialize DB connection with optimized configuration
+    sequelize = new Sequelize(process.env.DATABASE_URL, {
+      dialect: 'postgres',
+      dialectOptions: {
+        ssl: {
+          require: true,
+          rejectUnauthorized: false
         },
-        pool: {
-          max: 2, // Reduced pool size for serverless
-          min: 0,
-          idle: 5000, // Reduced idle time
-          acquire: 15000,
-          evict: 1000
-        },
-        retry: {
-          max: 3,
-          timeout: 10000
-        },
-        logging: false,
-        benchmark: true // To measure query times
-      }
-    );
+        keepAlive: true
+      },
+      pool: {
+        max: 2, // Keep minimal pool size for serverless functions
+        min: 0,
+        idle: 5000,
+        acquire: 15000,
+        evict: 1000
+      },
+      retry: {
+        max: 3,
+        timeout: 10000
+      },
+      logging: console.log,
+      benchmark: true // Monitor query performance
+    });
 
     // Define Paste model
     Paste = sequelize.define('Paste', {
@@ -130,12 +130,11 @@ function initializeDatabase() {
         defaultValue: 0
       }
     }, {
-      // Model options
       tableName: 'Pastes',
-      timestamps: true, // Enable timestamps
-      paranoid: false, // Don't use soft deletes
-      underscored: false, // Use camelCase for fields
-      freezeTableName: true // Use the exact model name as table name
+      timestamps: true,
+      paranoid: false,
+      underscored: false,
+      freezeTableName: true
     });
 
     // Define File model
@@ -166,12 +165,11 @@ function initializeDatabase() {
         allowNull: false
       }
     }, {
-      // Model options
       tableName: 'Files',
-      timestamps: true, // Enable timestamps
-      paranoid: false, // Don't use soft deletes
-      underscored: false, // Use camelCase for fields
-      freezeTableName: true // Use the exact model name as table name
+      timestamps: true,
+      paranoid: false,
+      underscored: false,
+      freezeTableName: true
     });
 
     // Define associations
@@ -183,73 +181,85 @@ function initializeDatabase() {
       foreignKey: 'PasteId'
     });
 
-    // Test database connection and sync
-    (async () => {
-      try {
-        await sequelize.authenticate();
-        console.log('Database connection established successfully');
-        
-        // Analyze existing database structure
-        const [results] = await sequelize.query(`
-          SELECT table_name 
-          FROM information_schema.tables 
-          WHERE table_schema = 'public'
-        `);
-        const existingTables = results.map(r => r.table_name.toLowerCase());
-        console.log('Existing tables:', existingTables);
-        
-        // Always perform sync, but only force in development with explicit flag
-        const forceSync = process.env.NODE_ENV === 'development' && process.env.FORCE_SYNC === 'true';
-        const alterSync = !forceSync; // Use alter for production to apply schema changes safely
-        
-        await sequelize.sync({ 
-          force: forceSync,
-          alter: alterSync
-        });
-        console.log(`Database tables synchronized successfully (force: ${forceSync}, alter: ${alterSync})`);
-        
-        // Test a simple query to validate connection and check actual table structure
-        const pasteCount = await Paste.count();
-        console.log(`Database has ${pasteCount} pastes`);
-        
-        // Verify the Files table as well
-        const fileCount = await File.count();
-        console.log(`Database has ${fileCount} files`);
-        
-        // Check table structure
-        const [pasteColumns] = await sequelize.query(`
-          SELECT column_name, data_type 
-          FROM information_schema.columns 
-          WHERE table_name = 'Pastes'
-        `);
-        console.log('Paste table structure:', pasteColumns.map(c => `${c.column_name} (${c.data_type})`));
-        
-        // Only set useDatabase to true if everything succeeded
-        useDatabase = true;
-        console.log('Database is now being used for storage');
-      } catch (error) {
-        console.error('Database connection or sync failed:', error.message);
-        if (error.original) {
-          console.error('Original error:', error.original.message);
-          console.error('Error code:', error.original.code);
-        }
-        useDatabase = false;
-        console.log('Falling back to in-memory storage');
-      }
-    })();
-    
+    return { success: true };
   } catch (error) {
-    console.error('Error setting up database:', error.message);
+    console.error('Error setting up database connection:', error.message);
     if (error.original) {
       console.error('Original error:', error.original.message);
     }
-    useDatabase = false;
-    console.log('Falling back to in-memory storage due to setup error');
+    return { success: false, reason: error.message };
   }
 }
 
-// Initialize database connection
-initializeDatabase();
+// Setup database and test connection immediately
+const dbSetup = initializeDatabase();
+console.log('Initial database setup result:', dbSetup);
+
+// Immediately test the connection after setup
+(async () => {
+  try {
+    if (!sequelize) {
+      console.error('Sequelize instance not initialized');
+      useDatabase = false;
+      return;
+    }
+    
+    await sequelize.authenticate();
+    console.log('Database connection established successfully');
+    
+    // Only sync tables if needed (avoid frequent schema changes)
+    const [tables] = await sequelize.query(`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public'
+    `);
+    
+    const tableNames = tables.map(t => t.table_name.toLowerCase());
+    console.log('Existing tables:', tableNames);
+    
+    const needsSync = !tableNames.includes('pastes') || !tableNames.includes('files');
+    
+    if (needsSync) {
+      console.log('Tables do not exist, performing sync');
+      await sequelize.sync({ alter: true });
+      console.log('Database tables synchronized successfully');
+    } else {
+      console.log('Database tables already exist, skipping sync');
+    }
+    
+    // Test with a simple query
+    const pasteCount = await Paste.count();
+    console.log(`Database has ${pasteCount} pastes`);
+    
+    // Enable database usage 
+    useDatabase = true;
+    console.log('Database connection successful - PostgreSQL will be used for storage');
+  } catch (error) {
+    console.error('Database authentication or sync failed:', error.message);
+    useDatabase = false;
+    console.error('Failing over to in-memory storage - DATABASE CONNECTION FAILED');
+  }
+})();
+
+// In-memory storage fallback (only used if database connection fails)
+const inMemoryPastes = [];
+
+// Update getDatabaseStatus to provide more accurate information
+function getDatabaseStatus() {
+  const dbUrl = process.env.DATABASE_URL;
+  
+  return {
+    isConnected: useDatabase,
+    mode: useDatabase ? 'PostgreSQL' : 'In-Memory',
+    connectionAttempts: connectionAttempts, 
+    details: {
+      dbConfigured: !!dbUrl,
+      connectionUrl: dbUrl ? `${new URL(dbUrl).hostname}:${new URL(dbUrl).port}` : 'Not configured',
+      lastAttempt: new Date(lastConnectionAttempt).toISOString(),
+      tables: useDatabase ? ['Pastes', 'Files'] : []
+    }
+  };
+}
 
 // Middleware to check database connection before each request
 router.use((req, res, next) => {
@@ -806,16 +816,6 @@ router.get('/:pasteId/files/:fileId', async (req, res) => {
 });
 
 // Export database status
-router.getDatabaseStatus = function() {
-  return {
-    isConnected: useDatabase,
-    mode: useDatabase ? 'PostgreSQL' : 'In-Memory',
-    details: {
-      initialized: !!sequelize,
-      modelsLoaded: !!(Paste && File),
-      lastConnectionAttempt: new Date(lastConnectionAttempt).toISOString()
-    }
-  };
-};
+router.getDatabaseStatus = getDatabaseStatus;
 
 module.exports = router; 
