@@ -469,7 +469,7 @@ export function PastePage() {
                 </div>
                 <div className="relative">
                   <button 
-                    onClick={copyLinkToClipboard}
+                    onClick={(e) => copyLinkToClipboard(e)}
                     className="px-3 py-1 text-sm bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-900/50"
                   >
                     Copy Link
