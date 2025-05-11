@@ -16,10 +16,12 @@ echo -e "${GREEN}Starting PasteShare application...${NC}"
 # Kill any existing processes that might be using our ports
 echo -e "${YELLOW}Checking for processes using required ports...${NC}"
 if command -v lsof >/dev/null 2>&1; then
+  # Client port
   lsof -ti:4000 | xargs kill -9 2>/dev/null || true
-  lsof -ti:3003 | xargs kill -9 2>/dev/null || true
-  lsof -ti:3004 | xargs kill -9 2>/dev/null || true
-  lsof -ti:3005 | xargs kill -9 2>/dev/null || true
+  # Server port candidates
+  for port in 3003 3004 3005 3006 3007 3008; do
+    lsof -ti:$port | xargs kill -9 2>/dev/null || true
+  done
   echo -e "${GREEN}Ports cleared.${NC}"
 else
   echo -e "${YELLOW}lsof not found. Skipping port check.${NC}"
@@ -34,26 +36,31 @@ SERVER_PID=$!
 echo -e "${YELLOW}Waiting for server to initialize...${NC}"
 sleep 3
 
-# Get the actual port from server-port.txt (if it exists)
+# Get the actual port from server-port.txt
 if [ -f "${SERVER_DIR}/server-port.txt" ]; then
   SERVER_PORT=$(cat "${SERVER_DIR}/server-port.txt")
   echo -e "${GREEN}Detected server running on port ${SERVER_PORT}${NC}"
   
   # Copy the port file to client's public directory
-  cp "${SERVER_DIR}/server-port.txt" "${CLIENT_DIR}/public/"
+  cp "${SERVER_DIR}/server-port.txt" "${CLIENT_DIR}/public/" 2>/dev/null || true
 else
-  echo -e "${YELLOW}Could not find server port file. Looking for port in logs...${NC}"
+  # Wait a bit more for the port file to be created
+  echo -e "${YELLOW}Waiting for server port file...${NC}"
+  for i in {1..10}; do
+    sleep 1
+    if [ -f "${SERVER_DIR}/server-port.txt" ]; then
+      SERVER_PORT=$(cat "${SERVER_DIR}/server-port.txt")
+      echo -e "${GREEN}Detected server running on port ${SERVER_PORT}${NC}"
+      cp "${SERVER_DIR}/server-port.txt" "${CLIENT_DIR}/public/" 2>/dev/null || true
+      break
+    fi
+    echo -n "."
+  done
   
-  # Try alternative methods to detect port
-  if [ -f "${SERVER_DIR}/server.log" ] && grep -q "Server running on port" "${SERVER_DIR}/server.log" 2>/dev/null; then
-    SERVER_PORT=$(grep "Server running on port" "${SERVER_DIR}/server.log" | tail -1 | sed 's/.*Server running on port \([0-9]*\).*/\1/')
-    echo -e "${GREEN}Detected server running on port ${SERVER_PORT} from logs${NC}"
-    echo "${SERVER_PORT}" > "${SERVER_DIR}/server-port.txt"
-    cp "${SERVER_DIR}/server-port.txt" "${CLIENT_DIR}/public/"
-  else
-    # Assume a default port if we can't detect it
+  # If still no port file, use default
+  if [ -z "${SERVER_PORT}" ]; then
     SERVER_PORT=3003
-    echo -e "${YELLOW}Could not detect server port, assuming ${SERVER_PORT}${NC}"
+    echo -e "\n${YELLOW}Could not detect server port, assuming ${SERVER_PORT}${NC}"
   fi
 fi
 
