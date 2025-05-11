@@ -130,7 +130,7 @@ function initializeDatabase() {
         defaultValue: 0
       }
     }, {
-      tableName: 'Pastes',
+      tableName: 'pastes', // Use lowercase to match Supabase
       timestamps: true,
       paranoid: false,
       underscored: false,
@@ -165,20 +165,20 @@ function initializeDatabase() {
         allowNull: false
       }
     }, {
-      tableName: 'Files',
+      tableName: 'files', // Use lowercase to match Supabase
       timestamps: true,
       paranoid: false,
       underscored: false,
       freezeTableName: true
     });
 
-    // Define associations
+    // Define associations to match Supabase schema exactly
     Paste.hasMany(File, { 
       onDelete: 'CASCADE',
-      foreignKey: 'PasteId'
+      foreignKey: 'pasteId' // Use lowercase to match Supabase
     });
     File.belongsTo(Paste, {
-      foreignKey: 'PasteId'
+      foreignKey: 'pasteId' // Use lowercase to match Supabase
     });
 
     return { success: true };
@@ -256,7 +256,7 @@ function getDatabaseStatus() {
       dbConfigured: !!dbUrl,
       connectionUrl: dbUrl ? `${new URL(dbUrl).hostname}:${new URL(dbUrl).port}` : 'Not configured',
       lastAttempt: new Date(lastConnectionAttempt).toISOString(),
-      tables: useDatabase ? ['Pastes', 'Files'] : []
+      tables: useDatabase ? ['pastes', 'files'] : []
     }
   };
 }
@@ -336,7 +336,7 @@ router.post('/', upload.array('files', 5), async (req, res) => {
               mimetype: file.mimetype,
               size: file.size,
               content: base64Content, // Store as base64 string instead of buffer
-              PasteId: paste.id
+              pasteId: paste.id
             }, { transaction });
             
             fileRecords.push(fileRecord);
@@ -768,7 +768,7 @@ router.get('/:pasteId/files/:fileId', async (req, res) => {
         const file = await File.findOne({
           where: { 
             id: fileId,
-            PasteId: pasteId
+            pasteId: pasteId
           }
         });
         
