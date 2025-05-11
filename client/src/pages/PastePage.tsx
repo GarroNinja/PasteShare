@@ -72,7 +72,25 @@ export function PastePage() {
     const firstLines = content.trim().split('\n').slice(0, 10).join('\n');
     
     // Check for common language patterns
-    if (firstLines.includes('import React') || firstLines.includes('export default') || (firstLines.includes('function') && firstLines.includes('const'))) {
+    // JavaScript detection - more specific patterns first
+    if (firstLines.includes('import React') || 
+        firstLines.includes('export default') || 
+        firstLines.includes('export const') ||
+        firstLines.includes('const ') && (firstLines.includes(' = function') || firstLines.includes('=>')) ||
+        firstLines.includes('let ') && (firstLines.includes(' = function') || firstLines.includes('=>')) ||
+        firstLines.includes('var ') && (firstLines.includes(' = function') || firstLines.includes('=>')) ||
+        (firstLines.includes('function') && (firstLines.includes('return') || firstLines.includes('this.'))) ||
+        firstLines.includes('addEventListener') ||
+        firstLines.includes('document.querySelector') ||
+        firstLines.includes('window.') ||
+        firstLines.includes('new Promise') ||
+        firstLines.includes('async function') ||
+        firstLines.includes('await ') ||
+        firstLines.match(/console\.(log|error|warn)/) ||
+        (firstLines.includes('{') && firstLines.includes('}') && 
+          (firstLines.includes('function') || firstLines.includes('const ') || 
+          firstLines.includes('let ') || firstLines.includes('return')))
+      ) {
       return 'javascript';
     }
     if (firstLines.includes('import ') && firstLines.includes('from ') && (firstLines.includes('<') || firstLines.includes('interface'))) {
@@ -97,7 +115,15 @@ export function PastePage() {
     if (firstLines.includes('<html') || firstLines.includes('<div') || firstLines.includes('</')) {
       return 'html';
     }
-    if ((firstLines.includes('@media') || firstLines.includes('color:')) || (firstLines.includes('{') && firstLines.includes('}'))) {
+    // CSS detection (must come after JavaScript to avoid misdetection)
+    if ((firstLines.includes('@media') || 
+        firstLines.includes('color:') || 
+        firstLines.includes('margin:') || 
+        firstLines.includes('padding:') ||
+        firstLines.includes('font-size:') ||
+        firstLines.includes('.class') ||
+        firstLines.includes('#id')) && 
+        (firstLines.includes('{') && firstLines.includes('}'))) {
       return 'css';
     }
     if (firstLines.includes('<?php')) {
@@ -122,6 +148,14 @@ export function PastePage() {
         (firstLines.includes('local ') && !firstLines.includes(';')) ||
         firstLines.includes('--[[') || (firstLines.match(/--[^\[]/) && firstLines.includes('then'))) {
       return 'lua';
+    }
+    
+    // JSON detection
+    if ((firstLines.startsWith('{') && firstLines.includes('"') && 
+         (firstLines.includes('":') || firstLines.includes(': "'))) || 
+        (firstLines.startsWith('[') && firstLines.includes('{') && 
+         firstLines.includes('"') && firstLines.includes('":"'))) {
+      return 'json';
     }
     
     // Default case
