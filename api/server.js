@@ -6,10 +6,22 @@ const morgan = require('morgan');
 const https = require('https');
 const { URL } = require('url');
 
-// Fail fast if DATABASE_URL is missing in production
-if (process.env.NODE_ENV === 'production' && !process.env.DATABASE_URL) {
-  console.error('FATAL ERROR: DATABASE_URL environment variable is required in production');
-  throw new Error('DATABASE_URL environment variable is required in production');
+// Fail fast if DATABASE_URL is missing - required in all environments
+if (!process.env.DATABASE_URL) {
+  console.error('FATAL ERROR: DATABASE_URL environment variable is required');
+  throw new Error('DATABASE_URL environment variable is required');
+}
+
+// Validate the DATABASE_URL is correctly formatted
+try {
+  const dbUrl = new URL(process.env.DATABASE_URL);
+  // Additional validation to ensure it's pointing to postgres
+  if (!['postgres:', 'postgresql:'].includes(dbUrl.protocol)) {
+    throw new Error(`Invalid database protocol: ${dbUrl.protocol}. Expected postgres: or postgresql:`);
+  }
+} catch (error) {
+  console.error('FATAL ERROR: Invalid DATABASE_URL format:', error.message);
+  throw error;
 }
 
 // Import paste routes
@@ -32,11 +44,6 @@ if (process.env.DATABASE_URL) {
   } catch (error) {
     console.error('Error parsing DATABASE_URL:', error.message);
   }
-}
-
-// Validate required environment variables
-if (!process.env.DATABASE_URL && process.env.NODE_ENV === 'production') {
-  console.error('ERROR: DATABASE_URL is not set in production environment');
 }
 
 // Initialize Express app

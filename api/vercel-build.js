@@ -46,4 +46,51 @@ fs.writeFileSync(markerFile, JSON.stringify({
   dialectModule: 'postgres'
 }));
 
-console.log('✅ PostgreSQL dependencies build script completed successfully'); 
+console.log('✅ PostgreSQL dependencies build script completed successfully');
+
+// Vercel build verification script
+console.log('Running Vercel build verification...');
+
+// Check for DATABASE_URL
+if (!process.env.DATABASE_URL) {
+  console.error('FATAL ERROR: DATABASE_URL is not set');
+  console.error('The application requires a valid PostgreSQL connection string in DATABASE_URL');
+  process.exit(1);
+}
+
+// Validate DATABASE_URL format
+try {
+  const url = new URL(process.env.DATABASE_URL);
+  
+  // Check for postgres protocol
+  if (!['postgres:', 'postgresql:'].includes(url.protocol)) {
+    console.error(`Invalid database protocol: ${url.protocol}`);
+    console.error('DATABASE_URL must start with postgres:// or postgresql://');
+    process.exit(1);
+  }
+  
+  // Check for host
+  if (!url.hostname) {
+    console.error('DATABASE_URL is missing hostname');
+    process.exit(1);
+  }
+  
+  // Check for pathname (database name)
+  if (!url.pathname || url.pathname === '/') {
+    console.error('DATABASE_URL is missing database name');
+    process.exit(1);
+  }
+  
+  // Log sanitized connection info
+  console.log('Vercel build - Database configuration:');
+  console.log('- Host:', url.hostname);
+  console.log('- Port:', url.port || '5432 (default)');
+  console.log('- Database:', url.pathname.substring(1));
+  console.log('- SSL:', url.hostname.includes('supabase') ? 'Enabled' : 'Auto-detect');
+} catch (error) {
+  console.error('Invalid DATABASE_URL format:', error.message);
+  process.exit(1);
+}
+
+// All checks passed
+console.log('DATABASE_URL validation successful'); 

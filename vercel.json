@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "npm install pg pg-hstore sequelize && cd client && npm install && CI=false npm run build",
+  "buildCommand": "echo 'DATABASE_URL check: ${DATABASE_URL:0:4}***' && npm install pg pg-hstore sequelize && cd client && npm install && CI=false npm run build",
   "installCommand": "npm install",
   "outputDirectory": "client/build",
   "rewrites": [
@@ -44,6 +44,8 @@
   },
   "env": {
     "NODE_ENV": "production",
-    "PG_CONNECTION_STRING_REQUIRED": "true"
+    "PG_CONNECTION_STRING_REQUIRED": "true",
+    "POSTGRES_HOST": "from_database_url",
+    "FORCE_DATABASE_URL": "true"
   }
 }

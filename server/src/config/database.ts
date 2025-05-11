@@ -31,17 +31,14 @@ const getDatabaseConfig = () => {
   console.log('Environment: ', process.env.NODE_ENV);
   console.log('DATABASE_URL exists: ', !!process.env.DATABASE_URL);
   
+  // Strict check for DATABASE_URL - no fallbacks
   if (!process.env.DATABASE_URL) {
-    if (process.env.NODE_ENV === 'production') {
-      console.error('ERROR: DATABASE_URL is not set in production environment');
-      throw new Error('DATABASE_URL is not set in production environment');
-    } else {
-      console.warn('WARNING: DATABASE_URL not set, using local development database');
-    }
+    console.error('ERROR: DATABASE_URL is not set in environment');
+    throw new Error('DATABASE_URL is not set in environment');
   }
   
-  // Use DATABASE_URL in all environments if available
-  const dbUrl = process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/pasteshare';
+  // Only use DATABASE_URL - no localhost fallbacks
+  const dbUrl = process.env.DATABASE_URL;
   
   try {
     // Log sanitized URL (without password)
@@ -49,6 +46,7 @@ const getDatabaseConfig = () => {
     console.log(`Connecting to database at ${urlObj.host}${urlObj.pathname} (${process.env.NODE_ENV} mode)`);
   } catch (e: any) {
     console.error('Invalid DATABASE_URL format:', e.message);
+    throw e; // Rethrow to prevent application from starting with bad URL
   }
   
   const isSupabase = dbUrl.includes('supabase');

@@ -53,8 +53,8 @@ function initializeDatabase() {
   
   // Required: DATABASE_URL environment variable
   if (!process.env.DATABASE_URL) {
-    console.error('DATABASE_URL environment variable is not set');
-    return { success: false, reason: 'No DATABASE_URL' };
+    console.error('FATAL ERROR: DATABASE_URL environment variable is not set');
+    throw new Error('DATABASE_URL is required - application cannot start without it');
   }
   
   try {
@@ -84,7 +84,7 @@ function initializeDatabase() {
         max: 3,
         timeout: 10000
       },
-      logging: console.log,
+      logging: process.env.NODE_ENV === 'development', // Only log in development
       benchmark: true // Monitor query performance
     });
 
