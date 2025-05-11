@@ -5,6 +5,7 @@ const { v4: uuidv4 } = require('uuid');
 const multer = require('multer');
 const { Op } = require('sequelize');
 const { createConnection } = require('./db');
+const { Sequelize } = require('sequelize');
 
 // Configure multer for file uploads
 const upload = multer({
@@ -419,10 +420,18 @@ router.get('/:id', async (req, res) => {
           ]
         });
         
-        // If not found by ID, try by customUrl
+        // If not found by ID, try by customUrl (case-insensitive)
         if (!paste) {
+          console.log(`Paste not found by ID, trying customUrl: ${id}`);
           paste = await Paste.findOne({
-            where: { customUrl: id },
+            where: {
+              // Use case-insensitive comparison with Sequelize's ILIKE (if Postgres)
+              // or convert both to lowercase for comparison
+              customUrl: Sequelize.where(
+                Sequelize.fn('LOWER', Sequelize.col('customUrl')), 
+                Sequelize.fn('LOWER', id)
+              )
+            },
             include: [
               { 
                 model: File,
@@ -430,6 +439,12 @@ router.get('/:id', async (req, res) => {
               }
             ]
           });
+          
+          if (paste) {
+            console.log(`Found paste by customUrl: ${id}, paste ID: ${paste.id}`);
+          } else {
+            console.log(`No paste found with customUrl: ${id}`);
+          }
         }
         
         // If found, check expiration
