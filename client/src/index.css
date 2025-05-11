@@ -114,6 +114,9 @@ code {
   --gruvbox-aqua: #8ec07c;
   --gruvbox-yellow: #fabd2f;
   --gruvbox-red: #fb4934;
+  --gruvbox-blue: #83a598;
+  --gruvbox-purple: #d3869b;
+  --gruvbox-orange: #fe8019;
   
   /* Apply base colors */
   background-color: var(--gruvbox-bg);
@@ -458,4 +461,121 @@ button[class*="bg-green-600"]:hover {
   background-color: var(--light-bg-soft);
   color: var(--light-fg);
   border-color: #e0e0e0;
+}
+
+/* Syntax highlighter overrides - ensure theme isolation */
+.syntax-highlighter-override,
+.syntax-highlighter-override code,
+.syntax-highlighter-override pre,
+.syntax-highlighter-override span {
+  color-scheme: none !important;
+  background: inherit !important;
+}
+
+.syntax-highlighter-override code {
+  color: inherit !important;
+}
+
+/* Make sure code in recent pastes cards maintains their background */
+.dark .overflow-hidden code[class*="language-"],
+.dark .overflow-hidden pre[class*="language-"],
+.light .overflow-hidden code[class*="language-"],
+.light .overflow-hidden pre[class*="language-"] {
+  background: inherit !important;
+  color-scheme: none !important;
+}
+
+/* Ensure pre and code elements inside highlighter maintain their styling regardless of site theme */
+pre[class*="language-"],
+code[class*="language-"] {
+  background: inherit !important;
+  color-scheme: none !important;
 } 
+
+/* Dark Mode Enhancements with Green Accents */
+
+/* Headings and titles in dark mode - using Gruvbox green for main headings */
+.dark h1, 
+.dark h2, 
+.dark .text-xl, 
+.dark .text-2xl, 
+.dark .text-3xl.font-bold {
+  color: #98971a !important; /* Gruvbox green for main headings */
+}
+
+/* Subheadings use a slightly more muted color */
+.dark h3, 
+.dark .font-bold, 
+.dark .font-semibold,
+.dark .text-lg {
+  color: #bdae93 !important; /* Muted gold for secondary headings */
+}
+
+/* Make all content text more readable with a single consistent color */
+.dark .text-gray-500,
+.dark .text-gray-600,
+.dark .text-gray-700,
+.dark p,
+.dark .text-sm,
+.dark .text-base {
+  color: #d5c4a1 !important; /* Single consistent color for all regular text */
+}
+
+/* Feature section titles - green accent */
+.dark .font-medium,
+.dark h3.font-semibold.text-lg {
+  color: #b8bb26 !important; /* Bright Gruvbox green for feature titles */
+}
+
+/* Files, attachments and tags - subtle background with green text */
+.dark span[class*="rounded-full"],
+.dark div[class*="rounded-full"],
+.dark .inline-flex.items-center {
+  background-color: rgba(152, 151, 26, 0.15) !important; /* Very subtle green background */
+  color: #b8bb26 !important; /* Gruvbox green text */
+}
+
+/* All tag types should use the same subtle style */
+.dark .bg-amber-100,
+.dark .bg-yellow-100,
+.dark .bg-purple-100,
+.dark .bg-green-100 {
+  background-color: rgba(152, 151, 26, 0.15) !important; /* Subtle green background */
+}
+
+/* Tag text uses green */
+.dark .text-green-300,
+.dark .text-green-600,
+.dark .text-green-700,
+.dark .text-green-800 {
+  color: #b8bb26 !important; /* Gruvbox green */
+}
+
+/* Other tag types still use subtle colors */
+.dark .text-amber-300,
+.dark .text-amber-700,
+.dark .text-amber-800,
+.dark .text-yellow-300,
+.dark .text-yellow-700,
+.dark .text-yellow-800,
+.dark .text-purple-300,
+.dark .text-purple-700,
+.dark .text-purple-800 {
+  color: #d5c4a1 !important; /* Subtle color for non-green tags */
+}
+
+/* Homepage specific styles */
+.dark .text-3xl.font-bold {
+  color: #98971a !important; /* Gruvbox green for main heading */
+}
+
+/* Homepage feature boxes */
+.dark .grid-cols-1 .font-semibold.text-lg {
+  color: #b8bb26 !important; /* Brighter green for feature headings */
+}
+
+/* Text within homepage feature boxes */
+.dark .grid-cols-1 p.text-gray-600,
+.dark .grid-cols-1 p.text-gray-300 {
+  color: #d5c4a1 !important; /* Standard text color */
+}
