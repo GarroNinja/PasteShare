@@ -259,7 +259,11 @@ export function RecentPastesPage() {
                       Copy Link
                     </button>
                   </div>
-                  <div className="overflow-hidden rounded" style={{backgroundColor: '#1d2021'}}>
+                  <div className="overflow-hidden rounded" style={{
+                    backgroundColor: document.documentElement.classList.contains('dark') 
+                      ? '#1d2021'  // Dark background for dark mode
+                      : '#fbf1c7'  // Light background for light mode (Gruvbox light bg)
+                  }}>
                     <SyntaxHighlighter
                       language={detectLanguage(paste.content)}
                       style={syntaxTheme}
