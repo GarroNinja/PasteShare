@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "npm install pg pg-hstore sequelize && cd client && npm install && CI=false npm run build",
+  "buildCommand": "npm install pg pg-hstore sequelize react-syntax-highlighter && cd client && npm install && CI=false npm run build",
   "installCommand": "npm install pg pg-hstore",
   "outputDirectory": "client/build",
   "rewrites": [
@@ -27,6 +27,18 @@
       "source": "/favicon.svg",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=86400" }
+      ]
+    },
+    {
+      "source": "/static/css/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    },
+    {
+      "source": "/static/js/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
       ]
     }
   ],

@@ -111,8 +111,8 @@ const startServer = async () => {
     await sequelize.authenticate();
     console.log('Database connection established successfully.');
     
-    // Sync models with database with altering to add new fields
-    await sequelize.sync({ alter: process.env.NODE_ENV === 'development' });
+    // Sync models with database with altering to add new fields if needed
+    await sequelize.sync({ alter: process.env.NODE_ENV === "development" });
     
     // Try to find an available port from candidates
     let selectedPort = 0;

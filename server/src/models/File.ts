@@ -60,7 +60,8 @@ File.init(
     },
     path: {
       type: DataTypes.STRING,
-      allowNull: false,
+      allowNull: true,
+      defaultValue: '',
     },
     pasteId: {
       type: DataTypes.UUID,

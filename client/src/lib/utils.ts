@@ -40,6 +40,65 @@ export function getApiBaseUrl(): string {
     return `${protocol}//${host}/api`;
   }
   
-  // Development environment - use localhost
+  // Try to get the server port from localStorage (set in index.html)
+  const serverPort = localStorage.getItem('api_port');
+  if (serverPort) {
+    // Clean up the port value in case it has non-numeric characters
+    const cleanPort = serverPort.replace(/[^0-9]/g, '');
+    return `http://localhost:${cleanPort}/api`;
+  }
+  
+  // Default fallback for development
   return 'http://localhost:3000/api';
+}
+
+// Enhanced fetch that provides better error handling and debugging
+export async function apiFetch(
+  endpoint: string, 
+  options: RequestInit = {}
+): Promise<any> {
+  const baseUrl = getApiBaseUrl();
+  const url = `${baseUrl}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+  
+  console.log(`Fetching from: ${url}`);
+  
+  try {
+    // Add default headers and credentials
+    const fetchOptions: RequestInit = {
+      ...options,
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+      }
+    };
+    
+    const response = await fetch(url, fetchOptions);
+    
+    // Log response status for debugging
+    console.log(`Response from ${url}: status=${response.status}`);
+    
+    // Check if response is OK
+    if (!response.ok) {
+      // Try to parse error response as JSON
+      try {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `Request failed with status ${response.status}`);
+      } catch (parseError) {
+        // If parsing fails, throw a generic error with the status
+        throw new Error(`Request failed with status ${response.status}`);
+      }
+    }
+    
+    // For non-GET requests to endpoints that don't return JSON, just return the response
+    if (options.method && options.method !== 'GET' && response.headers.get('content-type')?.indexOf('application/json') === -1) {
+      return response;
+    }
+    
+    // Parse JSON response
+    return await response.json();
+  } catch (error) {
+    console.error(`API request failed for ${url}:`, error);
+    throw error;
+  }
 } 

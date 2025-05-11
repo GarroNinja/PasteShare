@@ -114,11 +114,21 @@ app.use(morgan('dev'));
 
 // Add a middleware for cache control headers
 app.use((req, res, next) => {
-  // Disable caching for all responses by default
+  // Set default cache control headers
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
   res.setHeader('Surrogate-Control', 'no-store');
+  
+  // For static assets or syntax highlighting resources, allow caching
+  if (req.path.startsWith('/static/') || 
+      req.path.includes('.css') || 
+      req.path.includes('.js') || 
+      req.path.includes('.woff') || 
+      req.path.includes('.ttf')) {
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+  }
+  
   next();
 });
 
