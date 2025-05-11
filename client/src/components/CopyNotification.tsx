@@ -36,7 +36,7 @@ const CopyNotification: React.FC<CopyNotificationProps> = ({
   return (
     <div className={`fixed top-10 right-10 z-50 px-4 py-2 text-sm rounded shadow-lg animate-fade-in ${
       isLightMode 
-        ? 'bg-#EBEBE0 text-black' 
+        ? 'bg-stone-100 text-white' 
         : 'bg-gray-800 text-white'
     }`}>
       {message}
