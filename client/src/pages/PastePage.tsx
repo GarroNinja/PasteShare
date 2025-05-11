@@ -11,6 +11,7 @@ import {
   ocean, paraisoDark, railscasts, solarizedDark, solarizedLight,
   tomorrowNight, vs, vs2015, xcode, xt256, zenburn
 } from 'react-syntax-highlighter/dist/esm/styles/hljs';
+import CopyNotification from '../components/CopyNotification';
 
 interface File {
   id: string;
@@ -52,6 +53,12 @@ export function PastePage() {
   const [editError, setEditError] = useState<string | null>(null);
   const [language, setLanguage] = useState<string | null>(null);
   const [theme, setTheme] = useState(gruvboxDark);
+  
+  // Notification state
+  const [showCopyNotification, setShowCopyNotification] = useState(false);
+  const [copyNotificationMessage, setCopyNotificationMessage] = useState('');
+  const [copyNotificationPosition, setCopyNotificationPosition] = useState({ top: 0, left: 0 });
+  const [notificationTarget, setNotificationTarget] = useState<HTMLElement | null>(null);
 
   // Auto-detect language based on content
   useEffect(() => {
@@ -208,20 +215,24 @@ export function PastePage() {
     fetchPaste();
   }, [id]);
 
-  const copyToClipboard = async (text: string) => {
+  const copyToClipboard = async (text: string, event: React.MouseEvent<HTMLButtonElement>) => {
     try {
       await navigator.clipboard.writeText(text);
-      alert("Copied to clipboard!");
+      setNotificationTarget(event.currentTarget);
+      setCopyNotificationMessage('Copied to clipboard!');
+      setShowCopyNotification(true);
     } catch (err) {
       console.error("Failed to copy text:", err);
     }
   };
   
-  const copyLinkToClipboard = async () => {
+  const copyLinkToClipboard = async (event: React.MouseEvent<HTMLButtonElement>) => {
     try {
       const currentUrl = window.location.href;
       await navigator.clipboard.writeText(currentUrl);
-      alert("Link copied to clipboard!");
+      setNotificationTarget(event.currentTarget);
+      setCopyNotificationMessage('Link copied to clipboard!');
+      setShowCopyNotification(true);
     } catch (err) {
       console.error("Failed to copy link:", err);
     }
@@ -439,20 +450,38 @@ export function PastePage() {
           )}
           
           <div className="flex flex-wrap gap-2 mt-2 sm:mt-0 sm:flex-shrink-0">
-            {!isEditMode && (
+            {!isEditMode && paste && (
               <>
-                <button 
-                  onClick={() => copyToClipboard(paste.content)}
-                  className="px-3 py-1 text-sm bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 rounded hover:bg-green-200 dark:hover:bg-green-900/50"
-                >
-                  Copy
-                </button>
-                <button 
-                  onClick={copyLinkToClipboard}
-                  className="px-3 py-1 text-sm bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-900/50"
-                >
-                  Copy Link
-                </button>
+                <div className="relative">
+                  <button 
+                    onClick={(e) => copyToClipboard(paste.content, e)}
+                    className="px-3 py-1 text-sm bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 rounded hover:bg-green-200 dark:hover:bg-green-900/50"
+                  >
+                    Copy
+                  </button>
+                  {showCopyNotification && notificationTarget?.textContent === 'Copy' && (
+                    <CopyNotification 
+                      message={copyNotificationMessage}
+                      isVisible={showCopyNotification}
+                      onClose={() => setShowCopyNotification(false)}
+                    />
+                  )}
+                </div>
+                <div className="relative">
+                  <button 
+                    onClick={copyLinkToClipboard}
+                    className="px-3 py-1 text-sm bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-900/50"
+                  >
+                    Copy Link
+                  </button>
+                  {showCopyNotification && notificationTarget?.textContent === 'Copy Link' && (
+                    <CopyNotification 
+                      message={copyNotificationMessage}
+                      isVisible={showCopyNotification}
+                      onClose={() => setShowCopyNotification(false)}
+                    />
+                  )}
+                </div>
                 <button 
                   onClick={() => window.print()}
                   className="px-3 py-1 text-sm bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600"

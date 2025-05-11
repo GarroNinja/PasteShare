@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { apiFetch } from '../lib/utils';
 import SyntaxHighlighter from 'react-syntax-highlighter';
 import { gruvboxDark } from 'react-syntax-highlighter/dist/esm/styles/hljs';
+import CopyNotification from '../components/CopyNotification';
 
 interface Paste {
   id: string;
@@ -20,6 +21,11 @@ export function RecentPastesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const fetchedRef = useRef(false);
+  
+  // Notification state
+  const [showCopyNotification, setShowCopyNotification] = useState(false);
+  const [copyNotificationMessage, setCopyNotificationMessage] = useState('');
+  const [notificationButtonId, setNotificationButtonId] = useState<string | null>(null);
 
   // Simple language detection based on common patterns
   const detectLanguage = (content: string): string => {
@@ -95,7 +101,11 @@ export function RecentPastesPage() {
       const baseUrl = window.location.origin;
       const pasteUrl = `${baseUrl}/paste/${customUrl || pasteId}`;
       await navigator.clipboard.writeText(pasteUrl);
-      alert("Link copied to clipboard!");
+      
+      // Use the notification system instead of alert
+      setNotificationButtonId(pasteId);
+      setCopyNotificationMessage('Link copied to clipboard!');
+      setShowCopyNotification(true);
     } catch (err) {
       console.error("Failed to copy link:", err);
     }
@@ -193,12 +203,21 @@ export function RecentPastesPage() {
                 <div className="p-4">
                   <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-2">
                     <h2 className="text-lg font-medium mb-2 sm:mb-0 pr-20 sm:pr-0 truncate max-w-full">{paste.title || 'Untitled Paste'}</h2>
-                    <button
-                      onClick={(e) => copyLinkToClipboard(paste.id, paste.customUrl, e)}
-                      className="absolute top-4 right-4 sm:static sm:ml-2 sm:flex-shrink-0 px-3 py-1 text-sm bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-900/50 z-10"
-                    >
-                      Copy Link
-                    </button>
+                    <div className="relative">
+                      <button
+                        onClick={(e) => copyLinkToClipboard(paste.id, paste.customUrl, e)}
+                        className="absolute top-4 right-4 sm:static sm:ml-2 sm:flex-shrink-0 px-3 py-1 text-sm bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-900/50 z-10"
+                      >
+                        Copy Link
+                      </button>
+                      {showCopyNotification && notificationButtonId === paste.id && (
+                        <CopyNotification 
+                          message={copyNotificationMessage}
+                          isVisible={showCopyNotification}
+                          onClose={() => setShowCopyNotification(false)}
+                        />
+                      )}
+                    </div>
                   </div>
                   <div className="overflow-hidden rounded" style={{backgroundColor: '#1d2021'}}>
                     <SyntaxHighlighter
