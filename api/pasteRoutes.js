@@ -3,16 +3,15 @@ const express = require('express');
 const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const multer = require('multer');
-const { Sequelize, DataTypes, Op } = require('sequelize');
-const path = require('path');
-const fs = require('fs');
+const { Op } = require('sequelize');
+const { createConnection } = require('./db');
+const { Sequelize } = require('sequelize');
 
 // Configure multer for file uploads
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
   fileFilter: (req, file, cb) => {
-    // Allow most common file types
     const allowedMimeTypes = [
       'text/plain', 'text/html', 'text/css', 'text/javascript',
       'application/json', 'application/xml', 'application/javascript',
@@ -29,430 +28,119 @@ const upload = multer({
   }
 });
 
-// Database connection variables
-let sequelize, Paste, File;
-let useDatabase = false;
-let lastConnectionAttempt = 0;
-let connectionAttempts = 0;
-const MAX_CONNECTION_ATTEMPTS = 10; // Increase max attempts
-const RETRY_INTERVALS = [500, 1000, 2000, 5000, 10000, 15000, 30000]; // Shorter initial retries
-
-// Initialize the database with proper connection parameters
-function initializeDatabase() {
-  // Don't retry connection too frequently using exponential backoff
-  const now = Date.now();
-  const retryInterval = RETRY_INTERVALS[Math.min(connectionAttempts, RETRY_INTERVALS.length - 1)];
-  
-  if (now - lastConnectionAttempt < retryInterval && lastConnectionAttempt !== 0) {
-    console.log(`Skipping connection attempt, last attempt was ${Math.round((now - lastConnectionAttempt) / 1000)}s ago`);
-    return { success: false, reason: 'Throttled' };
-  }
-  
-  lastConnectionAttempt = now;
-  connectionAttempts++;
-  
-  // Required: DATABASE_URL environment variable
-  if (!process.env.DATABASE_URL) {
-    console.error('FATAL ERROR: DATABASE_URL environment variable is not set');
-    return { success: false, reason: 'DATABASE_URL is missing' };
-  }
-  
-  try {
-    // Log sanitized database connection details
-    const urlObj = new URL(process.env.DATABASE_URL);
-    console.log(`Attempting to connect to database: ${urlObj.hostname}:${urlObj.port}${urlObj.pathname}`);
-    console.log(`Connection attempt ${connectionAttempts}/${MAX_CONNECTION_ATTEMPTS}`);
-
-    // Make sure we're using the correct URL format for Supabase
-    let connectionString = process.env.DATABASE_URL;
-    
-    // Always use the Supabase transaction pooler at port 6543 which is better for serverless
-    if (urlObj.hostname.includes('supabase')) {
-      // Force port 6543 for Supabase connection pooling 
-      connectionString = connectionString.replace(/:5432\//g, ':6543/').replace(/:5432$/g, ':6543');
-      console.log('Using Supabase connection pooler at port 6543');
-    }
-
-    // Initialize DB connection with optimized configuration for Supabase
-    sequelize = new Sequelize(connectionString, {
-      dialect: 'postgres',
-      dialectOptions: {
-        ssl: {
-          require: true,
-          rejectUnauthorized: false
-        },
-        keepAlive: true,
-        connectTimeout: 60000 // Increased timeout further
-      },
-      pool: {
-        max: 3, // Reduced for serverless environment
-        min: 0,
-        idle: 10000,
-        acquire: 60000, // Increased from 30000
-        evict: 1000
-      },
-      retry: {
-        max: 10, // Increased from 5
-        timeout: 60000 // Increased from 30000
-      },
-      logging: console.log, // Always log for debugging
-      benchmark: true // Monitor query performance
-    });
-
-    // Define Paste model
-    Paste = sequelize.define('Paste', {
-      id: {
-        type: DataTypes.UUID,
-        defaultValue: DataTypes.UUIDV4,
-        primaryKey: true
-      },
-      title: {
-        type: DataTypes.STRING,
-        allowNull: false,
-        defaultValue: 'Untitled Paste'
-      },
-      content: {
-        type: DataTypes.TEXT,
-        allowNull: false
-      },
-      expiresAt: {
-        type: DataTypes.DATE,
-        allowNull: true
-      },
-      isPrivate: {
-        type: DataTypes.BOOLEAN,
-        defaultValue: false
-      },
-      isEditable: {
-        type: DataTypes.BOOLEAN,
-        defaultValue: true
-      },
-      customUrl: {
-        type: DataTypes.STRING,
-        allowNull: true,
-        unique: true
-      },
-      userId: {
-        type: DataTypes.UUID,
-        allowNull: true
-      },
-      views: {
-        type: DataTypes.INTEGER,
-        defaultValue: 0
-      },
-      createdAt: {
-        type: DataTypes.DATE
-      },
-      updatedAt: {
-        type: DataTypes.DATE
-      }
-    }, {
-      tableName: 'pastes',
-      timestamps: true,
-      paranoid: false,
-      underscored: false,
-      freezeTableName: true
-    });
-
-    // Define File model
-    File = sequelize.define('File', {
-      id: {
-        type: DataTypes.UUID,
-        defaultValue: DataTypes.UUIDV4,
-        primaryKey: true
-      },
-      filename: {
-        type: DataTypes.STRING,
-        allowNull: false
-      },
-      originalname: {
-        type: DataTypes.STRING,
-        allowNull: false
-      },
-      mimetype: {
-        type: DataTypes.STRING,
-        allowNull: false
-      },
-      size: {
-        type: DataTypes.INTEGER,
-        allowNull: false
-      },
-      content: {
-        type: DataTypes.TEXT('long'),
-        allowNull: false
-      },
-      pasteId: {
-        type: DataTypes.UUID,
-        allowNull: false
-      },
-      createdAt: {
-        type: DataTypes.DATE
-      },
-      updatedAt: {
-        type: DataTypes.DATE
-      }
-    }, {
-      tableName: 'files',
-      timestamps: true,
-      paranoid: false,
-      underscored: false,
-      freezeTableName: true
-    });
-
-    // Define associations to match Supabase schema
-    Paste.hasMany(File, { 
-      onDelete: 'CASCADE',
-      foreignKey: 'pasteId',
-      as: 'Files'
-    });
-    File.belongsTo(Paste, {
-      foreignKey: 'pasteId',
-      as: 'Paste'
-    });
-
-    return { success: true };
-  } catch (error) {
-    console.error('Error setting up database connection:', error.message);
-    if (error.original) {
-      console.error('Original error:', error.original.message);
-    }
-    return { success: false, reason: error.message };
-  }
-}
-
-// Setup database and test connection immediately
-const dbSetup = initializeDatabase();
-console.log('Initial database setup result:', dbSetup);
-
-// Immediately test the connection after setup
-(async () => {
-  // Critical: Force the use of database in Vercel and never fall back to in-memory
-  const isVercel = !!process.env.VERCEL;
-  let connectSuccess = false;
-  
-  // Try multiple connection attempts
-  for (let attempt = 1; attempt <= MAX_CONNECTION_ATTEMPTS; attempt++) {
-    try {
-      if (!sequelize) {
-        console.error(`Connection attempt ${attempt}: Sequelize instance not initialized`);
-        // Wait before trying again with increasing delays
-        const waitTime = RETRY_INTERVALS[Math.min(attempt - 1, RETRY_INTERVALS.length - 1)];
-        await new Promise(resolve => setTimeout(resolve, waitTime));
-        initializeDatabase();
-        continue;
-      }
-      
-      // Explicitly test connection with timeout
-      const timeout = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Connection timeout')), 15000)
-      );
-      await Promise.race([sequelize.authenticate(), timeout]);
-      
-      console.log(`Connection attempt ${attempt}: Database connection established successfully`);
-      connectSuccess = true;
-      
-      try {
-        // Only sync tables if needed (avoid frequent schema changes)
-        const [tables] = await sequelize.query(`
-          SELECT table_name 
-          FROM information_schema.tables 
-          WHERE table_schema = 'public'
-        `);
-        
-        const tableNames = tables.map(t => t.table_name.toLowerCase());
-        console.log('Existing tables:', tableNames);
-        
-        const needsSync = !tableNames.includes('pastes') || !tableNames.includes('files');
-        
-        if (needsSync) {
-          console.log('Tables do not exist, performing sync');
-          await sequelize.sync({ alter: false }); // Don't alter in production
-          console.log('Database tables synchronized successfully');
-        } else {
-          console.log('Database tables already exist, skipping sync');
-        }
-        
-        // Test with a simple query
-        const pasteCount = await Paste.count();
-        console.log(`Database has ${pasteCount} pastes`);
-        
-        // Enable database usage - CRITICAL: Always set this flag to true after successful connection
-        useDatabase = true;
-        console.log('Database connection and query successful - setting useDatabase = true');
-      } catch (syncError) {
-        console.error(`Error during sync/count: ${syncError.message}`);
-        // If query fails but connection worked, still set useDatabase to true
-        useDatabase = true;
-        console.log('Database connection successful but query failed - still setting useDatabase = true');
-      }
-      
-      // Enable database usage 
-      useDatabase = true;
-      console.log('Database connection successful - PostgreSQL will be used for storage');
-      break; // Exit the retry loop
-    } catch (error) {
-      console.error(`Connection attempt ${attempt} failed:`, error.message);
-      
-      if (attempt < MAX_CONNECTION_ATTEMPTS) {
-        const waitTime = RETRY_INTERVALS[Math.min(attempt - 1, RETRY_INTERVALS.length - 1)];
-        console.log(`Will retry in ${waitTime}ms...`);
-        await new Promise(resolve => setTimeout(resolve, waitTime));
-      }
-    }
-  }
-  
-  // If we're in Vercel and couldn't connect to the database, crash the function
-  // This is better than silently using in-memory storage
-  if (isVercel && !connectSuccess) {
-    console.error('CRITICAL ERROR: Failed to connect to database after multiple attempts in Vercel environment');
-    console.error('DATABASE_URL:', process.env.DATABASE_URL ? 'Provided' : 'Missing');
-    
-    // Try to validate DATABASE_URL
-    try {
-      const url = new URL(process.env.DATABASE_URL);
-      console.error('Database URL parse check:', { 
-        host: url.hostname, 
-        port: url.port,
-        protocol: url.protocol,
-        pathname: url.pathname
-      });
-    } catch (e) {
-      console.error('DATABASE_URL is malformed:', e.message);
-    }
-    
-    // In Vercel, throw an error to crash the function to alert user
-    throw new Error('Cannot start without database connection in production');
-  }
-  
-  if (!connectSuccess) {
-    console.error('Failed to connect to database after multiple attempts');
-    useDatabase = false;
-    console.error('Failing over to in-memory storage - DATABASE CONNECTION FAILED');
-  }
-})();
-
-// In-memory storage fallback (only used if database connection fails)
+// Initialize in-memory pastes array (fallback for development only)
 const inMemoryPastes = [];
 
-// Add a function to test the database connection directly
-async function testDatabase() {
-  // If database isn't initialized, try to initialize it
-  if (!sequelize) {
-    const setup = initializeDatabase();
-    if (!setup.success) {
-      return {
-        connected: false,
-        error: setup.reason || 'Failed to initialize database'
-      };
-    }
-  }
+// Middleware to set up database connection for each request
+router.use(async (req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
   
-  try {
-    // Test with a timeout to avoid hanging
-    const timeout = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Connection timeout')), 10000)
-    );
-    
-    // Authenticate and get basic information
-    await Promise.race([sequelize.authenticate(), timeout]);
-    
-    // Test a basic query to verify tables
-    let tableInfo;
+  // Create a fresh database connection for this request
+  req.db = createConnection();
+  
+  if (req.db.success) {
     try {
-      const [tables] = await sequelize.query(`
-        SELECT table_name 
-        FROM information_schema.tables 
-        WHERE table_schema = 'public'
-      `);
-      tableInfo = tables.map(t => t.table_name);
+      // Test connection with a timeout
+      const connectionTest = await req.db.testConnection();
       
-      // Critical fix: Enable database usage if we got this far
-      useDatabase = true;
-      console.log('Database connection and query successful - setting useDatabase = true');
-    } catch (queryError) {
-      return {
-        connected: true,
-        queryWorking: false,
-        error: queryError.message
-      };
+      if (connectionTest.connected) {
+        req.useDatabase = true;
+        console.log('Database connection verified for this request');
+      } else {
+        req.useDatabase = false;
+        console.error('Database connection test failed:', connectionTest.error);
+        
+        // In production, return error instead of falling back
+        if (process.env.NODE_ENV === 'production' || process.env.VERCEL) {
+          return res.status(503).json({
+            error: 'Service unavailable',
+            message: 'Database connection failed. Please try again later.'
+          });
+        }
+      }
+    } catch (error) {
+      req.useDatabase = false;
+      console.error('Database connection test error:', error.message);
+      
+      // In production, return error instead of falling back
+      if (process.env.NODE_ENV === 'production' || process.env.VERCEL) {
+        return res.status(503).json({
+          error: 'Service unavailable',
+          message: 'Database connection error. Please try again later.'
+        });
+      }
     }
+  } else {
+    req.useDatabase = false;
+    console.error('Database setup failed:', req.db.error);
     
-    return {
-      connected: true,
-      queryWorking: true,
-      tables: tableInfo,
-      pasteTableExists: tableInfo.includes('pastes'),
-      fileTableExists: tableInfo.includes('files'),
-      databaseEnabled: useDatabase
-    };
-  } catch (error) {
-    return {
-      connected: false,
-      error: error.message
-    };
-  }
-}
-
-// Update getDatabaseStatus to provide more accurate information
-function getDatabaseStatus() {
-  const dbUrl = process.env.DATABASE_URL;
-  
-  return {
-    isConnected: useDatabase,
-    mode: useDatabase ? 'PostgreSQL' : 'In-Memory',
-    connectionAttempts: connectionAttempts, 
-    details: {
-      dbConfigured: !!dbUrl,
-      connectionUrl: dbUrl ? `${new URL(dbUrl).hostname}:${new URL(dbUrl).port}` : 'Not configured',
-      lastAttempt: new Date(lastConnectionAttempt).toISOString(),
-      tables: useDatabase ? ['pastes', 'files'] : []
-    }
-  };
-}
-
-// Export functions for external use
-router.getDatabaseStatus = getDatabaseStatus;
-router.testDatabase = testDatabase;
-router.useDatabase = useDatabase;
-router.connectionAttempts = connectionAttempts;
-
-// Middleware to check database connection before each request
-router.use((req, res, next) => {
-  // In production/Vercel, database connection is mandatory
-  const isVercel = !!process.env.VERCEL;
-  const isProduction = process.env.NODE_ENV === 'production';
-  
-  if (!useDatabase && (isVercel || isProduction)) {
-    console.error('Request received but database is not connected in production/Vercel environment');
-    return res.status(503).json({ 
-      error: 'Database connection is required but unavailable',
-      message: 'Server is misconfigured. Database connection is required in production.',
-      dbStatus: getDatabaseStatus()
-    });
-  }
-  
-  // In development, we may retry the connection or fallback to in-memory
-  if (!useDatabase && !isVercel && !isProduction) {
-    // Attempt reconnection no more than once per minute
-    const now = Date.now();
-    if (now - lastConnectionAttempt > 60000) {
-      console.log('Retrying database connection on request');
-      initializeDatabase();
-    } else {
-      console.log('Using in-memory storage (database connection failed)');
+    // In production, return error instead of falling back
+    if (process.env.NODE_ENV === 'production' || process.env.VERCEL) {
+      return res.status(503).json({
+        error: 'Service unavailable',
+        message: 'Database configuration error. Please try again later.'
+      });
     }
   }
   
   next();
 });
 
+// Test database connection
+router.get('/test-connection', async (req, res) => {
+  if (!req.db || !req.db.success) {
+    return res.status(500).json({
+      success: false,
+      message: 'Database connection not initialized'
+    });
+  }
+  
+  try {
+    const testResult = await req.db.testConnection();
+    
+    // Parse DATABASE_URL for debugging info (remove credentials)
+    const urlInfo = (() => {
+      try {
+        const url = new URL(process.env.DATABASE_URL);
+        return {
+          host: url.hostname,
+          port: url.port,
+          database: url.pathname.substring(1),
+          username: url.username ? '[CONFIGURED]' : '[MISSING]',
+          hasPassword: !!url.password,
+          ssl: url.searchParams.get('sslmode') || 'default'
+        };
+      } catch (error) {
+        return { error: 'Invalid URL format' };
+      }
+    })();
+    
+    return res.status(200).json({
+      success: testResult.connected,
+      message: testResult.connected 
+        ? 'Database connection successful' 
+        : 'Connection test failed',
+      connection: urlInfo,
+      testResult,
+      environment: {
+        nodeEnv: process.env.NODE_ENV || 'development',
+        isVercel: !!process.env.VERCEL
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: 'Error testing connection',
+      error: error.message
+    });
+  }
+});
+
 // Create a new paste
 router.post('/', upload.array('files', 5), async (req, res) => {
   try {
     const { title, content, expiresIn, isPrivate, customUrl, isEditable } = req.body;
-    
-    // Log request details
-    console.log(`POST /api/pastes - Creating paste with title: ${title || 'Untitled'}, mode: ${useDatabase ? 'database' : 'in-memory'}`);
+    console.log(`Creating paste: ${title || 'Untitled'}, DB mode: ${req.useDatabase}`);
     
     // Validate input
     if (!content) {
@@ -465,30 +153,21 @@ router.post('/', upload.array('files', 5), async (req, res) => {
       expiresAt = new Date(Date.now() + parseInt(expiresIn) * 1000);
     }
     
-    if (useDatabase) {
-      // First verify database connection
-      try {
-        await sequelize.authenticate();
-        console.log('Database connection verified before creating paste');
-      } catch (authError) {
-        console.error('Database connection failed before creating paste:', authError);
-        useDatabase = false;
-        // Fall through to in-memory implementation
-      }
+    if (req.useDatabase) {
+      const { sequelize, models } = req.db;
+      const { Paste, File } = models;
       
-      // Use transaction to ensure both paste and files are created or nothing is
-      let transaction;
+      // Use transaction for atomicity
+      const transaction = await sequelize.transaction();
       
       try {
-        // Start transaction
-        transaction = await sequelize.transaction();
-        
-        // Check if custom URL is taken (database version)
+        // Check if custom URL is taken
         if (customUrl) {
           const existingPaste = await Paste.findOne({ 
             where: { customUrl },
             transaction
           });
+          
           if (existingPaste) {
             await transaction.rollback();
             return res.status(400).json({ message: 'Custom URL is already taken' });
@@ -506,7 +185,7 @@ router.post('/', upload.array('files', 5), async (req, res) => {
           userId: null
         }, { transaction });
         
-        console.log(`Created paste in database with ID: ${paste.id}`);
+        console.log(`Created paste with ID: ${paste.id}`);
         
         // Handle files (if any)
         const fileRecords = [];
@@ -520,7 +199,7 @@ router.post('/', upload.array('files', 5), async (req, res) => {
               originalname: file.originalname,
               mimetype: file.mimetype,
               size: file.size,
-              content: base64Content, // Store as base64 string instead of buffer
+              content: base64Content,
               pasteId: paste.id
             }, { transaction });
             
@@ -555,72 +234,80 @@ router.post('/', upload.array('files', 5), async (req, res) => {
         });
       } catch (error) {
         // Rollback transaction if there was an error
-        if (transaction) await transaction.rollback();
+        await transaction.rollback();
         console.error('Database operation failed:', error);
-        // Don't disable database mode completely on a single failure
-        // useDatabase = false;
-        // Fall through to in-memory implementation
+        return res.status(500).json({ 
+          message: 'Failed to create paste',
+          error: error.message
+        });
       }
-    }
-    
-    // In-memory implementation (fallback)
-    // Check if custom URL is taken
-    if (customUrl && inMemoryPastes.some(p => p.customUrl === customUrl)) {
-      return res.status(400).json({ message: 'Custom URL is already taken' });
-    }
-    
-    // Create paste in memory
-    const paste = {
-      id: uuidv4(),
-      title: title || 'Untitled Paste',
-      content,
-      expiresAt,
-      isPrivate: isPrivate === 'true' || isPrivate === true,
-      isEditable: isEditable === 'true' || isEditable === true,
-      customUrl: customUrl || null,
-      userId: null,
-      views: 0,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      files: []
-    };
-    
-    // Handle files (if any)
-    if (req.files && req.files.length > 0) {
-      paste.files = req.files.map(file => ({
+    } else if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+      // In-memory implementation (fallback - development only)
+      // Check if custom URL is taken
+      if (customUrl && inMemoryPastes.some(p => p.customUrl === customUrl)) {
+        return res.status(400).json({ message: 'Custom URL is already taken' });
+      }
+      
+      // Create paste in memory
+      const paste = {
         id: uuidv4(),
-        filename: file.originalname,
-        originalname: file.originalname,
-        mimetype: file.mimetype,
-        size: file.size,
-        content: file.buffer.toString('base64') // Store as base64 string for consistency
-      }));
-    }
-    
-    // Add to store
-    inMemoryPastes.push(paste);
-    console.log(`Created paste in memory with ID: ${paste.id}`);
-    
-    return res.status(201).json({
-      message: 'Paste created successfully (in-memory mode)',
-      paste: {
-        id: paste.id,
-        title: paste.title,
-        content: paste.content,
-        expiresAt: paste.expiresAt,
-        isPrivate: paste.isPrivate,
-        isEditable: paste.isEditable,
-        customUrl: paste.customUrl,
-        createdAt: paste.createdAt,
-        files: paste.files.map(f => ({
-          id: f.id,
-          filename: f.originalname,
-          size: f.size,
-          url: `/api/pastes/${paste.id}/files/${f.id}`
-        })),
-        storageType: 'memory'
+        title: title || 'Untitled Paste',
+        content,
+        expiresAt,
+        isPrivate: isPrivate === 'true' || isPrivate === true,
+        isEditable: isEditable === 'true' || isEditable === true,
+        customUrl: customUrl || null,
+        userId: null,
+        views: 0,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        files: []
+      };
+      
+      // Handle files (if any)
+      if (req.files && req.files.length > 0) {
+        paste.files = req.files.map(file => ({
+          id: uuidv4(),
+          filename: file.originalname,
+          originalname: file.originalname,
+          mimetype: file.mimetype,
+          size: file.size,
+          content: file.buffer.toString('base64'),
+          pasteId: paste.id
+        }));
       }
-    });
+      
+      // Add to store
+      inMemoryPastes.push(paste);
+      console.log(`Created paste in memory with ID: ${paste.id}`);
+      
+      return res.status(201).json({
+        message: 'Paste created successfully (in-memory mode)',
+        paste: {
+          id: paste.id,
+          title: paste.title,
+          content: paste.content,
+          expiresAt: paste.expiresAt,
+          isPrivate: paste.isPrivate,
+          isEditable: paste.isEditable,
+          customUrl: paste.customUrl,
+          createdAt: paste.createdAt,
+          files: paste.files.map(f => ({
+            id: f.id,
+            filename: f.originalname,
+            size: f.size,
+            url: `/api/pastes/${paste.id}/files/${f.id}`
+          })),
+          storageType: 'memory'
+        }
+      });
+    } else {
+      // Production environment without database connection
+      return res.status(503).json({
+        error: 'Service unavailable',
+        message: 'Database connection required for this operation'
+      });
+    }
   } catch (error) {
     console.error('Create paste error:', error);
     return res.status(500).json({ message: 'Server error creating paste' });
@@ -633,15 +320,14 @@ router.get('/', async (req, res) => {
     const limit = parseInt(req.query.limit) || 10;
     const now = new Date();
     
-    console.log(`GET /api/pastes - Retrieving recent pastes, mode: ${useDatabase ? 'database' : 'in-memory'}`);
+    console.log(`Getting recent pastes, DB mode: ${req.useDatabase}`);
     
-    if (useDatabase) {
+    if (req.useDatabase) {
+      const { models } = req.db;
+      const { Paste } = models;
+      
       try {
-        // First, check database connection
-        await sequelize.authenticate();
-        console.log('Database connection verified before query');
-        
-        // Use query with proper Sequelize column names matching the camelCase in Supabase
+        // Query for recent public pastes
         const publicPastes = await Paste.findAll({
           where: {
             isPrivate: false,
@@ -652,14 +338,10 @@ router.get('/', async (req, res) => {
           },
           order: [['createdAt', 'DESC']],
           limit,
-          // Don't include files in this query to keep it simpler
           attributes: ['id', 'title', 'content', 'createdAt', 'expiresAt', 'views', 'customUrl']
         });
         
         console.log(`Retrieved ${publicPastes.length} pastes from database`);
-        
-        // Output full IDs for debugging
-        console.log('Paste IDs:', publicPastes.map(p => p.id));
         
         return res.status(200).json(
           publicPastes.map(paste => ({
@@ -675,47 +357,40 @@ router.get('/', async (req, res) => {
         );
       } catch (error) {
         console.error('Database query failed:', error);
-        if (error.original) {
-          console.error('Original error:', error.original.message);
-        }
-        
-        // Try a simpler query
-        try {
-          console.log('Attempting simplified query...');
-          const simpleQuery = await sequelize.query('SELECT * FROM pastes LIMIT 1');
-          console.log('Simple query result:', simpleQuery[0]);
-        } catch (simpleError) {
-          console.error('Even simple query failed:', simpleError.message);
-        }
-        
-        // Don't disable database for a single query failure
-        // useDatabase = false;
-        // Fall through to in-memory implementation
+        return res.status(500).json({ 
+          message: 'Error retrieving pastes from database',
+          error: error.message 
+        });
       }
+    } else if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+      // In-memory implementation (fallback - development only)
+      const publicPastes = inMemoryPastes
+        .filter(paste => 
+          !paste.isPrivate && 
+          (!paste.expiresAt || paste.expiresAt > now)
+        )
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+        .slice(0, limit)
+        .map(paste => ({
+          id: paste.id,
+          title: paste.title,
+          content: paste.content.length > 200 ? `${paste.content.slice(0, 200)}...` : paste.content,
+          createdAt: paste.createdAt,
+          expiresAt: paste.expiresAt,
+          views: paste.views,
+          customUrl: paste.customUrl,
+          storageType: 'memory'
+        }));
+      
+      console.log(`Retrieved ${publicPastes.length} pastes from memory`);
+      return res.status(200).json(publicPastes);
+    } else {
+      // Production environment without database connection
+      return res.status(503).json({
+        error: 'Service unavailable',
+        message: 'Database connection required for this operation'
+      });
     }
-    
-    // In-memory implementation (fallback)
-    const publicPastes = inMemoryPastes
-      .filter(paste => 
-        !paste.isPrivate && 
-        (!paste.expiresAt || paste.expiresAt > now)
-      )
-      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-      .slice(0, limit)
-      .map(paste => ({
-        id: paste.id,
-        title: paste.title,
-        content: paste.content.length > 200 ? `${paste.content.slice(0, 200)}...` : paste.content,
-        createdAt: paste.createdAt,
-        expiresAt: paste.expiresAt,
-        views: paste.views,
-        customUrl: paste.customUrl,
-        storageType: 'memory'
-      }));
-    
-    console.log(`Retrieved ${publicPastes.length} pastes from memory`);
-    
-    return res.status(200).json(publicPastes);
   } catch (error) {
     console.error('Get pastes error:', error);
     return res.status(500).json({ message: 'Server error retrieving pastes' });
@@ -728,28 +403,21 @@ router.get('/:id', async (req, res) => {
     const { id } = req.params;
     const now = new Date();
     
-    console.log(`GET /api/pastes/${id} - Retrieving paste, mode: ${useDatabase ? 'database' : 'in-memory'}`);
+    console.log(`Getting paste by ID/URL: ${id}, DB mode: ${req.useDatabase}`);
     
-    if (useDatabase) {
+    if (req.useDatabase) {
+      const { models } = req.db;
+      const { Paste, File } = models;
+      
       try {
-        // First, check database connection
-        await sequelize.authenticate();
-        console.log('Database connection verified before paste query');
+        // Check if the ID is a valid UUID
+        const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+        let paste = null;
         
-        // First, attempt to find by ID
-        let paste = await Paste.findByPk(id, {
-          include: [
-            { 
-              model: File,
-              as: 'Files'
-            }
-          ]
-        });
-        
-        // If not found by ID, try by customUrl
-        if (!paste) {
-          paste = await Paste.findOne({
-            where: { customUrl: id },
+        if (isValidUUID) {
+          // If it's a valid UUID, try to find by ID first
+          console.log(`ID appears to be a valid UUID, trying findByPk: ${id}`);
+          paste = await Paste.findByPk(id, {
             include: [
               { 
                 model: File,
@@ -759,37 +427,55 @@ router.get('/:id', async (req, res) => {
           });
         }
         
+        // If not found or not a UUID, try by customUrl (case-insensitive)
+        if (!paste) {
+          console.log(`Trying to find paste by customUrl: ${id}`);
+          
+          // Log the existing customUrls in the database to diagnose issues
+          const allPastes = await Paste.findAll({
+            attributes: ['id', 'customUrl']
+          });
+          
+          console.log('Current custom URLs in database:');
+          allPastes.forEach(p => {
+            if (p.customUrl) {
+              console.log(`ID: ${p.id}, customUrl: ${p.customUrl}`);
+            }
+          });
+          
+          // Try with case-insensitive lookup
+          paste = await Paste.findOne({
+            where: {
+              customUrl: Sequelize.where(
+                Sequelize.fn('LOWER', Sequelize.col('customUrl')), 
+                Sequelize.fn('LOWER', id)
+              )
+            },
+            include: [
+              { 
+                model: File,
+                as: 'Files'
+              }
+            ]
+          });
+          
+          if (paste) {
+            console.log(`Found paste by customUrl: ${id}, paste ID: ${paste.id}`);
+          } else {
+            console.log(`No paste found with customUrl: ${id}`);
+          }
+        }
+        
         // If found, check expiration
         if (paste) {
           // Only check expiration if expiresAt is not null
           if (paste.expiresAt && new Date(paste.expiresAt) < now) {
-            console.log(`Paste ${paste.id} has expired`);
             return res.status(404).json({ message: 'Paste has expired' });
           }
           
-          // Increment views and save (with retry logic)
-          let retries = 3;
-          while (retries > 0) {
-            try {
-              paste.views += 1;
-              await paste.save();
-              break; // Success, exit the retry loop
-            } catch (saveError) {
-              retries--;
-              if (retries === 0) {
-                console.error('Failed to update views after multiple attempts:', saveError);
-              } else {
-                console.log(`Retrying view update, attempts left: ${retries}`);
-                await new Promise(resolve => setTimeout(resolve, 100)); // Wait before retry
-              }
-            }
-          }
-          
-          // Log detailed information about the paste and its files
-          console.log(`Retrieved paste ${paste.id} with ${paste.Files ? paste.Files.length : 0} files`);
-          if (paste.Files && paste.Files.length > 0) {
-            console.log('Files:', paste.Files.map(f => ({ id: f.id, name: f.filename, size: f.size })));
-          }
+          // Increment views and save
+          paste.views += 1;
+          await paste.save();
           
           return res.status(200).json({
             paste: {
@@ -814,57 +500,143 @@ router.get('/:id', async (req, res) => {
             }
           });
         } else {
-          console.log(`Paste not found in database: ${id}`);
+          return res.status(404).json({ message: 'Paste not found' });
         }
-        // If paste not found in database, fall through to in-memory check
       } catch (error) {
         console.error('Database query failed:', error);
-        if (error.original) {
-          console.error('Original error:', error.original.message);
+        console.error('Error details:', error.message);
+        
+        // Log the full error stack for debugging
+        if (error.stack) {
+          console.error('Error stack:', error.stack);
         }
-        useDatabase = false;
-        // Fall through to in-memory implementation
+        
+        // Log database connection info
+        console.log('DB connection info:', {
+          models: !!req.db.models,
+          sequelize: !!req.db.sequelize
+        });
+        
+        return res.status(500).json({ 
+          message: 'Error retrieving paste from database',
+          error: error.message 
+        });
       }
-    }
-    
-    // In-memory implementation (fallback)
-    const paste = inMemoryPastes.find(p => 
-      (p.id === id || p.customUrl === id) && 
-      (!p.expiresAt || p.expiresAt > now)
-    );
-    
-    if (!paste) {
-      return res.status(404).json({ message: 'Paste not found or has expired' });
-    }
-    
-    // Increment views
-    paste.views += 1;
-    paste.updatedAt = new Date();
-    
-    return res.status(200).json({
-      paste: {
-        id: paste.id,
-        title: paste.title,
-        content: paste.content,
-        expiresAt: paste.expiresAt,
-        isPrivate: paste.isPrivate,
-        isEditable: paste.isEditable,
-        customUrl: paste.customUrl,
-        createdAt: paste.createdAt,
-        views: paste.views,
-        user: null,
-        files: paste.files.map(f => ({
-          id: f.id,
-          filename: f.originalname,
-          size: f.size,
-          url: `/api/pastes/${paste.id}/files/${f.id}`
-        })),
-        canEdit: paste.isEditable
+    } else if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+      // In-memory implementation (fallback - development only)
+      const paste = inMemoryPastes.find(p => 
+        (p.id === id || p.customUrl === id) && 
+        (!p.expiresAt || p.expiresAt > now)
+      );
+      
+      if (!paste) {
+        return res.status(404).json({ message: 'Paste not found or has expired' });
       }
-    });
+      
+      // Increment views
+      paste.views += 1;
+      paste.updatedAt = new Date();
+      
+      return res.status(200).json({
+        paste: {
+          id: paste.id,
+          title: paste.title,
+          content: paste.content,
+          expiresAt: paste.expiresAt,
+          isPrivate: paste.isPrivate,
+          isEditable: paste.isEditable,
+          customUrl: paste.customUrl,
+          createdAt: paste.createdAt,
+          views: paste.views,
+          user: null,
+          files: paste.files.map(f => ({
+            id: f.id,
+            filename: f.originalname,
+            size: f.size,
+            url: `/api/pastes/${paste.id}/files/${f.id}`
+          })),
+          canEdit: paste.isEditable,
+          storageType: 'memory'
+        }
+      });
+    } else {
+      // Production environment without database connection
+      return res.status(503).json({
+        error: 'Service unavailable',
+        message: 'Database connection required for this operation'
+      });
+    }
   } catch (error) {
     console.error('Get paste error:', error);
     return res.status(500).json({ message: 'Server error retrieving paste' });
+  }
+});
+
+// Get file by ID
+router.get('/:pasteId/files/:fileId', async (req, res) => {
+  try {
+    const { pasteId, fileId } = req.params;
+    
+    console.log(`Getting file: ${fileId} for paste: ${pasteId}, DB mode: ${req.useDatabase}`);
+    
+    if (req.useDatabase) {
+      const { models } = req.db;
+      const { File } = models;
+      
+      try {
+        // Find the file
+        const file = await File.findOne({
+          where: { 
+            id: fileId,
+            pasteId: pasteId
+          }
+        });
+        
+        if (file) {
+          // Convert base64 back to buffer
+          const fileBuffer = Buffer.from(file.content, 'base64');
+          
+          res.setHeader('Content-Type', file.mimetype);
+          res.setHeader('Content-Disposition', `inline; filename="${file.originalname}"`);
+          return res.send(fileBuffer);
+        } else {
+          return res.status(404).json({ message: 'File not found' });
+        }
+      } catch (error) {
+        console.error('Database query failed:', error);
+        return res.status(500).json({ 
+          message: 'Error retrieving file from database',
+          error: error.message 
+        });
+      }
+    } else if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+      // In-memory implementation (fallback - development only)
+      const paste = inMemoryPastes.find(p => p.id === pasteId);
+      if (!paste) {
+        return res.status(404).json({ message: 'Paste not found' });
+      }
+      
+      const file = paste.files.find(f => f.id === fileId);
+      if (!file) {
+        return res.status(404).json({ message: 'File not found' });
+      }
+      
+      // Convert base64 back to buffer
+      const fileBuffer = Buffer.from(file.content, 'base64');
+      
+      res.setHeader('Content-Type', file.mimetype);
+      res.setHeader('Content-Disposition', `inline; filename="${file.originalname}"`);
+      return res.send(fileBuffer);
+    } else {
+      // Production environment without database connection
+      return res.status(503).json({
+        error: 'Service unavailable',
+        message: 'Database connection required for this operation'
+      });
+    }
+  } catch (error) {
+    console.error('Get file error:', error);
+    return res.status(500).json({ message: 'Server error retrieving file' });
   }
 });
 
@@ -875,31 +647,54 @@ router.put('/:id', async (req, res) => {
     const { title, content } = req.body;
     const now = new Date();
     
-    if (useDatabase) {
+    console.log(`Updating paste with ID/URL: ${id}, DB mode: ${req.useDatabase}`);
+    
+    if (req.useDatabase) {
+      const { models } = req.db;
+      const { Paste } = models;
+      
       try {
-        // Find by ID or custom URL (database version)
-        const paste = await Paste.findOne({
-          where: {
-            [Sequelize.Op.or]: [
-              { id },
-              { customUrl: id }
-            ],
-            [Sequelize.Op.or]: [
-              { expiresAt: null },
-              { expiresAt: { [Sequelize.Op.gt]: now } }
-            ]
-          }
-        });
+        // Check if the ID is a valid UUID
+        const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+        let paste = null;
+        
+        if (isValidUUID) {
+          // If it's a valid UUID, try to find by ID first
+          console.log(`ID appears to be a valid UUID, trying findByPk: ${id}`);
+          paste = await Paste.findByPk(id);
+        }
+        
+        // If not found or not a UUID, try by customUrl (case-insensitive)
+        if (!paste) {
+          console.log(`Trying to find paste by customUrl: ${id}`);
+          
+          // Try with case-insensitive lookup
+          paste = await Paste.findOne({
+            where: {
+              customUrl: Sequelize.where(
+                Sequelize.fn('LOWER', Sequelize.col('customUrl')), 
+                Sequelize.fn('LOWER', id)
+              )
+            }
+          });
+        }
         
         if (paste) {
+          // Check if expired
+          if (paste.expiresAt && new Date(paste.expiresAt) < now) {
+            return res.status(404).json({ message: 'Paste has expired' });
+          }
+          
           // Check if editable
           if (!paste.isEditable) {
             return res.status(403).json({ message: 'This paste is not editable' });
           }
           
           // Update paste
-          if (title) paste.title = title;
-          if (content) paste.content = content;
+          if (title !== undefined) paste.title = title;
+          if (content !== undefined) paste.content = content;
+          
+          // Save changes
           await paste.save();
           
           return res.status(200).json({
@@ -914,129 +709,76 @@ router.put('/:id', async (req, res) => {
               customUrl: paste.customUrl,
               createdAt: paste.createdAt,
               updatedAt: paste.updatedAt,
-              views: paste.views
+              views: paste.views,
+              storageType: 'database'
             }
           });
+        } else {
+          return res.status(404).json({ message: 'Paste not found' });
         }
-        // If paste not found in database, fall through to in-memory check
       } catch (error) {
         console.error('Database query failed:', error);
-        useDatabase = false;
-        // Fall through to in-memory implementation
+        console.error('Error details:', error.message);
+        
+        // Log the full error stack for debugging
+        if (error.stack) {
+          console.error('Error stack:', error.stack);
+        }
+        
+        return res.status(500).json({ 
+          message: 'Error updating paste in database',
+          error: error.message 
+        });
       }
-    }
-    
-    // In-memory implementation (fallback)
-    const pasteIndex = inMemoryPastes.findIndex(p => 
-      (p.id === id || p.customUrl === id) && 
-      (!p.expiresAt || p.expiresAt > now)
-    );
-    
-    if (pasteIndex === -1) {
-      return res.status(404).json({ message: 'Paste not found or has expired' });
-    }
-    
-    const paste = inMemoryPastes[pasteIndex];
-    
-    // Check if editable
-    if (!paste.isEditable) {
-      return res.status(403).json({ message: 'This paste is not editable' });
-    }
-    
-    // Update paste
-    if (title) paste.title = title;
-    if (content) paste.content = content;
-    paste.updatedAt = new Date();
-    
-    return res.status(200).json({
-      message: 'Paste updated successfully (in-memory mode)',
-      paste: {
-        id: paste.id,
-        title: paste.title,
-        content: paste.content,
-        expiresAt: paste.expiresAt,
-        isPrivate: paste.isPrivate,
-        isEditable: paste.isEditable,
-        customUrl: paste.customUrl,
-        createdAt: paste.createdAt,
-        updatedAt: paste.updatedAt,
-        views: paste.views
+    } else if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+      // In-memory implementation (fallback - development only)
+      const paste = inMemoryPastes.find(p => 
+        (p.id === id || p.customUrl === id) && 
+        (!p.expiresAt || p.expiresAt > now)
+      );
+      
+      if (!paste) {
+        return res.status(404).json({ message: 'Paste not found or has expired' });
       }
-    });
+      
+      // Check if editable
+      if (!paste.isEditable) {
+        return res.status(403).json({ message: 'This paste is not editable' });
+      }
+      
+      // Update paste
+      if (title !== undefined) paste.title = title;
+      if (content !== undefined) paste.content = content;
+      paste.updatedAt = new Date();
+      
+      return res.status(200).json({
+        message: 'Paste updated successfully',
+        paste: {
+          id: paste.id,
+          title: paste.title,
+          content: paste.content,
+          expiresAt: paste.expiresAt,
+          isPrivate: paste.isPrivate,
+          isEditable: paste.isEditable,
+          customUrl: paste.customUrl,
+          createdAt: paste.createdAt,
+          updatedAt: paste.updatedAt,
+          views: paste.views,
+          storageType: 'memory'
+        }
+      });
+    } else {
+      // Production environment without database connection
+      return res.status(503).json({
+        error: 'Service unavailable',
+        message: 'Database connection required for this operation'
+      });
+    }
   } catch (error) {
     console.error('Update paste error:', error);
     return res.status(500).json({ message: 'Server error updating paste' });
   }
 });
 
-// Get file by ID
-router.get('/:pasteId/files/:fileId', async (req, res) => {
-  try {
-    const { pasteId, fileId } = req.params;
-    
-    console.log(`GET /api/pastes/${pasteId}/files/${fileId} - Retrieving file`);
-    
-    if (useDatabase) {
-      try {
-        // First try with a simpler query to avoid join issues
-        const file = await File.findOne({
-          where: { 
-            id: fileId,
-            pasteId: pasteId
-          }
-        });
-        
-        if (file) {
-          console.log(`Found file ${fileId} for paste ${pasteId}`);
-          
-          // Convert base64 back to buffer
-          const fileBuffer = Buffer.from(file.content, 'base64');
-          
-          res.setHeader('Content-Type', file.mimetype);
-          res.setHeader('Content-Disposition', `inline; filename="${file.originalname}"`);
-          return res.send(fileBuffer);
-        } else {
-          console.log(`File not found in database: ${fileId} for paste ${pasteId}`);
-        }
-        // If file not found in database, fall through to in-memory check
-      } catch (error) {
-        console.error('Database query failed:', error);
-        if (error.original) {
-          console.error('Original error:', error.original.message);
-        }
-        
-        // Try a simpler query
-        try {
-          console.log('Attempting simplified file query...');
-          const simpleQuery = await sequelize.query(`SELECT * FROM files WHERE id='${fileId}' LIMIT 1`);
-          console.log('Simple file query result:', simpleQuery[0]);
-        } catch (simpleError) {
-          console.error('Even simple file query failed:', simpleError.message);
-        }
-      }
-    }
-    
-    // In-memory implementation (fallback)
-    const paste = inMemoryPastes.find(p => p.id === pasteId);
-    if (!paste) {
-      return res.status(404).json({ message: 'Paste not found' });
-    }
-    
-    const file = paste.files.find(f => f.id === fileId);
-    if (!file) {
-      return res.status(404).json({ message: 'File not found' });
-    }
-    
-    // Convert base64 back to buffer
-    const fileBuffer = Buffer.from(file.content, 'base64');
-    
-    res.setHeader('Content-Type', file.mimetype);
-    res.setHeader('Content-Disposition', `inline; filename="${file.originalname}"`);
-    return res.send(fileBuffer);
-  } catch (error) {
-    console.error('Get file error:', error);
-    return res.status(500).json({ message: 'Server error retrieving file' });
-  }
-});
-
+// Export the router
 module.exports = router; 

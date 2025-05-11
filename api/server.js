@@ -130,8 +130,8 @@ app.use((err, req, res, next) => {
   next(err);
 });
 
-// Mount the paste routes - use the new implementation in production
-app.use('/api/pastes', require('./pasteRoutes-new'));
+// Mount the paste routes
+app.use('/api/pastes', require('./pasteRoutes'));
 
 // Health check route
 app.get('/api/health', (req, res) => {
