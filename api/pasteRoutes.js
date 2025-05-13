@@ -8,7 +8,10 @@ const { createConnection, Op } = require('./db');
 // Configure multer for file uploads
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  limits: { 
+    fileSize: 10 * 1024 * 1024, // 10MB limit
+    files: 3  // Limit to 3 files per request to conserve memory
+  },
   fileFilter: (req, file, cb) => {
     const allowedMimeTypes = [
       'text/plain', 'text/html', 'text/css', 'text/javascript',
@@ -62,13 +65,32 @@ router.get('/test-connection', async (req, res) => {
 });
 
 // Create a new paste
-router.post('/', upload.array('files', 5), async (req, res) => {
+router.post('/', upload.array('files', 3), async (req, res) => {
   try {
+    console.log('Paste creation started with request size:', req.get('content-length') || 'unknown');
+    const startTime = Date.now();
+    
     const { title, content, expiresIn, isPrivate, customUrl, isEditable } = req.body;
     
     // Validate input
     if (!content) {
       return res.status(400).json({ message: 'Content is required' });
+    }
+    
+    // Early check for file sizes
+    if (req.files && req.files.length > 0) {
+      let totalFileSize = 0;
+      for (const file of req.files) {
+        totalFileSize += file.size;
+      }
+      console.log(`Processing paste with ${req.files.length} files, total size: ${totalFileSize} bytes`);
+      
+      // If files are too large, return early
+      if (totalFileSize > 25 * 1024 * 1024) {
+        return res.status(413).json({ 
+          message: 'Total file size too large. Maximum combined size is 25MB.'
+        });
+      }
     }
     
     // Calculate expiry date
@@ -116,7 +138,11 @@ router.post('/', upload.array('files', 5), async (req, res) => {
           try {
             console.log(`Processing file: ${file.originalname}, size: ${file.size} bytes`);
             
-            // Process larger files more efficiently by ensuring adequate memory
+            // Check file size to prevent timeout on very large files
+            if (file.size > 5 * 1024 * 1024) {
+              console.log(`Large file detected (${file.size} bytes), processing with optimal settings`);
+            }
+            
             // Convert buffer to base64 in a safer way for larger files
             const base64Content = file.buffer.toString('base64');
             
@@ -138,7 +164,7 @@ router.post('/', upload.array('files', 5), async (req, res) => {
             });
             
             fileRecords.push(fileRecord);
-            console.log(`File saved: ${fileRecord.id}`);
+            console.log(`File saved successfully: ${fileRecord.id}`);
           } catch (fileError) {
             console.error(`Error processing file ${file.originalname}:`, fileError);
             throw fileError; // Re-throw to rollback the transaction

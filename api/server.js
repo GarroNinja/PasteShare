@@ -107,11 +107,21 @@ app.use((req, res, next) => {
   next();
 });
 
-// Apply middleware
+// Apply middleware for optimized performance on Vercel
 app.use(cors(corsOptions));
-app.use(json({ limit: '11mb' }));
-app.use(urlencoded({ extended: true, limit: '11mb' }));
-app.use(morgan('dev'));
+
+// Set reasonable size limits for serverless environment
+app.use(json({ limit: '10mb' }));  // Lowered to 10MB to conserve memory
+app.use(urlencoded({ extended: true, limit: '10mb' }));
+
+// Only use logging in development or when debugging
+const useLogging = process.env.NODE_ENV === 'development' || process.env.DEBUG_LOGGING === 'true';
+if (useLogging) {
+  app.use(morgan('dev'));
+  console.log('Request logging enabled');
+} else {
+  console.log('Request logging disabled in production for performance');
+}
 
 // Add a middleware for cache control headers
 app.use((req, res, next) => {

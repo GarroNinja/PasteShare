@@ -33,18 +33,18 @@ const createConnection = () => {
         },
         keepAlive: true,
         connectTimeout: 30000,
-        statement_timeout: 60000, // 60s statement timeout
-        idle_in_transaction_session_timeout: 60000 // 60s idle timeout
+        statement_timeout: 30000, // Reduce to 30s to ensure completion within function time limit
+        idle_in_transaction_session_timeout: 30000 // Reduce to 30s
       },
       pool: {
-        max: 5,         // Increase max connections for large uploads
+        max: 3,         // Reduced to conserve memory
         min: 0,         // Start with 0 connections
-        acquire: 60000,  // Increased time to get a connection
-        idle: 10000,     // Increased time before removing unused connections
+        acquire: 30000,  // Reduced acquire timeout
+        idle: 10000,     // Keep idle time reasonable
         evict: 1000      // Check for idle connections every 1s
       },
       retry: {
-        max: 5          // Increased retry attempts
+        max: 3          // Reduced retry attempts to conserve function time
       }
     });
 
