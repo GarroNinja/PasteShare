@@ -159,7 +159,7 @@ export function RecentPastesPage() {
     event.stopPropagation();
     try {
       const baseUrl = window.location.origin;
-      const pasteUrl = `${baseUrl}/paste/${customUrl || pasteId}`;
+      const pasteUrl = `${baseUrl}/${customUrl || pasteId}`;
       await navigator.clipboard.writeText(pasteUrl);
       
       // Use the notification system instead of alert
@@ -262,7 +262,7 @@ export function RecentPastesPage() {
           {pastes.map(paste => (
             <div key={paste.id} className="relative block">
               <Link
-                to={`/paste/${paste.customUrl || paste.id}`}
+                to={`/${paste.customUrl || paste.id}`}
                 className="block bg-white dark:bg-[#282828] rounded-lg shadow-sm border border-gray-200 dark:border-[#3c3836] hover:border-green-300 dark:hover:border-[#98971a] transition-colors"
               >
                 <div className="p-4">
@@ -318,4 +318,4 @@ export function RecentPastesPage() {
       )}
     </PageWrapper>
   );
-} 
+}

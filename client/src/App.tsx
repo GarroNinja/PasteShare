@@ -74,7 +74,7 @@ function App() {
           <main className="flex-grow pb-16 md:pb-0"> {/* Add padding to bottom for mobile nav */}
             <Routes>
               <Route path="/" element={<HomePage />} />
-              <Route path="/paste/:id" element={<PastePage />} />
+              <Route path="/:id" element={<PastePage />} />
               <Route path="/recent" element={<RecentPastesPage />} />
             </Routes>
           </main>

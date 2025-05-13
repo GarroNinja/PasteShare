@@ -61,6 +61,27 @@ app.use('/uploads', express.static(uploadPath));
 // API routes
 app.use('/api', routes);
 
+// Add root-level paste handling
+app.get('/:id', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    
+    // Skip this handler for known frontend routes
+    if (id === 'recent' || id === 'health' || id.includes('.') || id === 'api') {
+      return next();
+    }
+    
+    console.log(`Handling paste at root level: ${id}`);
+    
+    // Forward to the pastes/:id handler
+    req.url = `/api/pastes/${id}`;
+    app._router.handle(req, res);
+  } catch (error) {
+    console.error('Root paste handler error:', error);
+    next(error);
+  }
+});
+
 // Add route debugging
 app.use((req, res, next) => {
   console.log(`DEBUG - Unhandled route: ${req.method} ${req.originalUrl}`);

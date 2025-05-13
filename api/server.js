@@ -170,6 +170,30 @@ app.use((err, req, res, next) => {
 // Mount the paste routes
 app.use('/api/pastes', pasteRoutes);
 
+// Add root-level paste handling to access pastes directly at /:id
+app.get('/:id', async (req, res) => {
+  try {
+    // Forward the request to the paste route handler
+    req.url = `/api/pastes/${req.params.id}`;
+    app._router.handle(req, res);
+  } catch (error) {
+    console.error('Root paste handler error:', error);
+    return res.status(500).json({ message: 'Server error retrieving paste' });
+  }
+});
+
+// Add PUT handler for editing pastes at the root level
+app.put('/:id', async (req, res) => {
+  try {
+    // Forward the request to the paste route handler
+    req.url = `/api/pastes/${req.params.id}`;
+    app._router.handle(req, res);
+  } catch (error) {
+    console.error('Root paste edit handler error:', error);
+    return res.status(500).json({ message: 'Server error updating paste' });
+  }
+});
+
 // Health check route
 app.get('/api/health', (req, res) => {
   // Get info about database usage from the pasteRoutes module
