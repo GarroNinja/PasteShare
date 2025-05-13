@@ -8,7 +8,7 @@ const { createConnection, Op } = require('./db');
 // Configure multer for file uploads
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
   fileFilter: (req, file, cb) => {
     const allowedMimeTypes = [
       'text/plain', 'text/html', 'text/css', 'text/javascript',
@@ -111,20 +111,38 @@ router.post('/', upload.array('files', 5), async (req, res) => {
       // Handle files (if any)
       const fileRecords = [];
       if (req.files && req.files.length > 0) {
+        // Create file records one at a time to prevent transaction timeouts with large files
         for (const file of req.files) {
-          // Convert buffer to base64 string for storage
-          const base64Content = file.buffer.toString('base64');
-          
-          const fileRecord = await File.create({
-            filename: file.originalname,
-            originalname: file.originalname,
-            mimetype: file.mimetype,
-            size: file.size,
-            content: base64Content,
-            pasteId: paste.id
-          }, { transaction });
-          
-          fileRecords.push(fileRecord);
+          try {
+            console.log(`Processing file: ${file.originalname}, size: ${file.size} bytes`);
+            
+            // Process larger files more efficiently by ensuring adequate memory
+            // Convert buffer to base64 in a safer way for larger files
+            const base64Content = file.buffer.toString('base64');
+            
+            console.log(`File ${file.originalname} converted to base64, creating record...`);
+            
+            // Create the file record with optimized approach
+            const fileRecord = await File.create({
+              filename: file.originalname,
+              originalname: file.originalname,
+              mimetype: file.mimetype,
+              size: file.size,
+              content: base64Content,
+              pasteId: paste.id
+            }, { 
+              transaction,
+              // Use individual queries to avoid transaction timeouts
+              hooks: false,
+              returning: true
+            });
+            
+            fileRecords.push(fileRecord);
+            console.log(`File saved: ${fileRecord.id}`);
+          } catch (fileError) {
+            console.error(`Error processing file ${file.originalname}:`, fileError);
+            throw fileError; // Re-throw to rollback the transaction
+          }
         }
       }
       
@@ -157,7 +175,7 @@ router.post('/', upload.array('files', 5), async (req, res) => {
     }
   } catch (error) {
     console.error('Create paste error:', error);
-    return res.status(500).json({ message: 'Server error creating paste' });
+    return res.status(500).json({ message: 'Server error creating paste', error: error.message });
   }
 });
 

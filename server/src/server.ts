@@ -45,8 +45,8 @@ app.use((req, res, next) => {
 app.use(cors(corsOptions));
 
 // Configure JSON and URL-encoded middleware with appropriate limits
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: '11mb' }));  // Increased to handle 10MB uploads plus overhead
+app.use(express.urlencoded({ extended: true, limit: '11mb' }));
 app.use(morgan('dev'));
 
 // Static files for uploads - make this directory accessible from the browser

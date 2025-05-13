@@ -5,6 +5,7 @@ const { json, urlencoded } = require('express');
 const morgan = require('morgan');
 const https = require('https');
 const { URL } = require('url');
+const bodyParser = require('body-parser');
 
 // Import required PostgreSQL dependencies
 try {
@@ -108,8 +109,8 @@ app.use((req, res, next) => {
 
 // Apply middleware
 app.use(cors(corsOptions));
-app.use(json({ limit: '10mb' }));
-app.use(urlencoded({ extended: true, limit: '10mb' }));
+app.use(json({ limit: '11mb' }));
+app.use(urlencoded({ extended: true, limit: '11mb' }));
 app.use(morgan('dev'));
 
 // Add a middleware for cache control headers
@@ -137,6 +138,22 @@ app.use((err, req, res, next) => {
   if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
     return res.status(400).json({ message: 'Invalid JSON' });
   }
+  
+  // Handle file upload errors from multer
+  if (err && err.name === 'MulterError') {
+    console.error('Multer error:', err.message);
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(413).json({ 
+        message: 'File too large. Maximum size is 10MB.',
+        error: err.message
+      });
+    }
+    return res.status(400).json({ 
+      message: 'File upload error',
+      error: err.message
+    });
+  }
+  
   next(err);
 });
 

@@ -32,17 +32,19 @@ const createConnection = () => {
           rejectUnauthorized: false
         },
         keepAlive: true,
-        connectTimeout: 30000
+        connectTimeout: 30000,
+        statement_timeout: 60000, // 60s statement timeout
+        idle_in_transaction_session_timeout: 60000 // 60s idle timeout
       },
       pool: {
-        max: 2,         // Keep pool size small for serverless
+        max: 5,         // Increase max connections for large uploads
         min: 0,         // Start with 0 connections
-        acquire: 10000,  // Time to get a connection
-        idle: 5000,      // Time before removing unused connections
+        acquire: 60000,  // Increased time to get a connection
+        idle: 10000,     // Increased time before removing unused connections
         evict: 1000      // Check for idle connections every 1s
       },
       retry: {
-        max: 3          // Maximum retry attempts
+        max: 5          // Increased retry attempts
       }
     });
 
@@ -93,7 +95,7 @@ const createConnection = () => {
       freezeTableName: true
     });
 
-    // Define File model
+    // Define File model with optimized type for large file content
     const File = sequelize.define('File', {
       id: {
         type: DataTypes.UUID,
@@ -117,7 +119,7 @@ const createConnection = () => {
         allowNull: false
       },
       content: {
-        type: DataTypes.TEXT('long'),
+        type: DataTypes.TEXT('long'),  // For PostgreSQL, this becomes TEXT which can store GB of data
         allowNull: false
       },
       pasteId: {
@@ -153,7 +155,7 @@ const createConnection = () => {
       async testConnection() {
         try {
           const timeout = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Connection timeout')), 5000)
+            setTimeout(() => reject(new Error('Connection timeout')), 10000)  // Increased timeout
           );
           
           await Promise.race([sequelize.authenticate(), timeout]);
