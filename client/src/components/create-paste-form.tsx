@@ -64,6 +64,13 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
       return false;
     }
     
+    // Check for reserved routes
+    const reservedRoutes = ['recent', 'api', 'health'];
+    if (reservedRoutes.includes(url.toLowerCase())) {
+      setCustomUrlError(`"${url}" is a reserved route and cannot be used as a custom URL`);
+      return false;
+    }
+    
     setCustomUrlError(null);
     return true;
   };
