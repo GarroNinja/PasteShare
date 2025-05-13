@@ -87,9 +87,9 @@ export function HomePage() {
       if (result.paste) {
         // If a custom URL is used, navigate to that
         if (result.paste.customUrl) {
-          navigate(`/paste/${result.paste.customUrl}`);
+          navigate(`/${result.paste.customUrl}`);
         } else if (result.paste.id) {
-          navigate(`/paste/${result.paste.id}`);
+          navigate(`/${result.paste.id}`);
         } else {
           console.error("Invalid response structure:", result);
           setError("Failed to create paste: Invalid server response");
