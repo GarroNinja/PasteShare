@@ -108,7 +108,7 @@ export const uploadMiddleware = (req: any, res: any, next: any) => {
   }
   
   // Process files if present
-  const uploadHandler = upload.array('files', 5);
+  const uploadHandler = upload.array('files', 3);
   uploadHandler(req, res, function(err) {
     if (err instanceof multer.MulterError) {
       // A Multer error occurred when uploading
@@ -120,7 +120,7 @@ export const uploadMiddleware = (req: any, res: any, next: any) => {
       }
       if (err.code === 'LIMIT_FILE_COUNT') {
         return res.status(400).json({
-          message: 'Too many files. Maximum is 5 files.',
+          message: 'Too many files. Maximum is 3 files.',
         });
       }
       return res.status(400).json({

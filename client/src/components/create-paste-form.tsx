@@ -99,9 +99,9 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
         return;
       }
       
-      // Check total number of files (max 5)
-      if (files.length + selectedFiles.length > 5) {
-        setFileError('You can upload a maximum of 5 files');
+      // Check total number of files (max 3)
+      if (files.length + selectedFiles.length > 3) {
+        setFileError('You can upload a maximum of 3 files');
         return;
       }
       
@@ -283,7 +283,7 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
       
       <div className="w-full">
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-          Attach Files (optional, max 5)
+          Attach Files (optional, max 3)
         </label>
         <div className="mt-1 flex flex-wrap items-center gap-2">
           <label 
