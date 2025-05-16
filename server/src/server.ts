@@ -13,6 +13,8 @@ dotenv.config();
 
 // Initialize Express app
 const app = express();
+// Use PORT from environment variable for Cloud Run compatibility or select from candidates
+const PORT = process.env.PORT ? parseInt(process.env.PORT) : null;
 const PORT_CANDIDATES = [3000, 3001, 3003, 3004, 3005, 3006, 3007, 3008]; // Try more ports
 
 // CORS configuration
@@ -58,6 +60,12 @@ const uploadPath = process.env.UPLOAD_DIR
 console.log(`Setting up static file serving for uploads at: ${uploadPath}`);
 app.use('/uploads', express.static(uploadPath));
 
+// Serve static files from client/build for production
+if (process.env.NODE_ENV === 'production') {
+  console.log('Serving static files from public directory');
+  app.use(express.static(path.resolve(process.cwd(), 'public')));
+}
+
 // API routes
 app.use('/api', routes);
 
@@ -82,6 +90,13 @@ app.get('/:id', async (req, res, next) => {
   }
 });
 
+// In production, serve index.html for any unhandled routes (SPA support)
+if (process.env.NODE_ENV === 'production') {
+  app.get('*', (req, res) => {
+    res.sendFile(path.resolve(process.cwd(), 'public', 'index.html'));
+  });
+}
+
 // Add route debugging
 app.use((req, res, next) => {
   console.log(`DEBUG - Unhandled route: ${req.method} ${req.originalUrl}`);
@@ -97,7 +112,8 @@ app.get('/health', (req, res) => {
     timestamp: new Date().toISOString(),
     origin: req.headers.origin || 'unknown',
     host: req.headers.host,
-    env: process.env.NODE_ENV || 'development'
+    env: process.env.NODE_ENV || 'development',
+    port: PORT || 'using dynamic port'
   });
 });
 
@@ -135,7 +151,15 @@ const startServer = async () => {
     // Sync models with database with altering to add new fields if needed
     await sequelize.sync({ alter: process.env.NODE_ENV === "development" });
     
-    // Try to find an available port from candidates
+    // If PORT is defined in environment (like in Cloud Run), use that port
+    if (PORT) {
+      app.listen(PORT, () => {
+        console.log(`Server running on port ${PORT} (from environment)`);
+      });
+      return;
+    }
+    
+    // For local development, find an available port from candidates
     let selectedPort = 0;
     
     for (const port of PORT_CANDIDATES) {

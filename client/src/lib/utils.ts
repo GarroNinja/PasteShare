@@ -34,9 +34,17 @@ export function getExpiryDate(seconds: number): Date | null {
 
 // Get the server API base URL
 export function getApiBaseUrl(): string {
-  // In production (Vercel deployment), use the current origin with /api path
+  // In production (GCP or Vercel deployment), use the correct API URL
   if (process.env.NODE_ENV === 'production') {
     const { protocol, host } = window.location;
+    
+    // For GCP App Engine deployment with api service
+    if (host.includes('appspot.com')) {
+      const projectId = host.split('.')[0]; // Extract project ID from the hostname
+      return `${protocol}//api-dot-${projectId}.appspot.com/api`;
+    }
+    
+    // Default case (Vercel or custom domain)
     return `${protocol}//${host}/api`;
   }
   

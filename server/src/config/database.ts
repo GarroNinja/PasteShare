@@ -31,15 +31,39 @@ if (!process.env.DATABASE_URL) {
   throw new Error('DATABASE_URL environment variable is not set!');
 }
 
-// Initialize Sequelize with DATABASE_URL
-const sequelize = new Sequelize(process.env.DATABASE_URL, {
-  dialect: 'postgres',
-  dialectOptions: {
+// Determine if we're using a socket connection for Cloud SQL
+const isCloudSqlSocket = process.env.DATABASE_URL.includes('?host=/cloudsql/');
+
+// Configure Sequelize with appropriate options based on connection type
+let dialectOptions = {};
+
+if (isCloudSqlSocket) {
+  console.log('Using Cloud SQL socket connection');
+  // Extract the socket path from DATABASE_URL
+  const socketPath = process.env.DATABASE_URL.split('?host=')[1];
+  
+  dialectOptions = {
+    socketPath: socketPath,
+    ssl: false,
+    // Additional options for Cloud SQL
+    connectTimeout: 30000,
+    requestTimeout: 30000,
+    keepAlive: true
+  };
+} else {
+  console.log('Using standard PostgreSQL connection');
+  dialectOptions = {
     ssl: {
       require: true,
       rejectUnauthorized: false
     }
-  },
+  };
+}
+
+// Initialize Sequelize with proper configuration
+const sequelize = new Sequelize(process.env.DATABASE_URL, {
+  dialect: 'postgres',
+  dialectOptions,
   logging: process.env.NODE_ENV === 'development',
   pool: {
     max: 3,

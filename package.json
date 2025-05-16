@@ -2,9 +2,10 @@
   "name": "pasteshare",
   "version": "1.0.0",
   "description": "A pastebin-like application for sharing code snippets and text",
-  "main": "index.js",
+  "main": "dist/server.js",
   "scripts": {
-    "start": "node server/dist/server.js",
+    "start": "node dist/server.js",
+    "postinstall": "cp -r server/node_modules .",
     "server": "cd server && npm run dev",
     "client": "cd client && npm start",
     "dev": "concurrently \"npm run server\" \"npm run client\"",
@@ -19,9 +20,13 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "pg": "^8.11.3",
+    "pg": "^8.16.0",
     "pg-hstore": "^2.3.4",
-    "sequelize": "^6.37.1"
+    "sequelize": "^6.37.7",
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.3",
+    "morgan": "^1.10.0"
   },
   "peerDependencies": {
     "pg": "^8.11.3",

@@ -1,0 +1,18 @@
+runtime: nodejs20
+service: default
+
+handlers:
+  # Serve static files
+  - url: /(.*\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot))
+    static_files: build/\1
+    upload: build/.*\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)
+    secure: always
+
+  # All other requests are routed to index.html
+  - url: /.*
+    static_files: build/index.html
+    upload: build/index.html
+    secure: always
+
+env_variables:
+  NODE_ENV: "production" 

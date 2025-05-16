@@ -1,0 +1,24 @@
+# Ignore everything in .gitignore
+.git
+.gitignore
+
+# Node.js dependencies
+node_modules/
+server/node_modules/
+client/node_modules/
+
+# Development files
+.*
+*.md
+*.log
+.env*
+
+# Source files (since we're building)
+client/src/
+server/src/
+
+# Keep essential files
+!client/build/
+!dist/
+!package.json
+!app.yaml 

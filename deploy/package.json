@@ -1,0 +1,24 @@
+{
+  "name": "pasteshare",
+  "version": "1.0.0",
+  "description": "A pastebin-like application for sharing code snippets and text",
+  "main": "dist/static-server.js",
+  "scripts": {
+    "start": "node dist/static-server.js"
+  },
+  "dependencies": {
+    "pg": "^8.11.3",
+    "pg-hstore": "^2.3.4",
+    "sequelize": "^6.37.1",
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.3",
+    "morgan": "^1.10.0",
+    "multer": "^1.4.5-lts.1",
+    "uuid": "^9.0.1",
+    "fs-extra": "^11.1.1"
+  },
+  "engines": {
+    "node": ">=16.x"
+  }
+}
