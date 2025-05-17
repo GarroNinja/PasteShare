@@ -18,6 +18,7 @@ server/.env*
 .env.production
 app.yaml
 server/app.yaml
+client/app.yaml
 
 # Database
 *.sqlite
