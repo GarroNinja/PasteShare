@@ -50,6 +50,88 @@ A modern pastebin application for sharing code snippets, text, and files.
 
 ## Deployment
 
+### Docker Deployment
+
+PasteShare can be containerized and deployed using Docker:
+
+#### Server Deployment
+```bash
+# Navigate to server directory
+cd server
+
+# Build the Docker image
+docker build -t pasteshare-server .
+
+# Run the container
+docker run -p 8080:8080 \
+  -e DATABASE_URL=postgres://username:password@host:5432/pasteshare \
+  -e NODE_ENV=production \
+  pasteshare-server
+```
+
+#### Static Deployment
+```bash
+# Navigate to deploy directory
+cd deploy
+
+# Build the Docker image
+docker build -t pasteshare-static .
+
+# Run the container
+docker run -p 8080:8080 pasteshare-static
+```
+
+### Google Cloud Platform (GCP)
+
+Deployed site (until the trial period ends): https://pasteshare-knhsowbgzq-el.a.run.app/
+
+1. Create a Cloud SQL PostgreSQL instance in GCP
+2. Create an app.yaml file (gitignored) with the following configuration:
+   ```yaml
+   runtime: nodejs20
+   service: default
+
+   env_variables:
+     NODE_ENV: "production"
+     DATABASE_URL: "postgres://USERNAME:PASSWORD@/DATABASE_NAME?host=/cloudsql/PROJECT_ID:REGION:INSTANCE_NAME"
+
+   handlers:
+     # Serve API requests
+     - url: /api/.*
+       script: auto
+       secure: always
+     
+     # Serve static files
+     - url: /(.*\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot))
+       static_files: client/build/\1
+       upload: client/build/.*\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)
+       secure: always
+
+     # All other requests are routed to index.html
+     - url: /.*
+       static_files: client/build/index.html
+       upload: client/build/index.html
+       secure: always
+
+   beta_settings:
+     cloud_sql_instances: PROJECT_ID:REGION:INSTANCE_NAME
+
+   automatic_scaling:
+     max_instances: 2
+     min_instances: 0
+   ```
+
+3. Build the client:
+   ```bash
+   cd client
+   npm run build
+   ```
+
+4. Deploy to App Engine:
+   ```bash
+   gcloud app deploy
+   ```
+
 ### Vercel
 
 1. Fork this repository to your GitHub account
@@ -84,4 +166,4 @@ The application uses a serverless-optimized architecture:
 - **Database**: PostgreSQL
 - **ORM**: Sequelize
 - **Syntax Highlighting**: react-syntax-highlighter
-- **Deployment**: Vercel Serverless Functions
+- **Deployment**: Vercel Serverless Functions, Google App Engine, Docker containers
