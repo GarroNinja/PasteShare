@@ -194,6 +194,18 @@ app.put('/:id', async (req, res) => {
   }
 });
 
+// Add POST handler for verifying paste passwords at the root level
+app.post('/:id/verify-password', async (req, res) => {
+  try {
+    // Forward the request to the paste route handler
+    req.url = `/api/pastes/${req.params.id}/verify-password`;
+    app._router.handle(req, res);
+  } catch (error) {
+    console.error('Root paste password verification handler error:', error);
+    return res.status(500).json({ message: 'Server error verifying paste password' });
+  }
+});
+
 // Health check route
 app.get('/api/health', (req, res) => {
   // Get info about database usage from the pasteRoutes module

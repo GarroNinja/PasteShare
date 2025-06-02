@@ -4,6 +4,7 @@ const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const multer = require('multer');
 const { createConnection, Op } = require('./db');
+const bcrypt = require('bcryptjs');
 
 // Configure multer for file uploads
 const upload = multer({
@@ -70,7 +71,7 @@ router.post('/', upload.array('files', 3), async (req, res) => {
     console.log('Paste creation started with request size:', req.get('content-length') || 'unknown');
     const startTime = Date.now();
     
-    const { title, content, expiresIn, isPrivate, customUrl, isEditable } = req.body;
+    const { title, content, expiresIn, isPrivate, customUrl, isEditable, password } = req.body;
     
     // Validate input
     if (!content) {
@@ -119,6 +120,12 @@ router.post('/', upload.array('files', 3), async (req, res) => {
         }
       }
       
+      // Hash password if provided
+      let hashedPassword = null;
+      if (password) {
+        hashedPassword = await bcrypt.hash(password, 10);
+      }
+      
       // Create paste in database
       const paste = await Paste.create({
         title: title || 'Untitled Paste',
@@ -127,7 +134,8 @@ router.post('/', upload.array('files', 3), async (req, res) => {
         isPrivate: isPrivate === 'true' || isPrivate === true,
         isEditable: isEditable === 'true' || isEditable === true,
         customUrl: customUrl || null,
-        userId: null
+        userId: null,
+        password: hashedPassword
       }, { transaction });
       
       // Handle files (if any)
@@ -186,6 +194,7 @@ router.post('/', upload.array('files', 3), async (req, res) => {
           isEditable: paste.isEditable,
           customUrl: paste.customUrl,
           createdAt: paste.createdAt,
+          isPasswordProtected: !!paste.password,
           files: fileRecords.map(f => ({
             id: f.id,
             filename: f.originalname,
@@ -249,6 +258,7 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    const password = req.query.password;
     const now = new Date();
     
     const { models } = req.db;
@@ -282,6 +292,39 @@ router.get('/:id', async (req, res) => {
         return res.status(404).json({ message: 'Paste has expired' });
       }
       
+      // Check if paste is password protected
+      const isPasswordProtected = !!paste.password;
+      
+      // If paste is password protected and no password provided, return limited info
+      if (isPasswordProtected && !password) {
+        return res.status(403).json({
+          message: 'This paste is password protected',
+          pasteInfo: {
+            id: paste.id,
+            title: paste.title,
+            isPasswordProtected: true,
+            customUrl: paste.customUrl
+          }
+        });
+      }
+      
+      // If paste is password protected, verify the password
+      if (isPasswordProtected && password) {
+        const isPasswordValid = await bcrypt.compare(password, paste.password);
+        
+        if (!isPasswordValid) {
+          return res.status(403).json({
+            message: 'Invalid password',
+            pasteInfo: {
+              id: paste.id,
+              title: paste.title,
+              isPasswordProtected: true,
+              customUrl: paste.customUrl
+            }
+          });
+        }
+      }
+      
       // Increment views and save
       paste.views += 1;
       await paste.save();
@@ -304,7 +347,8 @@ router.get('/:id', async (req, res) => {
             size: f.size,
             url: `/api/pastes/${paste.id}/files/${f.id}`
           })) : [],
-          canEdit: paste.isEditable
+          canEdit: paste.isEditable,
+          isPasswordProtected
         }
       });
     } else {
@@ -345,6 +389,67 @@ router.get('/:pasteId/files/:fileId', async (req, res) => {
   } catch (error) {
     console.error('Get file error:', error);
     return res.status(500).json({ message: 'Server error retrieving file' });
+  }
+});
+
+// Verify paste password
+router.post('/:id/verify-password', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { password } = req.body;
+    
+    if (!password) {
+      return res.status(400).json({ message: 'Password is required' });
+    }
+    
+    const { models } = req.db;
+    const { Paste } = models;
+    
+    // Check if the ID is a valid UUID
+    const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    let paste = null;
+    
+    if (isValidUUID) {
+      // If it's a valid UUID, try to find by ID first
+      paste = await Paste.findByPk(id);
+    }
+    
+    // If not found or not a UUID, try by customUrl
+    if (!paste) {
+      paste = await Paste.findOne({
+        where: { customUrl: id }
+      });
+    }
+    
+    if (!paste) {
+      return res.status(404).json({ message: 'Paste not found' });
+    }
+    
+    // Check if paste is expired
+    if (paste.expiresAt && new Date(paste.expiresAt) < new Date()) {
+      return res.status(404).json({ message: 'Paste has expired' });
+    }
+    
+    // Check if paste is password protected
+    if (!paste.password) {
+      return res.status(400).json({ message: 'This paste is not password protected' });
+    }
+    
+    // Verify password
+    const isPasswordValid = await bcrypt.compare(password, paste.password);
+    
+    if (!isPasswordValid) {
+      return res.status(403).json({ message: 'Invalid password' });
+    }
+    
+    // Return success if password is valid
+    return res.status(200).json({
+      message: 'Password verified successfully',
+      success: true
+    });
+  } catch (error) {
+    console.error('Verify paste password error:', error);
+    return res.status(500).json({ message: 'Server error verifying password' });
   }
 });
 

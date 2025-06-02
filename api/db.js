@@ -88,6 +88,10 @@ const createConnection = () => {
       views: {
         type: DataTypes.INTEGER,
         defaultValue: 0
+      },
+      password: {
+        type: DataTypes.STRING,
+        allowNull: true
       }
     }, {
       tableName: 'pastes',

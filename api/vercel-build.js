@@ -93,4 +93,122 @@ try {
 }
 
 console.log('✅ DATABASE_URL validation successful');
-console.log('✅ Build verification completed successfully'); 
+console.log('✅ Build verification completed successfully');
+
+// This file runs during Vercel build to ensure database tables are created
+require('dotenv').config();
+const { Sequelize, DataTypes } = require('sequelize');
+const { createConnection } = require('./db');
+
+console.log('Running Vercel build script to set up database...');
+
+// Function to create tables if they don't exist
+async function setupDatabase() {
+  if (!process.env.DATABASE_URL) {
+    console.error('DATABASE_URL environment variable is not set. Database setup aborted.');
+    process.exit(1);
+  }
+
+  console.log('Connecting to database...');
+  const db = createConnection();
+  
+  if (!db.success) {
+    console.error('Failed to connect to database:', db.error);
+    process.exit(1);
+  }
+  
+  const { sequelize } = db;
+  
+  try {
+    // Test the connection
+    await sequelize.authenticate();
+    console.log('Connection has been established successfully.');
+    
+    // Check if 'pastes' table exists
+    const [pastesTableExists] = await sequelize.query(
+      "SELECT to_regclass('public.pastes') IS NOT NULL as exists"
+    );
+    
+    if (!pastesTableExists[0].exists) {
+      console.log('Creating pastes table...');
+      // Define the Paste model
+      await sequelize.query(`
+        CREATE TABLE IF NOT EXISTS "pastes" (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          title VARCHAR(255) NOT NULL DEFAULT 'Untitled Paste',
+          content TEXT NOT NULL,
+          "expiresAt" TIMESTAMP WITH TIME ZONE,
+          "isPrivate" BOOLEAN DEFAULT FALSE,
+          "isEditable" BOOLEAN DEFAULT FALSE,
+          "customUrl" VARCHAR(255) UNIQUE,
+          "userId" UUID,
+          views INTEGER DEFAULT 0,
+          password VARCHAR(255),
+          "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+          "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+        );
+      `);
+      console.log('Pastes table created successfully.');
+    } else {
+      console.log('Pastes table already exists.');
+      
+      // Check if the password column exists
+      const [passwordColumnExists] = await sequelize.query(
+        "SELECT column_name FROM information_schema.columns WHERE table_name = 'pastes' AND column_name = 'password'"
+      );
+      
+      if (passwordColumnExists.length === 0) {
+        console.log('Adding password column to pastes table...');
+        await sequelize.query('ALTER TABLE "pastes" ADD COLUMN password VARCHAR(255);');
+        console.log('Password column added successfully.');
+      } else {
+        console.log('Password column already exists in pastes table.');
+      }
+    }
+    
+    // Check if 'files' table exists
+    const [filesTableExists] = await sequelize.query(
+      "SELECT to_regclass('public.files') IS NOT NULL as exists"
+    );
+    
+    if (!filesTableExists[0].exists) {
+      console.log('Creating files table...');
+      // Define the File model
+      await sequelize.query(`
+        CREATE TABLE IF NOT EXISTS "files" (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          filename VARCHAR(255) NOT NULL,
+          originalname VARCHAR(255) NOT NULL,
+          mimetype VARCHAR(255) NOT NULL,
+          size INTEGER NOT NULL,
+          content TEXT NOT NULL,
+          "pasteId" UUID NOT NULL REFERENCES pastes(id) ON DELETE CASCADE,
+          "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+          "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+        );
+      `);
+      console.log('Files table created successfully.');
+    } else {
+      console.log('Files table already exists.');
+    }
+    
+    console.log('Database setup completed successfully.');
+  } catch (error) {
+    console.error('Unable to connect to the database or create tables:', error.message);
+    process.exit(1);
+  } finally {
+    // Close the database connection
+    await sequelize.close();
+  }
+}
+
+// Run the function
+setupDatabase()
+  .then(() => {
+    console.log('Vercel build script completed successfully.');
+    process.exit(0);
+  })
+  .catch(error => {
+    console.error('Vercel build script failed:', error);
+    process.exit(1);
+  }); 
