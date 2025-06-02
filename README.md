@@ -12,7 +12,8 @@ A modern pastebin application for sharing code snippets, text, and files.
 - File attachments support
 - Custom URLs for easier sharing
 - Paste expiry options
-- Private pastes
+- Unlisted pastes
+- Password protection
 - Editable pastes
 - Mobile responsive UI
 - Syntax highlighting with multiple theme options
@@ -146,6 +147,9 @@ For PostgreSQL, we recommend using a provider like:
 - Vercel Postgres
 
 ## Advanced Features
+
+### Password Protection
+PasteShare supports password protection for sensitive content. When creating a paste, you can enable password protection and set a password. Anyone trying to access the paste will need to enter the correct password to view its contents. This provides an additional layer of security beyond the unlisted paste option.
 
 ### Syntax Highlighting and Themes Support
 PasteShare supports over 15 different languages for syntax highlighting with over 30 themes and automatic language detection. Users can manually select both language and theme for optimal code readability.

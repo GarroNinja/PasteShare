@@ -63,10 +63,19 @@ export function getApiBaseUrl(): string {
 // Enhanced fetch that provides better error handling and debugging
 export async function apiFetch(
   endpoint: string, 
-  options: RequestInit = {}
+  options: RequestInit & { queryParams?: Record<string, string> } = {}
 ): Promise<any> {
   const baseUrl = getApiBaseUrl();
-  const url = `${baseUrl}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+  let url = `${baseUrl}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+  
+  // Add query parameters if provided
+  if (options.queryParams) {
+    const queryString = new URLSearchParams(options.queryParams).toString();
+    url = `${url}${url.includes('?') ? '&' : '?'}${queryString}`;
+    // Remove queryParams from options to avoid fetch errors
+    const { queryParams, ...restOptions } = options;
+    options = restOptions;
+  }
   
   try {
     // Add default headers and credentials

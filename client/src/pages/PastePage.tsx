@@ -12,6 +12,8 @@ import {
   tomorrowNight, vs, vs2015, xcode, xt256, zenburn
 } from 'react-syntax-highlighter/dist/esm/styles/hljs';
 import CopyNotification from '../components/CopyNotification';
+import { useTheme } from '../hooks/useTheme';
+import { PageWrapper } from '../components/PageWrapper';
 
 interface File {
   id: string;
@@ -19,6 +21,13 @@ interface File {
   size: number;
   url: string;
   mimetype?: string;
+}
+
+interface PasteInfo {
+  id: string;
+  title: string;
+  isPasswordProtected: boolean;
+  customUrl?: string;
 }
 
 interface Paste {
@@ -34,12 +43,14 @@ interface Paste {
   files?: File[];
   canEdit?: boolean;
   updatedAt?: string;
+  isPasswordProtected?: boolean;
 }
 
 export function PastePage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [paste, setPaste] = useState<Paste | null>(null);
+  const [pasteInfo, setPasteInfo] = useState<PasteInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
@@ -51,7 +62,7 @@ export function PastePage() {
   const [editableContent, setEditableContent] = useState('');
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
-  const [language, setLanguage] = useState<string | null>(null);
+  const [language, setLanguage] = useState<string>('plaintext');
   const [theme, setTheme] = useState(() => {
     // Check if the document has dark mode class to determine current theme
     const isDarkMode = document.documentElement.classList.contains('dark');
@@ -61,7 +72,16 @@ export function PastePage() {
   // Notification state
   const [showNotification, setShowNotification] = useState(false);
   const [notificationMessage, setNotificationMessage] = useState('');
-  const [notificationButtonType, setNotificationButtonType] = useState('');
+  const [notificationButtonType, setNotificationButtonType] = useState<'success' | 'error'>('success');
+  const [isPasswordPromptOpen, setIsPasswordPromptOpen] = useState(false);
+  const [password, setPassword] = useState('');
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  
+  const { isDarkMode } = useTheme();
+  const syntaxTheme = isDarkMode ? gruvboxDark : gruvboxLight;
+  
+  const contentRef = useRef<HTMLDivElement>(null);
 
   // Auto-detect language based on content
   useEffect(() => {
@@ -245,21 +265,50 @@ export function PastePage() {
       }
 
       try {
-        const data = await apiFetch(`pastes/${id}`);
+        // Use explicit GET method with no password initially
+        const response = await fetch(`${getApiBaseUrl()}/pastes/${id}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include'
+        });
         
-        // Check if the response has the expected structure
+        // Directly handle 403 for password protection
+        if (response.status === 403) {
+          const data = await response.json();
+          
+          if (data.pasteInfo) {
+            setPasteInfo(data.pasteInfo);
+            setIsPasswordPromptOpen(true);
+            setLoading(false);
+            return;
+          }
+        }
+        
+        if (!response.ok) {
+          throw new Error(`Request failed with status ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
         if (data.paste) {
-          // Use the correct path from the API response
+          // Full paste data
           setPaste(data.paste);
-          // Also set the editable fields
           setEditableTitle(data.paste.title || '');
           setEditableContent(data.paste.content || '');
+          setLanguage(detectLanguage(data.paste.content));
+        } else if (data.pasteInfo) {
+          // Limited info for password protected paste
+          setPasteInfo(data.pasteInfo);
+          setIsPasswordPromptOpen(true);
         } else {
-          setError("Invalid API response format");
+          setError("Invalid response format");
         }
         
         setLoading(false);
       } catch (err) {
+        console.error("Error fetching paste:", err);
         setError("Failed to load paste. Please try again later.");
         setLoading(false);
       }
@@ -268,10 +317,75 @@ export function PastePage() {
     fetchPaste();
   }, [id]);
 
+  const handleSubmitPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!id || !password.trim()) return;
+    
+    setPasswordLoading(true);
+    setPasswordError(null);
+    
+    try {
+      // First verify the password
+      const verifyResponse = await fetch(`${getApiBaseUrl()}/pastes/${id}/verify-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ password }),
+        credentials: 'include'
+      });
+      
+      if (!verifyResponse.ok) {
+        const errorData = await verifyResponse.json();
+        throw new Error(errorData.message || 'Invalid password');
+      }
+      
+      const verifyResult = await verifyResponse.json();
+      
+      if (verifyResult.success) {
+        // Now fetch the paste with the password
+        const url = new URL(`${getApiBaseUrl()}/pastes/${id}`);
+        url.searchParams.append('password', password);
+        
+        const pasteResponse = await fetch(url.toString(), {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include'
+        });
+        
+        if (!pasteResponse.ok) {
+          throw new Error(`Failed to fetch paste: ${pasteResponse.status}`);
+        }
+        
+        const data = await pasteResponse.json();
+        
+        if (data.paste) {
+          setPaste(data.paste);
+          setEditableContent(data.paste.content);
+          setEditableTitle(data.paste.title || '');
+          setLanguage(detectLanguage(data.paste.content));
+          setIsPasswordPromptOpen(false);
+        } else {
+          setPasswordError('Failed to load paste content');
+        }
+      } else {
+        setPasswordError('Invalid password');
+      }
+    } catch (err) {
+      console.error("Error verifying password:", err);
+      setPasswordError(err instanceof Error ? err.message : 'Invalid password');
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
+
   const copyToClipboard = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      setNotificationButtonType('copy');
+      setNotificationButtonType('success');
       setNotificationMessage('Copied to clipboard!');
       setShowNotification(true);
     } catch (err) {
@@ -283,7 +397,7 @@ export function PastePage() {
     try {
       const currentUrl = window.location.href;
       await navigator.clipboard.writeText(currentUrl);
-      setNotificationButtonType('link');
+      setNotificationButtonType('success');
       setNotificationMessage('Link copied to clipboard!');
       setShowNotification(true);
     } catch (err) {
@@ -472,6 +586,67 @@ export function PastePage() {
     );
   }
 
+  if (isPasswordPromptOpen && pasteInfo) {
+    return (
+      <div className="max-w-md mx-auto px-4 py-8">
+        <div className="bg-white dark:bg-[#282828] rounded-lg shadow-sm border border-gray-200 dark:border-[#3c3836] overflow-hidden">
+          <div className="p-4 border-b border-gray-200 dark:border-[#3c3836]">
+            <h1 className="text-xl font-semibold">Password Protected Paste</h1>
+          </div>
+          
+          <div className="p-4">
+            <p className="mb-4 text-gray-700 dark:text-gray-300">
+              This paste is password protected. Please enter the password to view it.
+            </p>
+            
+            <form onSubmit={handleSubmitPassword} className="space-y-4">
+              <div>
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Password
+                </label>
+                <input
+                  type="password"
+                  id="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="w-full rounded-md border border-gray-300 dark:border-[#504945] bg-white dark:bg-[#282828] px-3 py-2 text-gray-900 dark:text-[#ebdbb2] shadow-sm focus:border-green-500 dark:focus:border-[#b8bb26] focus:ring-green-500 dark:focus:ring-[#b8bb26]"
+                />
+              </div>
+              
+              {passwordError && (
+                <div className="p-3 bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-sm rounded">
+                  {passwordError}
+                </div>
+              )}
+              
+              <div className="flex justify-between">
+                <button
+                  type="button"
+                  onClick={() => navigate('/')}
+                  className="px-4 py-2 border border-gray-300 dark:border-[#504945] text-gray-700 dark:text-gray-300 rounded hover:bg-gray-50 dark:hover:bg-[#3c3836]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={passwordLoading || !password.trim()}
+                  className={`px-4 py-2 rounded ${
+                    passwordLoading || !password.trim()
+                      ? 'bg-gray-300 text-gray-500 dark:bg-[#504945] dark:text-gray-400 cursor-not-allowed'
+                      : 'bg-green-600 text-white dark:bg-[#98971a] dark:text-[#1d2021] hover:bg-green-700 dark:hover:bg-[#79740e]'
+                  }`}
+                >
+                  {passwordLoading ? 'Verifying...' : 'Submit'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!paste) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-8 min-h-[80vh]">
@@ -646,13 +821,19 @@ export function PastePage() {
           <div className="flex flex-wrap gap-2 mt-1">
             {paste.isPrivate && (
               <span className="inline-flex items-center px-2 py-1 bg-amber-100 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300 rounded-full text-xs">
-                Private
+                Unlisted
               </span>
             )}
             
             {paste.isEditable && (
               <span className="inline-flex items-center px-2 py-1 bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300 rounded-full text-xs">
                 Editable
+              </span>
+            )}
+            
+            {paste.isPasswordProtected && (
+              <span className="inline-flex items-center px-2 py-1 bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300 rounded-full text-xs">
+                Password Protected
               </span>
             )}
             

@@ -15,6 +15,7 @@ export function HomePage() {
     isPrivate: boolean;
     customUrl?: string;
     isEditable: boolean;
+    password?: string;
     files?: File[];
   }) => {
     setIsLoading(true);
@@ -32,15 +33,18 @@ export function HomePage() {
         formData.append("customUrl", data.customUrl);
       }
       
+      // Add password if provided
+      if (data.password) {
+        formData.append("password", data.password);
+      }
+      
       // Add files to form data if they exist
       if (data.files && data.files.length > 0) {
-        console.log(`Uploading ${data.files.length} files:`, data.files.map(f => f.name));
         data.files.forEach(file => formData.append("files", file));
       }
       
       // Get the API base URL
       const apiBaseUrl = getApiBaseUrl();
-      console.log("Using API base URL:", apiBaseUrl);
       
       // Make API call with explicit mode and credentials
       const response = await fetch(`${apiBaseUrl}/pastes`, {
@@ -52,9 +56,6 @@ export function HomePage() {
           'Accept': 'application/json'
         },
       });
-      
-      // Log response status
-      console.log("Response status:", response.status);
       
       if (!response.ok) {
         let errorMessage = "Failed to create paste";
@@ -82,8 +83,6 @@ export function HomePage() {
       
       const result = await response.json();
       
-      // Use the correct path to access the paste ID from the response
-      console.log("Paste created successfully:", result);
       if (result.paste) {
         // If a custom URL is used, navigate to that
         if (result.paste.customUrl) {

@@ -1,5 +1,6 @@
 import { DataTypes, Model, Optional } from 'sequelize';
 import sequelize from '../config/database';
+import bcrypt from 'bcrypt';
 
 interface PasteAttributes {
   id: string;
@@ -11,11 +12,12 @@ interface PasteAttributes {
   userId: string | null;
   customUrl: string | null;
   isEditable: boolean;
+  password: string | null;
   createdAt?: Date;
   updatedAt?: Date;
 }
 
-export interface PasteInput extends Optional<PasteAttributes, 'id' | 'views' | 'customUrl' | 'isEditable'> {}
+export interface PasteInput extends Optional<PasteAttributes, 'id' | 'views' | 'customUrl' | 'isEditable' | 'password'> {}
 export interface PasteOutput extends Required<PasteAttributes> {}
 
 class Paste extends Model<PasteAttributes, PasteInput> implements PasteAttributes {
@@ -28,6 +30,7 @@ class Paste extends Model<PasteAttributes, PasteInput> implements PasteAttribute
   public userId!: string | null;
   public customUrl!: string | null;
   public isEditable!: boolean;
+  public password!: string | null;
   
   public readonly createdAt!: Date;
   public readonly updatedAt!: Date;
@@ -46,6 +49,22 @@ class Paste extends Model<PasteAttributes, PasteInput> implements PasteAttribute
   public canEdit(userId: string | null): boolean {
     // Since we removed authentication, anyone can edit if paste is marked as editable
     return this.isEditable;
+  }
+  
+  // Check if the provided password is correct
+  public async verifyPassword(password: string): Promise<boolean> {
+    if (!this.password) {
+      return true; // No password set
+    }
+    
+    const result = await bcrypt.compare(password, this.password);
+    return result;
+  }
+  
+  // Check if paste is password protected
+  public isPasswordProtected(): boolean {
+    const hasPassword = Boolean(this.password);
+    return hasPassword;
   }
 }
 
@@ -103,6 +122,10 @@ Paste.init(
       allowNull: false,
       defaultValue: false,
     },
+    password: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
   },
   {
     sequelize,
@@ -122,6 +145,20 @@ Paste.init(
         unique: true,
       },
     ],
+    hooks: {
+      beforeCreate: async (paste: Paste) => {
+        // Hash password if provided
+        if (paste.password) {
+          paste.password = await bcrypt.hash(paste.password, 10);
+        }
+      },
+      beforeUpdate: async (paste: Paste) => {
+        // Hash password if it was changed
+        if (paste.changed('password') && paste.password) {
+          paste.password = await bcrypt.hash(paste.password, 10);
+        }
+      }
+    }
   }
 );
 

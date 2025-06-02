@@ -31,7 +31,7 @@ export function RecentPastesPage() {
   // Notification state
   const [showNotification, setShowNotification] = useState(false);
   const [notificationMessage, setNotificationMessage] = useState('');
-  const [notificationButtonType, setNotificationButtonType] = useState('');
+  const [notificationButtonType, setNotificationButtonType] = useState<'success' | 'error'>('success');
 
   // Simple language detection based on common patterns
   const detectLanguage = (content: string): string => {
@@ -163,7 +163,7 @@ export function RecentPastesPage() {
       await navigator.clipboard.writeText(pasteUrl);
       
       // Use the notification system instead of alert
-      setNotificationButtonType('link');
+      setNotificationButtonType('success');
       setNotificationMessage('Link copied to clipboard!');
       setShowNotification(true);
     } catch (err) {
@@ -179,7 +179,7 @@ export function RecentPastesPage() {
     
     const fetchPastes = async () => {
       try {
-        const data = await apiFetch('pastes');
+        const data = await apiFetch('pastes/recent');
         
         // Check if the response has the expected structure
         if (Array.isArray(data)) {

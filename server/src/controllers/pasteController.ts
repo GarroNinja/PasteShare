@@ -8,7 +8,7 @@ import fs from 'fs';
 // Create a new paste
 export const createPaste = async (req: Request, res: Response) => {
   try {
-    const { title, content, expiresIn, isPrivate, customUrl, isEditable } = req.body;
+    const { title, content, expiresIn, isPrivate, customUrl, isEditable, password } = req.body;
     
     // Validate input
     if (!content) {
@@ -36,6 +36,9 @@ export const createPaste = async (req: Request, res: Response) => {
       expiresAt = new Date(Date.now() + parseInt(expiresIn) * 1000);
     }
     
+    // Clean up password input (prevent empty strings)
+    const cleanPassword = password && password.trim() ? password.trim() : null;
+    
     // Create paste without userId
     const paste = await Paste.create({
       title: title || 'Untitled Paste',
@@ -45,6 +48,7 @@ export const createPaste = async (req: Request, res: Response) => {
       isEditable: isEditable === 'true' || isEditable === true,
       customUrl: customUrl || null,
       userId: null,
+      password: cleanPassword,
     });
     
     // Handle file uploads
@@ -52,11 +56,7 @@ export const createPaste = async (req: Request, res: Response) => {
     const uploadedFiles: any[] = [];
     
     if (files && files.length > 0) {
-      console.log(`Processing ${files.length} uploaded files for paste ${paste.id}`);
-      
       for (const file of files) {
-        console.log(`File: ${file.originalname}, mimetype: ${file.mimetype}, size: ${file.size}, path: ${file.path}`);
-        
         // Store absolute path for reliable access
         const absolutePath = path.resolve(file.path);
         
@@ -70,8 +70,6 @@ export const createPaste = async (req: Request, res: Response) => {
           pasteId: paste.id,
         });
         
-        console.log(`Created file record with ID: ${fileRecord.id}`);
-        
         uploadedFiles.push({
           id: fileRecord.id,
           filename: fileRecord.originalname,
@@ -80,6 +78,8 @@ export const createPaste = async (req: Request, res: Response) => {
         });
       }
     }
+    
+    const isPasswordProtected = paste.isPasswordProtected();
     
     return res.status(201).json({
       message: 'Paste created successfully',
@@ -92,6 +92,7 @@ export const createPaste = async (req: Request, res: Response) => {
         isEditable: paste.isEditable,
         customUrl: paste.customUrl,
         createdAt: paste.createdAt,
+        isPasswordProtected,
         files: uploadedFiles,
       },
     });
@@ -107,6 +108,8 @@ export const createPaste = async (req: Request, res: Response) => {
 export const getPasteById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    // Extract password from body for POST requests or from query for GET requests
+    const password = req.method === 'POST' ? req.body.password : req.query.password as string;
     
     // Check if the ID is a valid UUID format
     const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
@@ -134,12 +137,44 @@ export const getPasteById = async (req: Request, res: Response) => {
       });
     }
     
-    // Allow access to all pastes regardless of whether they're private
-    // Just check if paste is expired
+    // Check if paste is expired
     if (paste.isExpired()) {
       return res.status(404).json({
         message: 'Paste has expired',
       });
+    }
+    
+    // Check if paste is password protected
+    const isPasswordProtected = paste.isPasswordProtected();
+    
+    // If paste is password protected and no password provided, return limited info
+    if (isPasswordProtected && !password) {
+      return res.status(403).json({
+        message: 'This paste is password protected',
+        pasteInfo: {
+          id: paste.id,
+          title: paste.title,
+          isPasswordProtected: true,
+          customUrl: paste.customUrl,
+        },
+      });
+    }
+    
+    // If paste is password protected, verify the password
+    if (isPasswordProtected && password) {
+      const isPasswordValid = await paste.verifyPassword(password);
+      
+      if (!isPasswordValid) {
+        return res.status(403).json({
+          message: 'Invalid password',
+          pasteInfo: {
+            id: paste.id,
+            title: paste.title,
+            isPasswordProtected: true,
+            customUrl: paste.customUrl,
+          },
+        });
+      }
     }
     
     // Determine if this paste was just created (within the last 60 seconds)
@@ -174,12 +209,81 @@ export const getPasteById = async (req: Request, res: Response) => {
         user: null,
         files: formattedFiles,
         canEdit,
+        isPasswordProtected,
       },
     });
   } catch (error) {
     console.error('Get paste error:', error);
     return res.status(500).json({
       message: 'Server error retrieving paste',
+    });
+  }
+};
+
+// Verify paste password
+export const verifyPastePassword = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { password } = req.body;
+    
+    if (!password) {
+      return res.status(400).json({
+        message: 'Password is required',
+      });
+    }
+    
+    // Check if the ID is a valid UUID format
+    const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    
+    // Build the query condition based on whether id is a UUID
+    const whereCondition = isValidUUID 
+      ? { [Op.or]: [{ id }, { customUrl: id }] } 
+      : { customUrl: id };
+    
+    const paste = await Paste.findOne({
+      where: whereCondition,
+    });
+    
+    if (!paste) {
+      return res.status(404).json({
+        message: 'Paste not found',
+      });
+    }
+    
+    // Check if paste is expired
+    if (paste.isExpired()) {
+      return res.status(404).json({
+        message: 'Paste has expired',
+      });
+    }
+    
+    // Check if paste is password protected
+    const isPasswordProtected = paste.isPasswordProtected();
+    
+    if (!isPasswordProtected) {
+      return res.status(400).json({
+        message: 'This paste is not password protected',
+      });
+    }
+    
+    // Verify the password
+    const isPasswordValid = await paste.verifyPassword(password);
+    
+    if (!isPasswordValid) {
+      return res.status(403).json({
+        message: 'Invalid password',
+      });
+    }
+    
+    // Return success
+    return res.status(200).json({
+      message: 'Password verified successfully',
+      success: true,
+    });
+  } catch (error) {
+    console.error('Verify paste password error:', error);
+    return res.status(500).json({
+      message: 'Server error verifying password',
     });
   }
 };

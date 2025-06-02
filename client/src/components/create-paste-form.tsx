@@ -9,6 +9,7 @@ interface CreatePasteFormProps {
     isPrivate: boolean;
     customUrl?: string;
     isEditable: boolean;
+    password?: string;
     files?: File[];
   }) => void;
   isLoading: boolean;
@@ -24,6 +25,9 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
   const [files, setFiles] = useState<File[]>([]);
   const [fileError, setFileError] = useState<string | null>(null);
   const [customUrlError, setCustomUrlError] = useState<string | null>(null);
+  const [isPasswordProtected, setIsPasswordProtected] = useState(false);
+  const [password, setPassword] = useState('');
+  const [passwordError, setPasswordError] = useState<string | null>(null);
   
   // Dropdown state
   const [isExpiryOpen, setIsExpiryOpen] = useState(false);
@@ -75,10 +79,34 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
     return true;
   };
 
+  const validatePassword = (pass: string) => {
+    if (!isPasswordProtected) {
+      setPasswordError(null);
+      return true;
+    }
+    
+    if (!pass) {
+      setPasswordError('Password is required when password protection is enabled');
+      return false;
+    }
+    
+    if (pass.length < 4) {
+      setPasswordError('Password must be at least 4 characters long');
+      return false;
+    }
+    
+    setPasswordError(null);
+    return true;
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
     if (customUrl && !validateCustomUrl(customUrl)) {
+      return;
+    }
+    
+    if (!validatePassword(password)) {
       return;
     }
     
@@ -89,6 +117,7 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
       isPrivate,
       customUrl: customUrl || undefined,
       isEditable,
+      password: isPasswordProtected ? password : undefined,
       files: files.length > 0 ? files : undefined,
     });
   };
@@ -135,41 +164,41 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
   const getFileIcon = (filename: string) => {
     const extension = filename.split('.').pop()?.toLowerCase() || '';
     
-    // Map extensions to emoji icons
-    const iconMap: Record<string, string> = {
-      pdf: '📄',
-      doc: '📝',
-      docx: '📝',
-      xls: '📊',
-      xlsx: '📊',
-      ppt: '📊',
-      pptx: '📊',
-      txt: '📝',
-      jpg: '🖼️',
-      jpeg: '🖼️',
-      png: '🖼️',
-      gif: '🖼️',
-      zip: '📦',
-      rar: '📦',
-      '7z': '📦',
-      mp3: '🎵',
-      mp4: '🎬',
-      json: '📋',
-      xml: '📋',
-      html: '📋',
-      css: '📋',
-      js: '📋',
-      ts: '📋',
-      py: '📋',
-      java: '📋',
-      c: '📋',
-      cpp: '📋',
-    };
-    
-    return iconMap[extension] || '📎';
+    switch (extension) {
+      case 'pdf':
+        return '📄';
+      case 'jpg':
+      case 'jpeg':
+      case 'png':
+      case 'gif':
+      case 'svg':
+        return '🖼️';
+      case 'mp3':
+      case 'wav':
+      case 'ogg':
+        return '🎵';
+      case 'mp4':
+      case 'webm':
+      case 'mov':
+        return '🎬';
+      case 'doc':
+      case 'docx':
+        return '📝';
+      case 'xls':
+      case 'xlsx':
+        return '📊';
+      case 'ppt':
+      case 'pptx':
+        return '📊';
+      case 'zip':
+      case 'rar':
+      case '7z':
+        return '📦';
+      default:
+        return '📄';
+    }
   };
-
-  // Handle selecting an expiry option
+  
   const handleExpirySelect = (value: string) => {
     setExpiresIn(Number(value));
     setIsExpiryOpen(false);
@@ -354,7 +383,7 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
             className="h-4 w-4 rounded border-gray-300 text-[#98971a] dark:text-[#b8bb26] focus:ring-[#79740e] dark:focus:ring-[#98971a]"
           />
           <label htmlFor="isPrivate" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
-            Private Paste (only accessible with the link)
+            Unlisted Paste (only accessible with the link)
           </label>
         </div>
         
@@ -367,17 +396,58 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
             className="h-4 w-4 rounded border-gray-300 text-[#98971a] dark:text-[#b8bb26] focus:ring-[#79740e] dark:focus:ring-[#98971a]"
           />
           <label htmlFor="isEditable" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
-            Allow Editing {isPrivate ? '(only for creator)' : '(anyone can edit)'}
+            Allow Editing {isPrivate ? '(anyone with url can edit)' : '(anyone can edit)'}
           </label>
         </div>
+        
+        <div className="flex items-center">
+          <input
+            type="checkbox"
+            id="isPasswordProtected"
+            checked={isPasswordProtected}
+            onChange={(e) => {
+              setIsPasswordProtected(e.target.checked);
+              if (!e.target.checked) {
+                setPassword('');
+                setPasswordError(null);
+              }
+            }}
+            className="h-4 w-4 rounded border-gray-300 text-[#98971a] dark:text-[#b8bb26] focus:ring-[#79740e] dark:focus:ring-[#98971a]"
+          />
+          <label htmlFor="isPasswordProtected" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
+            Password Protection
+          </label>
+        </div>
+        
+        {isPasswordProtected && (
+          <div className="ml-6 mt-2">
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Password
+            </label>
+            <input
+              type="password"
+              id="password"
+              value={password}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                validatePassword(e.target.value);
+              }}
+              placeholder="Enter password"
+              className="mt-1 block w-full rounded-md border border-gray-300 dark:border-[#504945] bg-white dark:bg-[#282828] px-3 py-2 text-gray-900 dark:text-[#ebdbb2] shadow-sm focus:border-green-500 dark:focus:border-[#b8bb26] focus:ring-green-500 dark:focus:ring-[#b8bb26]"
+            />
+            {passwordError && (
+              <p className="mt-1 text-sm text-red-600 dark:text-red-400">{passwordError}</p>
+            )}
+          </div>
+        )}
       </div>
       
       <div>
         <button
           type="submit"
-          disabled={isLoading || !content.trim() || fileError !== null || customUrlError !== null}
+          disabled={isLoading || !content.trim() || fileError !== null || customUrlError !== null || passwordError !== null}
           className={`w-full rounded-md px-4 py-3 text-sm font-medium shadow-sm border 
-                    ${isLoading || !content.trim() || fileError !== null || customUrlError !== null
+                    ${isLoading || !content.trim() || fileError !== null || customUrlError !== null || passwordError !== null
                       ? 'bg-gray-300 text-gray-500 dark:bg-[#504945] dark:text-gray-300 cursor-not-allowed border-transparent dark:border-[#3c3836]' 
                       : 'bg-green-600 !bg-green-600 text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 border-transparent dark:!bg-[#98971a] dark:!text-[#1d2021] dark:hover:!bg-[#79740e] dark:focus:ring-[#b8bb26]'}`}
         >
