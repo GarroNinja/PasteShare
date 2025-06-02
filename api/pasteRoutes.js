@@ -254,6 +254,46 @@ router.get('/', async (req, res) => {
   }
 });
 
+// Get recent public pastes - separate endpoint to match client expectations
+router.get('/recent', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 10;
+    const now = new Date();
+    
+    const { models } = req.db;
+    const { Paste } = models;
+    
+    // Query for recent public pastes
+    const publicPastes = await Paste.findAll({
+      where: {
+        isPrivate: false,
+        [Op.or]: [
+          { expiresAt: null },
+          { expiresAt: { [Op.gt]: now } }
+        ]
+      },
+      order: [['createdAt', 'DESC']],
+      limit,
+      attributes: ['id', 'title', 'content', 'createdAt', 'expiresAt', 'views', 'customUrl']
+    });
+    
+    return res.status(200).json(
+      publicPastes.map(paste => ({
+        id: paste.id,
+        title: paste.title,
+        content: paste.content.length > 200 ? `${paste.content.slice(0, 200)}...` : paste.content,
+        createdAt: paste.createdAt,
+        expiresAt: paste.expiresAt,
+        views: paste.views,
+        customUrl: paste.customUrl
+      }))
+    );
+  } catch (error) {
+    console.error('Get recent pastes error:', error);
+    return res.status(500).json({ message: 'Server error retrieving recent pastes' });
+  }
+});
+
 // Get a paste by ID or custom URL
 router.get('/:id', async (req, res) => {
   try {
