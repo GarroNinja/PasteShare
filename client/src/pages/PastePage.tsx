@@ -14,6 +14,7 @@ import {
 import CopyNotification from '../components/CopyNotification';
 import { useTheme } from '../hooks/useTheme';
 import { PageWrapper } from '../components/PageWrapper';
+import { JupyterBlock } from '../components/JupyterBlock';
 
 interface File {
   id: string;
@@ -30,6 +31,13 @@ interface PasteInfo {
   customUrl?: string;
 }
 
+interface Block {
+  id: string;
+  content: string;
+  language: string;
+  order: number;
+}
+
 interface Paste {
   id: string;
   title: string;
@@ -44,6 +52,8 @@ interface Paste {
   canEdit?: boolean;
   updatedAt?: string;
   isPasswordProtected?: boolean;
+  isJupyterStyle?: boolean;
+  blocks?: Block[];
 }
 
 export function PastePage() {
@@ -60,6 +70,7 @@ export function PastePage() {
   const [isEditMode, setIsEditMode] = useState(false);
   const [editableTitle, setEditableTitle] = useState('');
   const [editableContent, setEditableContent] = useState('');
+  const [editableBlocks, setEditableBlocks] = useState<Block[]>([]);
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [language, setLanguage] = useState<string>('plaintext');
@@ -510,16 +521,24 @@ export function PastePage() {
   };
   
   const handleEdit = () => {
-    if (paste?.canEdit) {
-      setIsEditMode(true);
+    if (!paste) return;
+    setEditableTitle(paste.title);
+    
+    if (paste.isJupyterStyle && paste.blocks) {
+      // Clone blocks for editing
+      setEditableBlocks(paste.blocks.map(block => ({ ...block })));
+    } else {
+      setEditableContent(paste.content);
     }
+    
+    setIsEditMode(true);
   };
   
   const handleCancelEdit = () => {
+    setEditableTitle('');
+    setEditableContent('');
+    setEditableBlocks([]);
     setIsEditMode(false);
-    setEditableTitle(paste?.title || '');
-    setEditableContent(paste?.content || '');
-    setEditError(null);
   };
   
   const handleSaveEdit = async () => {
@@ -529,33 +548,237 @@ export function PastePage() {
     setEditError(null);
     
     try {
-      const data = await apiFetch(`pastes/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          title: editableTitle,
-          content: editableContent,
-        }),
-      });
+      const updatedData: any = {
+        title: editableTitle
+      };
       
-      console.log("Paste updated successfully:", data);
-      
-      // Update the paste with the new data
-      if (data.paste) {
-        setPaste({
-          ...paste,
-          title: data.paste.title,
-          content: data.paste.content,
-          updatedAt: data.paste.updatedAt,
-        });
+      if (paste.isJupyterStyle) {
+        updatedData.blocks = editableBlocks;
+      } else {
+        updatedData.content = editableContent;
       }
       
+      // Use API to update the paste
+      const response = await fetch(`${getApiBaseUrl()}/pastes/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updatedData),
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to update paste: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      // Update the paste with the response data
+      setPaste(data.paste);
+      
+      // Reset edit state
       setIsEditMode(false);
+      setEditableTitle('');
+      setEditableContent('');
+      setEditableBlocks([]);
+      
+      // Show success notification
+      setNotificationButtonType('success');
+      setNotificationMessage('Paste updated successfully');
+      setShowNotification(true);
     } catch (err) {
-      console.error("Error updating paste:", err);
-      setEditError(err instanceof Error ? err.message : 'Failed to update paste');
+      console.error('Failed to update paste:', err);
+      setEditError('Failed to update paste. Please try again.');
     } finally {
       setEditLoading(false);
     }
+  };
+
+  const addBlock = () => {
+    // Create new block
+    const newBlock = {
+      id: crypto.randomUUID(), // Generate a temporary ID
+      content: '',
+      language: 'text',
+      order: editableBlocks.length
+    };
+    
+    // Add to local state
+    setEditableBlocks(prev => [...prev, newBlock]);
+  };
+  
+  const removeBlock = (id: string) => {
+    // Don't allow removing the last block
+    if (editableBlocks.length <= 1) {
+      return;
+    }
+    
+    // Remove from local state
+    setEditableBlocks(prev => {
+      const filtered = prev.filter(block => block.id !== id);
+      return filtered.map((block, index) => ({
+        ...block,
+        order: index
+      }));
+    });
+  };
+  
+  const updateBlockContent = (id: string, newContent: string) => {
+    setEditableBlocks(prev => 
+      prev.map(block => 
+        block.id === id ? { ...block, content: newContent } : block
+      )
+    );
+  };
+  
+  const updateBlockLanguage = (id: string, newLanguage: string) => {
+    setEditableBlocks(prev => 
+      prev.map(block => 
+        block.id === id ? { ...block, language: newLanguage } : block
+      )
+    );
+  };
+
+  // Structure the paste content display based on paste type
+  const renderPasteContent = () => {
+    if (loading) {
+      return (
+        <div className="animate-pulse">
+          <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mb-4"></div>
+          <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-full mb-4"></div>
+          <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-5/6 mb-4"></div>
+          <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-2/3 mb-4"></div>
+        </div>
+      );
+    }
+
+    if (error) {
+      return <div className="text-red-500 dark:text-red-400">{error}</div>;
+    }
+
+    if (!paste) {
+      return <div className="text-gray-500 dark:text-gray-400">Paste not found</div>;
+    }
+
+    if (isEditMode) {
+      return (
+        <div className="edit-container">
+          <input
+            type="text"
+            value={editableTitle}
+            onChange={(e) => setEditableTitle(e.target.value)}
+            placeholder="Paste title"
+            className="w-full mb-4 rounded-md border border-gray-300 dark:border-[#504945] bg-white dark:bg-[#282828] px-3 py-2 text-gray-900 dark:text-[#ebdbb2] focus:border-green-500 dark:focus:border-[#b8bb26] focus:ring-green-500 dark:focus:ring-[#b8bb26]"
+          />
+          
+          {paste.isJupyterStyle && editableBlocks.length > 0 ? (
+            <div>
+              <div className="mb-6">
+                {editableBlocks.map((block, index) => (
+                  <JupyterBlock
+                    key={block.id}
+                    content={block.content}
+                    language={block.language}
+                    order={index}
+                    isEditable={true}
+                    onContentChange={(content) => updateBlockContent(block.id, content)}
+                    onLanguageChange={(language) => updateBlockLanguage(block.id, language)}
+                    onDelete={() => removeBlock(block.id)}
+                  />
+                ))}
+              </div>
+              <button
+                onClick={addBlock}
+                className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 dark:bg-[#98971a] dark:text-[#1d2021] dark:hover:bg-[#79740e] transition-colors duration-200"
+              >
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                Add Block
+              </button>
+            </div>
+          ) : (
+            <textarea
+              value={editableContent}
+              onChange={(e) => setEditableContent(e.target.value)}
+              className="w-full p-4 min-h-[300px] border border-gray-300 dark:border-[#504945] rounded-md bg-white dark:bg-[#282828] text-gray-900 dark:text-[#ebdbb2]"
+            />
+          )}
+          
+          <div className="mt-6 flex space-x-3 justify-end">
+            <button
+              onClick={handleCancelEdit}
+              className="px-4 py-2 rounded-md text-gray-700 dark:text-gray-300 bg-gray-200 hover:bg-gray-300 dark:bg-[#504945] dark:hover:bg-[#665c54] transition-colors duration-200"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSaveEdit}
+              disabled={editLoading}
+              className={`px-4 py-2 rounded-md text-white bg-green-600 hover:bg-green-700 dark:bg-[#98971a] dark:text-[#1d2021] dark:hover:bg-[#79740e] transition-colors duration-200 ${
+                editLoading ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
+            >
+              {editLoading ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
+          
+          {editError && (
+            <div className="mt-3 p-3 bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-sm rounded">
+              {editError}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // Viewing mode
+    if (paste.isJupyterStyle && paste.blocks && paste.blocks.length > 0) {
+      return (
+        <div className="jupyter-notebook-container">
+          <div className="jupyter-blocks">
+            {paste.blocks.map((block, index) => (
+              <JupyterBlock
+                key={block.id}
+                content={block.content}
+                language={block.language}
+                order={index}
+                isEditable={false}
+              />
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="relative group">
+        <button
+          onClick={() => copyToClipboard(paste.content)}
+          className="absolute top-2 right-2 p-2 bg-white dark:bg-[#3c3836] border border-gray-300 dark:border-[#504945] rounded-md text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+          aria-label="Copy to clipboard"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+          </svg>
+        </button>
+        <SyntaxHighlighter
+          language={language}
+          style={isDarkMode ? gruvboxDark : gruvboxLight}
+          customStyle={{
+            borderRadius: '0.375rem',
+            padding: '1.25rem',
+            fontSize: '0.875rem',
+            lineHeight: '1.5',
+          }}
+          wrapLines={true}
+          wrapLongLines={true}
+        >
+          {paste.content}
+        </SyntaxHighlighter>
+      </div>
+    );
   };
 
   if (loading) {
@@ -672,25 +895,21 @@ export function PastePage() {
         />
       )}
       
+      {paste && (
       <div className="bg-white dark:bg-[#282828] rounded-lg shadow-sm border border-gray-200 dark:border-[#3c3836] overflow-hidden mb-4">
         <div className="p-4 border-b border-gray-200 dark:border-[#3c3836] flex flex-col sm:flex-row sm:justify-between sm:items-center">
-          {isEditMode ? (
-            <input
-              type="text"
-              value={editableTitle}
-              onChange={(e) => setEditableTitle(e.target.value)}
-              placeholder="Untitled Paste"
-              className="text-xl font-semibold bg-white dark:bg-[#282828] border border-gray-300 dark:border-gray-600 rounded px-2 py-1 w-full sm:w-2/3"
-            />
-          ) : (
+            {!isEditMode && (
             <h1 className="text-xl font-semibold mb-3 sm:mb-0 truncate max-w-full">{paste.title || 'Untitled Paste'}</h1>
           )}
           
           <div className="flex flex-wrap gap-2 mt-2 sm:mt-0 sm:flex-shrink-0">
-            {!isEditMode && paste && (
+              {!isEditMode && (
               <>
                 <button 
-                  onClick={() => copyToClipboard(paste.content)}
+                    onClick={() => copyToClipboard(paste.isJupyterStyle && paste.blocks ? 
+                      paste.blocks.map(b => b.content).join('\n\n') : 
+                      paste.content
+                    )}
                   className="px-3 py-1 text-sm bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 rounded hover:bg-green-200 dark:hover:bg-green-900/50"
                 >
                   Copy
@@ -717,100 +936,13 @@ export function PastePage() {
                 )}
               </>
             )}
-            
-            {isEditMode && (
-              <>
-                <button 
-                  onClick={handleSaveEdit}
-                  disabled={editLoading}
-                  className="px-3 py-1 text-sm bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 rounded hover:bg-green-200 dark:hover:bg-green-900/50"
-                >
-                  {editLoading ? 'Saving...' : 'Save'}
-                </button>
-                <button 
-                  onClick={handleCancelEdit}
-                  disabled={editLoading}
-                  className="px-3 py-1 text-sm bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 rounded hover:bg-red-200 dark:hover:bg-red-900/50"
-                >
-                  Cancel
-                </button>
-              </>
-            )}
           </div>
         </div>
         
-        {isEditMode ? (
-          <div className="p-4 bg-gray-50 dark:bg-[#1d2021]">
-            <textarea
-              value={editableContent}
-              onChange={(e) => setEditableContent(e.target.value)}
-              rows={15}
-              className="w-full font-mono text-sm bg-white dark:bg-[#282828] border border-gray-300 dark:border-[#3c3836] rounded p-2 text-gray-800 dark:text-gray-200"
-            ></textarea>
-            {editError && (
-              <p className="mt-2 text-sm text-red-600 dark:text-red-400">{editError}</p>
-            )}
+          {/* Paste content */}
+          <div className="mb-4 relative p-4">
+            {renderPasteContent()}
           </div>
-        ) : (
-          <>
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-gray-100 dark:bg-[#282828] p-2 border-b border-gray-200 dark:border-[#3c3836]">
-              <div className="flex items-center space-x-2 mb-2 sm:mb-0">
-                <label htmlFor="language-select" className="text-sm text-gray-600 dark:text-gray-400">
-                  Language:
-                </label>
-                <select 
-                  id="language-select"
-                  value={language || 'text'}
-                  onChange={(e) => setLanguage(e.target.value)}
-                  className="text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#3c3836] rounded px-2 py-1 w-28"
-                >
-                  {commonLanguages.map(lang => (
-                    <option key={lang} value={lang}>{lang}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex items-center space-x-2">
-                <label htmlFor="theme-select" className="text-sm text-gray-600 dark:text-gray-400">
-                  Theme:
-                </label>
-                <select 
-                  id="theme-select"
-                  value={availableThemes.findIndex(t => t.value === theme)}
-                  onChange={(e) => setTheme(availableThemes[parseInt(e.target.value)].value)}
-                  className="text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#3c3836] rounded px-2 py-1 w-36"
-                >
-                  <optgroup label="Light Themes">
-                    {availableThemes.slice(0, 9).map((theme, index) => (
-                      <option key={index} value={index}>{theme.name}</option>
-                    ))}
-                  </optgroup>
-                  <optgroup label="Dark Themes">
-                    {availableThemes.slice(9).map((theme, index) => (
-                      <option key={index + 9} value={index + 9}>{theme.name}</option>
-                    ))}
-                  </optgroup>
-                </select>
-              </div>
-            </div>
-            <div className="overflow-x-auto" style={{backgroundColor: theme === vs || theme === xcode || theme === github || theme === atomOneLight || theme === arduinoLight || theme === googlecode || theme === solarizedLight || theme === a11yLight || theme === gruvboxLight ? '#f8f8f8' : '#1d2021'}}>
-              <SyntaxHighlighter
-                language={language || 'text'}
-                style={theme}
-                customStyle={{
-                  margin: 0,
-                  padding: '1rem',
-                  fontSize: '0.875rem',
-                  backgroundColor: 'transparent',
-                  borderRadius: 0
-                }}
-                wrapLongLines={false}
-                className="syntax-highlighter-override"
-              >
-                {paste.content}
-              </SyntaxHighlighter>
-            </div>
-          </>
-        )}
         
         <div className="p-3 bg-gray-50 dark:bg-[#1d2021] text-xs text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-[#3c3836]">
           <p>Created: {new Date(paste.createdAt).toLocaleString()}</p>
@@ -821,7 +953,7 @@ export function PastePage() {
           <div className="flex flex-wrap gap-2 mt-1">
             {paste.isPrivate && (
               <span className="inline-flex items-center px-2 py-1 bg-amber-100 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300 rounded-full text-xs">
-                Unlisted
+                  Unlisted
               </span>
             )}
             
@@ -830,12 +962,18 @@ export function PastePage() {
                 Editable
               </span>
             )}
-            
-            {paste.isPasswordProtected && (
-              <span className="inline-flex items-center px-2 py-1 bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300 rounded-full text-xs">
-                Password Protected
-              </span>
-            )}
+              
+              {paste.isPasswordProtected && (
+                <span className="inline-flex items-center px-2 py-1 bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300 rounded-full text-xs">
+                  Password Protected
+                </span>
+              )}
+              
+              {paste.isJupyterStyle && (
+                <span className="inline-flex items-center px-2 py-1 bg-indigo-100 dark:bg-indigo-900/20 text-indigo-800 dark:text-indigo-300 rounded-full text-xs">
+                  Jupyter Notebook
+                </span>
+              )}
             
             {paste.customUrl && (
               <span className="inline-flex items-center px-2 py-1 bg-purple-100 dark:bg-purple-900/20 text-purple-800 dark:text-purple-300 rounded-full text-xs">
@@ -851,9 +989,10 @@ export function PastePage() {
           </div>
         </div>
       </div>
+      )}
       
       {/* File attachments section */}
-      {paste.files && paste.files.length > 0 && (
+      {paste && paste.files && paste.files.length > 0 && (
         <div className="bg-white dark:bg-[#282828] rounded-lg shadow-sm border border-gray-200 dark:border-[#3c3836] overflow-hidden">
           <div className="p-4 border-b border-gray-200 dark:border-[#3c3836]">
             <h2 className="text-lg font-semibold">Attachments ({paste.files.length})</h2>

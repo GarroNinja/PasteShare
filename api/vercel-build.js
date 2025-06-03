@@ -93,7 +93,7 @@ try {
 }
 
 console.log('✅ DATABASE_URL validation successful');
-console.log('✅ Build verification completed successfully');
+console.log('✅ Build verification completed successfully'); 
 
 // This file runs during Vercel build to ensure database tables are created
 require('dotenv').config();
@@ -190,6 +190,43 @@ async function setupDatabase() {
       console.log('Files table created successfully.');
     } else {
       console.log('Files table already exists.');
+    }
+    
+    // Check if 'blocks' table exists
+    const [blocksTableExists] = await sequelize.query(
+      "SELECT to_regclass('public.blocks') IS NOT NULL as exists"
+    );
+    
+    if (!blocksTableExists[0].exists) {
+      console.log('Creating blocks table...');
+      // Define the Block model
+      await sequelize.query(`
+        CREATE TABLE IF NOT EXISTS "blocks" (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          content TEXT NOT NULL,
+          language VARCHAR(50) DEFAULT 'text',
+          "order" INTEGER NOT NULL,
+          "pasteId" UUID NOT NULL REFERENCES pastes(id) ON DELETE CASCADE,
+          "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+          "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+        );
+      `);
+      console.log('Blocks table created successfully.');
+    } else {
+      console.log('Blocks table already exists.');
+    }
+    
+    // Check if isJupyterStyle column exists in pastes table
+    const [jupyterStyleColumnExists] = await sequelize.query(
+      "SELECT column_name FROM information_schema.columns WHERE table_name = 'pastes' AND column_name = 'isJupyterStyle'"
+    );
+    
+    if (jupyterStyleColumnExists.length === 0) {
+      console.log('Adding isJupyterStyle column to pastes table...');
+      await sequelize.query('ALTER TABLE "pastes" ADD COLUMN "isJupyterStyle" BOOLEAN DEFAULT FALSE;');
+      console.log('isJupyterStyle column added successfully.');
+    } else {
+      console.log('isJupyterStyle column already exists in pastes table.');
     }
     
     console.log('Database setup completed successfully.');

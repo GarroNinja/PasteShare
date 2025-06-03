@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { Paste, File } from '../models';
+import { Paste, File, Block } from '../models';
 import { Op } from 'sequelize';
 import { deleteFile } from '../middleware/upload';
 import path from 'path';
@@ -8,13 +8,87 @@ import fs from 'fs';
 // Create a new paste
 export const createPaste = async (req: Request, res: Response) => {
   try {
-    const { title, content, expiresIn, isPrivate, customUrl, isEditable, password } = req.body;
+    console.log('Create paste request received');
+    console.log('Request body keys:', Object.keys(req.body));
+    const { title, content, expiresIn, isPrivate, customUrl, isEditable, password, isJupyterStyle: requestIsJupyter, blocks } = req.body;
     
-    // Validate input
-    if (!content) {
+    // Handle special case of dummy content for Jupyter-style pastes
+    const isDummyContent = content === "dummy-content-for-jupyter";
+    const isJupyterStylePaste = requestIsJupyter === 'true' || requestIsJupyter === true || isDummyContent;
+    
+    console.log('Is Jupyter style paste:', isJupyterStylePaste);
+    
+    // Validate input based on paste type
+    if (!isJupyterStylePaste && !content) {
       return res.status(400).json({
-        message: 'Content is required',
+        message: 'Content is required for standard pastes',
       });
+    }
+    
+    // Validate input for Jupyter-style pastes
+    let parsedBlocks: any[] = [];
+    if (isJupyterStylePaste) {
+      console.log('Processing Jupyter-style paste with blocks:', blocks);
+      console.log('Blocks type:', typeof blocks);
+      
+      if (!blocks) {
+        return res.status(400).json({
+          message: 'Blocks are required for Jupyter-style pastes',
+        });
+      }
+      
+      // Try to parse blocks if they're provided as a string
+      try {
+        if (typeof blocks === 'string') {
+          console.log('Blocks provided as string, attempting to parse');
+          try {
+            parsedBlocks = JSON.parse(blocks);
+            console.log('Successfully parsed blocks from string:', parsedBlocks.length);
+          } catch (parseError) {
+            console.error('Error parsing blocks JSON:', parseError);
+            return res.status(400).json({
+              message: 'Invalid blocks JSON format',
+              error: parseError instanceof Error ? parseError.message : String(parseError),
+            });
+          }
+        } else if (Array.isArray(blocks)) {
+          console.log('Blocks provided as array');
+          parsedBlocks = blocks;
+        } else if (blocks && typeof blocks === 'object') {
+          console.log('Blocks provided as single object');
+          parsedBlocks = [blocks]; // Handle single block object case
+        } else {
+          console.error('Blocks in unexpected format:', blocks);
+          return res.status(400).json({
+            message: 'Blocks must be provided as an array or JSON string',
+          });
+        }
+        
+        console.log(`Parsed ${parsedBlocks.length} blocks`);
+        
+        if (!Array.isArray(parsedBlocks) || parsedBlocks.length === 0) {
+          return res.status(400).json({
+            message: 'At least one valid block is required for Jupyter-style pastes',
+          });
+        }
+        
+        // Validate each block has the required fields
+        for (const block of parsedBlocks) {
+          if (!block.content || typeof block.content !== 'string') {
+            console.error('Invalid block content:', block);
+            return res.status(400).json({
+              message: 'Each block must have a content field with string value',
+            });
+          }
+        }
+        
+      } catch (error: any) {
+        console.error('Error processing blocks:', error);
+        return res.status(400).json({
+          message: 'Invalid blocks format',
+          error: error.message,
+        });
+      }
     }
     
     // If custom URL is provided, check if it's already taken
@@ -39,10 +113,12 @@ export const createPaste = async (req: Request, res: Response) => {
     // Clean up password input (prevent empty strings)
     const cleanPassword = password && password.trim() ? password.trim() : null;
     
-    // Create paste without userId
+    console.log('Creating base paste record');
+    
+    // Create paste - for Jupyter-style, store null as content
     const paste = await Paste.create({
       title: title || 'Untitled Paste',
-      content,
+      content: isJupyterStylePaste ? null : content, // Only store content for standard pastes
       expiresAt,
       isPrivate: isPrivate === 'true' || isPrivate === true,
       isEditable: isEditable === 'true' || isEditable === true,
@@ -51,11 +127,59 @@ export const createPaste = async (req: Request, res: Response) => {
       password: cleanPassword,
     });
     
+    console.log('Base paste created with ID:', paste.id);
+    
+    // Create blocks for Jupyter-style pastes
+    const blockRecords = [];
+    if (isJupyterStylePaste && parsedBlocks.length > 0) {
+      console.log(`Creating ${parsedBlocks.length} blocks for paste ${paste.id}`);
+      
+      try {
+        // Create blocks - use Promise.all for better performance
+        const blockPromises = parsedBlocks
+          .filter(block => block.content && block.content.trim()) // Skip truly empty blocks
+          .map((block, index) => {
+            return Block.create({
+              content: block.content,
+              language: block.language || 'text',
+              order: block.order !== undefined ? block.order : index,
+              pasteId: paste.id
+            });
+          });
+        
+        const createdBlocks = await Promise.all(blockPromises);
+        blockRecords.push(...createdBlocks);
+        
+        console.log(`Successfully created ${blockRecords.length} blocks`);
+        
+        // If no blocks were created (all were empty), delete the paste and return an error
+        if (blockRecords.length === 0) {
+          await paste.destroy();
+          return res.status(400).json({
+            message: 'Could not create paste: all blocks were empty',
+          });
+        }
+      } catch (error) {
+        console.error('Error creating blocks:', error);
+        // Delete the paste if block creation fails completely
+        if (blockRecords.length === 0) {
+          await paste.destroy();
+          return res.status(500).json({
+            message: 'Failed to create blocks for Jupyter-style paste',
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+        // Otherwise, continue with the paste blocks we could create
+      }
+    }
+    
     // Handle file uploads
     const files = req.files as Express.Multer.File[];
     const uploadedFiles: any[] = [];
     
     if (files && files.length > 0) {
+      console.log(`Processing ${files.length} uploaded files`);
+      
       for (const file of files) {
         // Store absolute path for reliable access
         const absolutePath = path.resolve(file.path);
@@ -77,29 +201,45 @@ export const createPaste = async (req: Request, res: Response) => {
           url: `/pastes/${paste.id}/files/${fileRecord.id}`,
         });
       }
+      
+      console.log(`Successfully processed ${uploadedFiles.length} files`);
     }
     
     const isPasswordProtected = paste.isPasswordProtected();
+    const hasJupyterBlocks = paste.isJupyterStyle();
+    
+    // Format paste response data
+    const responseData = {
+      id: paste.id,
+      title: paste.title,
+      content: paste.content === null ? '' : String(paste.content),
+      expiresAt: paste.expiresAt,
+      isPrivate: paste.isPrivate,
+      isEditable: paste.isEditable,
+      customUrl: paste.customUrl,
+      createdAt: paste.createdAt,
+      isPasswordProtected,
+      isJupyterStyle: hasJupyterBlocks,
+      blocks: blockRecords.map(block => ({
+        id: block.id,
+        content: block.content,
+        language: block.language,
+        order: block.order
+      })),
+      files: uploadedFiles,
+    };
+    
+    console.log('Paste creation successful, returning response');
     
     return res.status(201).json({
       message: 'Paste created successfully',
-      paste: {
-        id: paste.id,
-        title: paste.title,
-        content: paste.content,
-        expiresAt: paste.expiresAt,
-        isPrivate: paste.isPrivate,
-        isEditable: paste.isEditable,
-        customUrl: paste.customUrl,
-        createdAt: paste.createdAt,
-        isPasswordProtected,
-        files: uploadedFiles,
-      },
+      paste: responseData,
     });
   } catch (error) {
     console.error('Create paste error:', error);
     return res.status(500).json({
       message: 'Server error creating paste',
+      error: error instanceof Error ? error.message : String(error),
     });
   }
 };
@@ -108,6 +248,8 @@ export const createPaste = async (req: Request, res: Response) => {
 export const getPasteById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    console.log(`Get paste request for ID/URL: ${id}`);
+    
     // Extract password from body for POST requests or from query for GET requests
     const password = req.method === 'POST' ? req.body.password : req.query.password as string;
     
@@ -119,7 +261,7 @@ export const getPasteById = async (req: Request, res: Response) => {
       ? { [Op.or]: [{ id }, { customUrl: id }] } 
       : { customUrl: id }; // Only check customUrl if not a UUID
 
-    // Find paste using the appropriate condition
+    // Find paste using the appropriate condition with blocks included
     const paste = await Paste.findOne({
       where: whereCondition,
       include: [
@@ -128,6 +270,12 @@ export const getPasteById = async (req: Request, res: Response) => {
           as: 'files',
           attributes: ['id', 'originalname', 'size', 'mimetype'],
         },
+        {
+          model: Block,
+          as: 'blocks',
+          attributes: ['id', 'content', 'language', 'order'],
+          required: false,
+        }
       ],
     });
     
@@ -177,9 +325,6 @@ export const getPasteById = async (req: Request, res: Response) => {
       }
     }
     
-    // Determine if this paste was just created (within the last 60 seconds)
-    const justCreated = Date.now() - new Date(paste.createdAt).getTime() < 60000;
-    
     // Increment view count
     await paste.incrementViews();
     
@@ -192,14 +337,30 @@ export const getPasteById = async (req: Request, res: Response) => {
       url: `/pastes/${paste.id}/files/${file.id}`,
     }));
     
+    // Format blocks if they exist
+    const blocks = paste.get('blocks') as Block[] || [];
+    const hasBlocks = paste.isJupyterStyle();
+    
+    const formattedBlocks = blocks
+      .sort((a, b) => a.order - b.order)
+      .map(block => ({
+        id: block.id,
+        content: block.content,
+        language: block.language,
+        order: block.order
+      }));
+    
     // Check if current user can edit this paste
     const canEdit = paste.canEdit(null);
+    
+    // Format content safely
+    const safeContent = paste.content === null ? '' : String(paste.content);
     
     return res.status(200).json({
       paste: {
         id: paste.id,
         title: paste.title,
-        content: paste.content,
+        content: safeContent,
         expiresAt: paste.expiresAt,
         isPrivate: paste.isPrivate,
         isEditable: paste.isEditable,
@@ -210,12 +371,15 @@ export const getPasteById = async (req: Request, res: Response) => {
         files: formattedFiles,
         canEdit,
         isPasswordProtected,
+        isJupyterStyle: hasBlocks,
+        blocks: formattedBlocks,
       },
     });
   } catch (error) {
     console.error('Get paste error:', error);
     return res.status(500).json({
       message: 'Server error retrieving paste',
+      error: error instanceof Error ? error.message : String(error),
     });
   }
 };
@@ -291,6 +455,7 @@ export const verifyPastePassword = async (req: Request, res: Response) => {
 // Get recent public pastes
 export const getRecentPastes = async (req: Request, res: Response) => {
   try {
+    console.log('Getting recent pastes');
     const limit = parseInt(req.query.limit as string) || 10;
     const page = parseInt(req.query.page as string) || 1;
     const offset = (page - 1) * limit;
@@ -307,23 +472,54 @@ export const getRecentPastes = async (req: Request, res: Response) => {
       offset,
       order: [['createdAt', 'DESC']],
       attributes: ['id', 'title', 'content', 'createdAt', 'expiresAt', 'views', 'customUrl'],
+      include: [
+        {
+          model: Block,
+          as: 'blocks',
+          attributes: ['id', 'content', 'language', 'order'],
+          required: false,
+        }
+      ]
     });
     
+    console.log(`Found ${pastes.length} recent pastes`);
+    
     return res.status(200).json({
-      pastes: pastes.map((paste) => ({
-        id: paste.id,
-        title: paste.title,
-        content: paste.content.length > 200 ? `${paste.content.slice(0, 200)}...` : paste.content,
-        createdAt: paste.createdAt,
-        expiresAt: paste.expiresAt,
-        views: paste.views,
-        customUrl: paste.customUrl,
-      })),
+      pastes: pastes.map((paste) => {
+        const hasBlocks = paste.isJupyterStyle();
+        const blocks = paste.get('blocks') as Block[] || [];
+        
+        // Format content based on paste type
+        let formattedContent = '';
+        if (hasBlocks && blocks.length > 0) {
+          // For Jupyter-style pastes, use the first block content as preview
+          const firstBlock = blocks[0];
+          formattedContent = firstBlock.content || '';
+          if (formattedContent.length > 200) {
+            formattedContent = `${formattedContent.slice(0, 200)}...`;
+          }
+        } else if (paste.content) {
+          // For standard pastes, use the content field
+          formattedContent = paste.content.length > 200 ? `${paste.content.slice(0, 200)}...` : paste.content;
+        }
+        
+        return {
+          id: paste.id,
+          title: paste.title,
+          content: formattedContent,
+          createdAt: paste.createdAt,
+          expiresAt: paste.expiresAt,
+          views: paste.views,
+          customUrl: paste.customUrl,
+          isJupyterStyle: hasBlocks,
+        };
+      }),
     });
   } catch (error) {
     console.error('Get recent pastes error:', error);
     return res.status(500).json({
       message: 'Server error retrieving pastes',
+      error: error instanceof Error ? error.message : String(error),
     });
   }
 };

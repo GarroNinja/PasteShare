@@ -15,6 +15,7 @@ A modern pastebin application for sharing code snippets, text, and files.
 - Unlisted pastes
 - Password protection
 - Editable pastes
+- Jupyter-style notebook support with multiple code blocks
 - Mobile responsive UI
 - Syntax highlighting with multiple theme options
 - Print-friendly view
@@ -147,6 +148,15 @@ For PostgreSQL, we recommend using a provider like:
 - Vercel Postgres
 
 ## Advanced Features
+
+### Jupyter-Style Notebooks
+PasteShare supports a Jupyter Notebook-like interface allowing users to create multi-block pastes with different languages. Each block can be independently:
+- Written in a different programming language
+- Individually copied with a dedicated copy button
+- Edited separately when in edit mode
+- Deleted (except for the first block which is required)
+
+This makes PasteShare ideal for educational content, tutorials, or multi-language code demonstrations.
 
 ### Password Protection
 PasteShare supports password protection for sensitive content. When creating a paste, you can enable password protection and set a password. Anyone trying to access the paste will need to enter the correct password to view its contents. This provides an additional layer of security beyond the unlisted paste option.

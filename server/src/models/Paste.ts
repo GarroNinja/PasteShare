@@ -5,7 +5,7 @@ import bcrypt from 'bcrypt';
 interface PasteAttributes {
   id: string;
   title: string;
-  content: string;
+  content: string | null;
   expiresAt: Date | null;
   isPrivate: boolean;
   views: number;
@@ -23,7 +23,7 @@ export interface PasteOutput extends Required<PasteAttributes> {}
 class Paste extends Model<PasteAttributes, PasteInput> implements PasteAttributes {
   public id!: string;
   public title!: string;
-  public content!: string;
+  public content!: string | null;
   public expiresAt!: Date | null;
   public isPrivate!: boolean;
   public views!: number;
@@ -34,6 +34,11 @@ class Paste extends Model<PasteAttributes, PasteInput> implements PasteAttribute
   
   public readonly createdAt!: Date;
   public readonly updatedAt!: Date;
+  
+  // Determine if a paste is a Jupyter-style paste by checking for blocks
+  public isJupyterStyle(): boolean {
+    return this.content === null || this.content === ''; // If content is empty/null, assume Jupyter-style
+  }
   
   public incrementViews(): Promise<Paste> {
     this.views += 1;
@@ -82,7 +87,7 @@ Paste.init(
     },
     content: {
       type: DataTypes.TEXT,
-      allowNull: false,
+      allowNull: true, // Allow null for Jupyter-style pastes
     },
     expiresAt: {
       type: DataTypes.DATE,

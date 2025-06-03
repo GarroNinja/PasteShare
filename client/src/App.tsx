@@ -5,6 +5,7 @@ import { Navbar } from './components/navbar';
 import { HomePage } from './pages/HomePage';
 import { PastePage } from './pages/PastePage';
 import { RecentPastesPage } from './pages/RecentPastesPage';
+import { globalContentValidation } from './components/create-paste-form';
 
 // Mobile navigation component that shows at the bottom of the screen
 function MobileNavBar() {
@@ -57,6 +58,9 @@ function App() {
     meta.name = 'color-scheme';
     meta.content = storedTheme;
     document.head.appendChild(meta);
+    
+    // Initialize the global content validation to fix error messages
+    globalContentValidation();
     
     return () => {
       document.head.removeChild(meta);

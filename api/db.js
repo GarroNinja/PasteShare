@@ -62,7 +62,8 @@ const createConnection = () => {
       },
       content: {
         type: DataTypes.TEXT,
-        allowNull: false
+        allowNull: true, // Make content optional as we'll now store content in blocks
+        defaultValue: null
       },
       expiresAt: {
         type: DataTypes.DATE,
@@ -92,9 +93,42 @@ const createConnection = () => {
       password: {
         type: DataTypes.STRING,
         allowNull: true
+      },
+      isJupyterStyle: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false
       }
     }, {
       tableName: 'pastes',
+      timestamps: true,
+      freezeTableName: true
+    });
+
+    // Define Block model for Jupyter-style notebook blocks
+    const Block = sequelize.define('Block', {
+      id: {
+        type: DataTypes.UUID,
+        defaultValue: DataTypes.UUIDV4,
+        primaryKey: true
+      },
+      content: {
+        type: DataTypes.TEXT,
+        allowNull: false
+      },
+      language: {
+        type: DataTypes.STRING,
+        defaultValue: 'text'
+      },
+      order: {
+        type: DataTypes.INTEGER,
+        allowNull: false
+      },
+      pasteId: {
+        type: DataTypes.UUID,
+        allowNull: false
+      }
+    }, {
+      tableName: 'blocks',
       timestamps: true,
       freezeTableName: true
     });
@@ -148,12 +182,25 @@ const createConnection = () => {
       as: 'Paste'
     });
 
+    // Blocks association
+    Paste.hasMany(Block, {
+      foreignKey: 'pasteId',
+      as: 'Blocks',
+      onDelete: 'CASCADE'
+    });
+
+    Block.belongsTo(Paste, {
+      foreignKey: 'pasteId',
+      as: 'Paste'
+    });
+
     return {
       success: true,
       sequelize,
       models: {
         Paste,
-        File
+        File,
+        Block
       },
       // Helper to test the connection
       async testConnection() {
@@ -173,7 +220,8 @@ const createConnection = () => {
             connected: true,
             tables: tables.map(t => t.table_name),
             hasPastesTable: tables.some(t => t.table_name === 'pastes'),
-            hasFilesTable: tables.some(t => t.table_name === 'files')
+            hasFilesTable: tables.some(t => t.table_name === 'files'),
+            hasBlocksTable: tables.some(t => t.table_name === 'blocks')
           };
         } catch (error) {
           console.error('Connection test failed:', error.message);

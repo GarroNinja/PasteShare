@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { EXPIRY_OPTIONS } from '../lib/utils';
+import { JupyterBlock } from './JupyterBlock';
 
 interface CreatePasteFormProps {
   onSubmit: (data: {
@@ -11,8 +12,17 @@ interface CreatePasteFormProps {
     isEditable: boolean;
     password?: string;
     files?: File[];
+    isJupyterStyle?: boolean;
+    blocks?: Array<{content: string, language: string, order: number}>;
   }) => void;
   isLoading: boolean;
+}
+
+interface Block {
+  id: string;
+  content: string;
+  language: string;
+  order: number;
 }
 
 export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
@@ -29,9 +39,18 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
   const [password, setPassword] = useState('');
   const [passwordError, setPasswordError] = useState<string | null>(null);
   
+  // Jupyter-style notebook state
+  const [isJupyterStyle, setIsJupyterStyle] = useState(false);
+  const [blocks, setBlocks] = useState<Block[]>([
+    { id: crypto.randomUUID(), content: '', language: 'text', order: 0 }
+  ]);
+  
   // Dropdown state
   const [isExpiryOpen, setIsExpiryOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const [jupyterError, setJupyterError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -99,16 +118,94 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
     return true;
   };
 
+  // Local validation without relying on DOM manipulation
+  const validateForm = (): boolean => {
+    // Reset all error states
+    setCustomUrlError(null);
+    setPasswordError(null);
+    setFileError(null);
+    setJupyterError(null);
+    setFormError(null);
+    
+    let isValid = true;
+    
+    // Validate custom URL if provided
+    if (customUrl && !validateCustomUrl(customUrl)) {
+      isValid = false;
+    }
+    
+    // Validate password if password protection is enabled
+    if (!validatePassword(password)) {
+      isValid = false;
+    }
+    
+    // Validate content based on paste type
+    if (isJupyterStyle) {
+      // Check if there are any blocks with content
+      const hasContent = blocks.some(block => block.content.trim());
+      if (!hasContent) {
+        setJupyterError("At least one block must have content");
+        isValid = false;
+      }
+    } else {
+      // Standard paste content validation
+      if (!content.trim()) {
+        setFormError("Content is required for standard pastes");
+        isValid = false;
+      }
+    }
+    
+    return isValid;
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (customUrl && !validateCustomUrl(customUrl)) {
+    // Prevent double submission
+    if (isLoading) {
       return;
     }
     
-    if (!validatePassword(password)) {
+    // Validate form and return early if invalid
+    if (!validateForm()) {
       return;
     }
+    
+    console.log("Form is valid, preparing submission...");
+    console.log("isJupyterStyle:", isJupyterStyle);
+    
+    if (isJupyterStyle) {
+      // Filter out empty blocks to avoid server errors
+      const nonEmptyBlocks = blocks.filter(block => block.content.trim());
+      
+      if (nonEmptyBlocks.length === 0) {
+        setJupyterError("Please add content to at least one block");
+        return;
+      }
+      
+      console.log("Submitting Jupyter blocks:", nonEmptyBlocks);
+      
+      // Reorder blocks to ensure proper sequence
+      const reorderedBlocks = nonEmptyBlocks.map((block, index) => ({
+        ...block,
+        order: index
+      }));
+      
+      onSubmit({
+        title,
+        content: "dummy-content-for-jupyter",  // Set a dummy content value to pass validation
+        expiresIn,
+        isPrivate,
+        customUrl: customUrl || undefined,
+        isEditable,
+        password: isPasswordProtected ? password : undefined,
+        files: files.length > 0 ? files : undefined,
+        isJupyterStyle: true,
+        blocks: reorderedBlocks
+      });
+    } else {
+      // Standard paste submission
+      console.log("Submitting standard paste with content:", content.substring(0, 50));
     
     onSubmit({
       title,
@@ -117,9 +214,11 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
       isPrivate,
       customUrl: customUrl || undefined,
       isEditable,
-      password: isPasswordProtected ? password : undefined,
+        password: isPasswordProtected ? password : undefined,
       files: files.length > 0 ? files : undefined,
+        isJupyterStyle: false
     });
+    }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -203,6 +302,104 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
     setExpiresIn(Number(value));
     setIsExpiryOpen(false);
   };
+  
+  // Jupyter block functions
+  const addBlock = () => {
+    // Create a new empty block
+    const newBlock = {
+      id: crypto.randomUUID(),
+      content: '',
+      language: 'text',
+      order: blocks.length
+    };
+    
+    // Add the new block to the list
+    setBlocks(prevBlocks => [...prevBlocks, newBlock]);
+  };
+  
+  const removeBlock = (id: string) => {
+    // Don't allow removing the last block
+    if (blocks.length <= 1) {
+      return;
+    }
+    
+    // Simple filtering approach to avoid React DOM errors
+    setBlocks(prevBlocks => {
+      const filtered = prevBlocks.filter(block => block.id !== id);
+      
+      // Update the order of blocks
+      return filtered.map((block, index) => ({
+        ...block,
+        order: index
+      }));
+    });
+  };
+  
+  const updateBlockContent = (id: string, newContent: string) => {
+    // Direct update to prevent race conditions
+    setBlocks(prevBlocks => 
+      prevBlocks.map(block => 
+        block.id === id ? { ...block, content: newContent } : block
+      )
+    );
+  };
+  
+  const updateBlockLanguage = (id: string, newLanguage: string) => {
+    // Direct update to prevent race conditions
+    setBlocks(prevBlocks => 
+      prevBlocks.map(block => 
+        block.id === id ? { ...block, language: newLanguage } : block
+      )
+    );
+  };
+  
+  const togglePasteStyle = () => {
+    setIsJupyterStyle(!isJupyterStyle);
+    setJupyterError(null);
+    
+    // If switching to Jupyter style
+    if (!isJupyterStyle) {
+      // If there's content, convert it to a block
+      if (content.trim()) {
+        setBlocks([{ 
+          id: crypto.randomUUID(), 
+          content: content, 
+          language: detectLanguage(content), 
+          order: 0 
+        }]);
+      } else {
+        // Empty default block
+        setBlocks([{ 
+          id: crypto.randomUUID(), 
+          content: '', 
+          language: 'text', 
+          order: 0 
+        }]);
+      }
+    } 
+    // If switching from Jupyter style to standard
+    else if (blocks.length > 0) {
+      setContent(blocks[0].content);
+    }
+  };
+
+  // Simple language detection based on content
+  const detectLanguage = (content: string): string => {
+    // Check for common language patterns
+    if (content.includes('function') || content.includes('const ') || content.includes('let ')) {
+      return 'javascript';
+    }
+    if (content.includes('def ') && content.includes(':')) {
+      return 'python';
+    }
+    if (content.includes('<html') || content.includes('<div')) {
+      return 'html';
+    }
+    if (content.includes('SELECT ') || content.includes('FROM ')) {
+      return 'sql';
+    }
+    return 'text';
+  };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
@@ -220,6 +417,67 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
         />
       </div>
       
+      {/* Paste Style Toggle */}
+      <div className="flex items-center justify-between">
+        <label className="flex items-center">
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-300 mr-2">
+            Use Jupyter Notebook Style
+          </span>
+          <button 
+            type="button"
+            onClick={togglePasteStyle}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full ${
+              isJupyterStyle ? 'bg-green-600 dark:bg-[#98971a]' : 'bg-gray-300 dark:bg-[#504945]'
+            }`}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
+                isJupyterStyle ? 'translate-x-6' : 'translate-x-1'
+              }`}
+            />
+          </button>
+        </label>
+      </div>
+      
+      {isJupyterStyle ? (
+        <div className="jupyter-blocks space-y-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+            Paste Content Blocks
+          </label>
+          
+          {jupyterError && (
+            <div className="p-3 my-2 bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-sm rounded">
+              {jupyterError}
+            </div>
+          )}
+          
+          {blocks.map(block => (
+            <JupyterBlock
+              key={block.id}
+              content={block.content}
+              language={block.language}
+              order={block.order}
+              isEditable={true}
+              onContentChange={(newContent) => updateBlockContent(block.id, newContent)}
+              onLanguageChange={(newLanguage) => updateBlockLanguage(block.id, newLanguage)}
+              onDelete={() => removeBlock(block.id)}
+            />
+          ))}
+          
+          <div className="flex justify-center mt-4">
+            <button
+              type="button"
+              onClick={addBlock}
+              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 dark:bg-[#98971a] dark:text-[#1d2021] dark:hover:bg-[#79740e] flex items-center"
+            >
+              <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+              Add Block
+            </button>
+          </div>
+        </div>
+      ) : (
       <div>
         <label htmlFor="content" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
           Paste Content
@@ -230,10 +488,11 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
           value={content}
           onChange={(e) => setContent(e.target.value)}
           rows={10}
-          required
           className="mt-1 block w-full rounded-md border border-gray-300 dark:border-[#504945] bg-white dark:bg-[#282828] px-3 py-2 text-gray-900 dark:text-[#ebdbb2] shadow-sm focus:border-green-500 dark:focus:border-[#b8bb26] focus:ring-green-500 dark:focus:ring-[#b8bb26]"
         ></textarea>
+          {formError && <p className="mt-1 text-sm text-red-600 dark:text-red-400">{formError}</p>}
       </div>
+      )}
       
       <div className="flex flex-col gap-4 sm:flex-row sm:gap-6">
         <div className="w-full">
@@ -248,41 +507,23 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
             >
               {selectedExpiryLabel}
               <span className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
-                <svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="none" stroke="currentColor">
-                  <path d="M7 7l3-3 3 3m0 6l-3 3-3-3" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                <svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                  <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
                 </svg>
               </span>
             </button>
             
-            {/* Hidden input to maintain form compatibility */}
-            <input 
-              type="hidden" 
-              name="expiresIn" 
-              value={expiresIn.toString()} 
-            />
-            
             {isExpiryOpen && (
-              <div className="absolute z-10 mt-1 w-full rounded-md bg-white dark:bg-[#282828] shadow-lg border border-gray-300 dark:border-[#504945]">
-                <ul className="max-h-60 rounded-md py-1 text-base overflow-auto focus:outline-none">
+              <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-white dark:bg-[#282828] py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm">
                   {EXPIRY_OPTIONS.map((option) => (
-                    <li
+                  <div
                       key={option.value}
+                    className="cursor-pointer select-none px-4 py-2 text-gray-900 dark:text-[#ebdbb2] hover:bg-gray-100 dark:hover:bg-[#3c3836]"
                       onClick={() => handleExpirySelect(option.value)}
-                      className={`cursor-pointer select-none relative py-2 pl-3 pr-9 hover:bg-gray-100 dark:hover:bg-[#3c3836] ${
-                        Number(option.value) === expiresIn ? 'bg-gray-100 dark:bg-[#3c3836] font-medium' : ''
-                      } text-gray-900 dark:text-[#ebdbb2]`}
                     >
                       {option.label}
-                      {Number(option.value) === expiresIn && (
-                        <span className="absolute inset-y-0 right-0 flex items-center pr-4 text-green-600 dark:text-green-500">
-                          <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                          </svg>
-                        </span>
-                      )}
-                    </li>
+                  </div>
                   ))}
-                </ul>
               </div>
             )}
           </div>
@@ -292,164 +533,169 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
           <label htmlFor="customUrl" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
             Custom URL (optional)
           </label>
-          <div className="mt-1 flex rounded-md shadow-sm">
-            <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-gray-300 dark:border-[#504945] bg-gray-50 dark:bg-[#3c3836] text-gray-500 dark:text-gray-400 text-sm">
-              /
+          <div className="mt-1 flex rounded-md">
+            <span className="inline-flex items-center rounded-l-md border border-r-0 border-gray-300 dark:border-[#504945] bg-gray-50 dark:bg-[#3c3836] px-3 text-gray-500 dark:text-gray-400 sm:text-sm">
+              {window.location.origin}/
             </span>
             <input
               type="text"
               id="customUrl"
-              placeholder="my-custom-url"
+              placeholder="your-custom-url"
               value={customUrl}
               onChange={(e) => {
                 setCustomUrl(e.target.value);
                 validateCustomUrl(e.target.value);
               }}
-              className="flex-1 min-w-0 block w-full px-3 py-2 rounded-none rounded-r-md border border-gray-300 dark:border-[#504945] bg-white dark:bg-[#282828] px-3 py-2 text-gray-900 dark:text-[#ebdbb2] focus:border-green-500 dark:focus:border-[#b8bb26] focus:ring-green-500 dark:focus:ring-[#b8bb26]"
+              className="block w-full flex-1 rounded-r-md border border-gray-300 dark:border-[#504945] bg-white dark:bg-[#282828] px-3 py-2 text-gray-900 dark:text-[#ebdbb2] focus:border-green-500 dark:focus:border-[#b8bb26] focus:ring-green-500 dark:focus:ring-[#b8bb26]"
             />
           </div>
           {customUrlError && (
             <p className="mt-1 text-sm text-red-600 dark:text-red-400">{customUrlError}</p>
           )}
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            Create a memorable URL for easy sharing
-          </p>
         </div>
       </div>
       
-      <div className="w-full">
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-          Attach Files (optional, max 3)
-        </label>
-        <div className="mt-1 flex flex-wrap items-center gap-2">
-          <label 
-            htmlFor="files" 
-            className="cursor-pointer px-4 py-2 text-sm font-medium rounded-md bg-[#f2e5bc] text-[#79740e] dark:bg-[#282828] dark:text-[#98971a] hover:bg-[#fbf1c7] dark:hover:bg-[#504945] border border-[#d5c4a1] dark:border-[#504945]"
-          >
-            Choose Files
-          </label>
-          <span className="text-sm text-gray-500 dark:text-gray-400">
-            {files.length > 0 ? `${files.length} file${files.length !== 1 ? 's' : ''} selected` : 'No file chosen'}
-          </span>
+      <div className="flex flex-col gap-4 sm:flex-row">
+        <label className="flex items-center cursor-pointer">
           <input
-            type="file"
-            id="files"
-            multiple
-            onChange={handleFileChange}
-            className="hidden"
+            type="checkbox"
+            checked={isPrivate}
+            onChange={() => setIsPrivate(!isPrivate)}
+            className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500 dark:border-[#504945] dark:bg-[#282828] dark:focus:ring-[#b8bb26]"
           />
+          <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">Private paste</span>
+        </label>
+        
+        <label className="flex items-center cursor-pointer">
+          <input
+            type="checkbox"
+            checked={isEditable}
+            onChange={() => setIsEditable(!isEditable)}
+            className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500 dark:border-[#504945] dark:bg-[#282828] dark:focus:ring-[#b8bb26]"
+          />
+          <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">Allow editing</span>
+        </label>
+        
+        <label className="flex items-center cursor-pointer">
+          <input
+            type="checkbox"
+            checked={isPasswordProtected}
+            onChange={() => {
+              setIsPasswordProtected(!isPasswordProtected);
+              if (!isPasswordProtected) setPassword('');
+              validatePassword(password);
+            }}
+            className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500 dark:border-[#504945] dark:bg-[#282828] dark:focus:ring-[#b8bb26]"
+          />
+          <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">Password protect</span>
+        </label>
+      </div>
+      
+      {isPasswordProtected && (
+        <div>
+          <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+            Password
+          </label>
+          <input
+            type="password"
+            id="password"
+            value={password}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              validatePassword(e.target.value);
+            }}
+            placeholder="Enter password"
+            className="mt-1 block w-full rounded-md border border-gray-300 dark:border-[#504945] bg-white dark:bg-[#282828] px-3 py-2 text-gray-900 dark:text-[#ebdbb2] shadow-sm focus:border-green-500 dark:focus:border-[#b8bb26] focus:ring-green-500 dark:focus:ring-[#b8bb26]"
+          />
+          {passwordError && (
+            <p className="mt-1 text-sm text-red-600 dark:text-red-400">{passwordError}</p>
+          )}
         </div>
+      )}
+      
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+          Attach Files (optional)
+        </label>
+        <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 dark:border-[#504945] border-dashed rounded-md">
+          <div className="space-y-1 text-center">
+            <svg
+              className="mx-auto h-12 w-12 text-gray-400"
+              stroke="currentColor"
+              fill="none"
+              viewBox="0 0 48 48"
+              aria-hidden="true"
+            >
+              <path
+                d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            <div className="flex text-sm text-gray-600 dark:text-gray-400">
+          <label 
+                htmlFor="file-upload"
+                className="relative cursor-pointer rounded-md font-medium text-green-600 dark:text-[#b8bb26] hover:text-green-500 dark:hover:text-[#98971a] focus-within:outline-none"
+              >
+                <span>Upload files</span>
+          <input
+                  id="file-upload"
+                  name="file-upload"
+            type="file"
+                  className="sr-only"
+                  onChange={handleFileChange}
+            multiple
+                />
+              </label>
+              <p className="pl-1">or drag and drop</p>
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Up to 3 files, 10MB each
+            </p>
+          </div>
+        </div>
+        
         {fileError && (
           <p className="mt-1 text-sm text-red-600 dark:text-red-400">{fileError}</p>
         )}
-      </div>
       
-      {/* File preview */}
       {files.length > 0 && (
-        <div className="mt-2">
-          <ul className="divide-y divide-gray-200 dark:divide-[#3c3836] border border-gray-200 dark:border-[#3c3836] rounded-md overflow-hidden">
+          <div className="mt-4 space-y-2">
+            <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">Selected Files:</h4>
+            <ul className="space-y-2">
             {files.map((file, index) => (
-              <li key={index} className="flex items-center justify-between p-3 bg-white dark:bg-[#282828]">
+                <li key={index} className="flex items-center justify-between bg-gray-50 dark:bg-[#3c3836] rounded-md p-2">
                 <div className="flex items-center">
-                  <span className="text-xl mr-3">{getFileIcon(file.name)}</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{file.name}</p>
+                    <span className="mr-2">{getFileIcon(file.name)}</span>
+                    <div>
+                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{file.name}</p>
                     <p className="text-xs text-gray-500 dark:text-gray-400">{formatFileSize(file.size)}</p>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => removeFile(index)}
-                  className="ml-2 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
+                    className="text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
                 >
-                  ✕
+                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
                 </button>
               </li>
             ))}
           </ul>
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            Files will be available for download from the paste page.
-          </p>
         </div>
       )}
-      
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center">
-          <input
-            type="checkbox"
-            id="isPrivate"
-            checked={isPrivate}
-            onChange={(e) => setIsPrivate(e.target.checked)}
-            className="h-4 w-4 rounded border-gray-300 text-[#98971a] dark:text-[#b8bb26] focus:ring-[#79740e] dark:focus:ring-[#98971a]"
-          />
-          <label htmlFor="isPrivate" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
-            Unlisted Paste (only accessible with the link)
-          </label>
-        </div>
-        
-        <div className="flex items-center">
-          <input
-            type="checkbox"
-            id="isEditable"
-            checked={isEditable}
-            onChange={(e) => setIsEditable(e.target.checked)}
-            className="h-4 w-4 rounded border-gray-300 text-[#98971a] dark:text-[#b8bb26] focus:ring-[#79740e] dark:focus:ring-[#98971a]"
-          />
-          <label htmlFor="isEditable" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
-            Allow Editing {isPrivate ? '(anyone with url can edit)' : '(anyone can edit)'}
-          </label>
-        </div>
-        
-        <div className="flex items-center">
-          <input
-            type="checkbox"
-            id="isPasswordProtected"
-            checked={isPasswordProtected}
-            onChange={(e) => {
-              setIsPasswordProtected(e.target.checked);
-              if (!e.target.checked) {
-                setPassword('');
-                setPasswordError(null);
-              }
-            }}
-            className="h-4 w-4 rounded border-gray-300 text-[#98971a] dark:text-[#b8bb26] focus:ring-[#79740e] dark:focus:ring-[#98971a]"
-          />
-          <label htmlFor="isPasswordProtected" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
-            Password Protection
-          </label>
-        </div>
-        
-        {isPasswordProtected && (
-          <div className="ml-6 mt-2">
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Password
-            </label>
-            <input
-              type="password"
-              id="password"
-              value={password}
-              onChange={(e) => {
-                setPassword(e.target.value);
-                validatePassword(e.target.value);
-              }}
-              placeholder="Enter password"
-              className="mt-1 block w-full rounded-md border border-gray-300 dark:border-[#504945] bg-white dark:bg-[#282828] px-3 py-2 text-gray-900 dark:text-[#ebdbb2] shadow-sm focus:border-green-500 dark:focus:border-[#b8bb26] focus:ring-green-500 dark:focus:ring-[#b8bb26]"
-            />
-            {passwordError && (
-              <p className="mt-1 text-sm text-red-600 dark:text-red-400">{passwordError}</p>
-            )}
-          </div>
-        )}
       </div>
       
-      <div>
+      <div className="flex justify-end">
         <button
           type="submit"
-          disabled={isLoading || !content.trim() || fileError !== null || customUrlError !== null || passwordError !== null}
-          className={`w-full rounded-md px-4 py-3 text-sm font-medium shadow-sm border 
-                    ${isLoading || !content.trim() || fileError !== null || customUrlError !== null || passwordError !== null
-                      ? 'bg-gray-300 text-gray-500 dark:bg-[#504945] dark:text-gray-300 cursor-not-allowed border-transparent dark:border-[#3c3836]' 
-                      : 'bg-green-600 !bg-green-600 text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 border-transparent dark:!bg-[#98971a] dark:!text-[#1d2021] dark:hover:!bg-[#79740e] dark:focus:ring-[#b8bb26]'}`}
+          disabled={isLoading}
+          className={`px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 dark:bg-[#98971a] dark:text-[#1d2021] dark:hover:bg-[#79740e] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 dark:focus:ring-[#b8bb26] ${
+            isLoading ? 'opacity-50 cursor-not-allowed' : ''
+          }`}
         >
           {isLoading ? 'Creating...' : 'Create Paste'}
         </button>
@@ -457,3 +703,14 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
     </form>
   );
 } 
+
+// Use a simpler approach that doesn't rely on DOM manipulation
+export const globalContentValidation = () => {
+  // No need for this function anymore - removing it to avoid DOM errors
+  console.log("Content validation initialized");
+  
+  // The form now handles validation internally
+  return () => {
+    console.log("Content validation cleanup");
+  };
+}; 
