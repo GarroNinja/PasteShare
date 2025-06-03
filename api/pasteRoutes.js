@@ -401,58 +401,105 @@ router.get('/', async (req, res) => {
     const limit = parseInt(req.query.limit) || 10;
     const now = new Date();
     
-    const { models } = req.db;
-    const { Paste, Block } = models;
+    // Check if database connection is available
+    if (!req.db || !req.db.success) {
+      console.error('Database connection not available for pastes index');
+      return res.status(500).json({ 
+        message: 'Database connection error', 
+        error: req.db ? req.db.error : 'No database connection' 
+      });
+    }
     
-    // Query for recent public pastes, including blocks for Jupyter-style pastes
-    const publicPastes = await Paste.findAll({
-      where: {
-        isPrivate: false,
-        [Op.or]: [
-          { expiresAt: null },
-          { expiresAt: { [Op.gt]: now } }
-        ]
-      },
-      include: [
-        { model: Block, as: 'Blocks', required: false }
-      ],
-      order: [['createdAt', 'DESC']],
-      limit,
-      attributes: ['id', 'title', 'content', 'createdAt', 'expiresAt', 'views', 'customUrl', 'isJupyterStyle']
-    });
+    const { sequelize, models } = req.db;
     
-    return res.status(200).json(
-      publicPastes.map(paste => {
+    // Use a simpler query without transactions or joins to avoid potential issues
+    try {
+      // First check if isJupyterStyle column exists to determine query approach
+      const [columns] = await sequelize.query(
+        "SELECT column_name FROM information_schema.columns WHERE table_name = 'pastes'"
+      );
+      
+      const columnNames = columns.map(c => c.column_name);
+      const hasJupyterStyle = columnNames.includes('isJupyterStyle');
+      
+      // Basic query for recent public pastes
+      let query = `
+        SELECT id, title, content, "createdAt", "expiresAt", views, "customUrl"
+        ${hasJupyterStyle ? ', "isJupyterStyle"' : ''} 
+        FROM pastes 
+        WHERE "isPrivate" = false 
+        AND (
+          "expiresAt" IS NULL 
+          OR "expiresAt" > NOW()
+        )
+        ORDER BY "createdAt" DESC 
+        LIMIT ${limit}
+      `;
+      
+      const [pastes] = await sequelize.query(query);
+      
+      // Map the results to the expected format
+      const formattedPastes = pastes.map(paste => {
         let contentPreview = '';
         
-        if (paste.isJupyterStyle && paste.Blocks && paste.Blocks.length > 0) {
-          // For Jupyter-style pastes, use the first block's content
-          contentPreview = paste.Blocks[0].content || '';
-        } else {
-          // For regular pastes, use the paste content with null check
-          contentPreview = paste.content || '';
-        }
-        
-        // Truncate content preview if needed
-        if (contentPreview.length > 200) {
-          contentPreview = `${contentPreview.slice(0, 200)}...`;
+        if (paste.content) {
+          contentPreview = paste.content.length > 200 
+            ? `${paste.content.substring(0, 200)}...`
+            : paste.content;
         }
         
         return {
           id: paste.id,
-          title: paste.title,
+          title: paste.title || 'Untitled Paste',
           content: contentPreview,
           createdAt: paste.createdAt,
           expiresAt: paste.expiresAt,
-          views: paste.views,
+          views: paste.views || 0,
           customUrl: paste.customUrl,
-          isJupyterStyle: paste.isJupyterStyle
+          isJupyterStyle: hasJupyterStyle ? paste.isJupyterStyle : false
         };
-      })
-    );
+      });
+      
+      return res.status(200).json(formattedPastes);
+    } catch (dbError) {
+      console.error('Database query error for pastes index:', dbError);
+      
+      // Fallback to simpler query if the previous one failed
+      try {
+        console.log('Attempting fallback query for pastes index...');
+        const [simplePastes] = await sequelize.query(`
+          SELECT id, title, content, "createdAt", "expiresAt", views, "customUrl"
+          FROM pastes 
+          WHERE "isPrivate" = false 
+          ORDER BY "createdAt" DESC 
+          LIMIT ${limit}
+        `);
+        
+        const formattedPastes = simplePastes.map(paste => ({
+          id: paste.id,
+          title: paste.title || 'Untitled Paste',
+          content: paste.content 
+            ? (paste.content.length > 200 ? `${paste.content.substring(0, 200)}...` : paste.content)
+            : '',
+          createdAt: paste.createdAt,
+          expiresAt: paste.expiresAt,
+          views: paste.views || 0,
+          customUrl: paste.customUrl
+        }));
+        
+        return res.status(200).json(formattedPastes);
+      } catch (fallbackError) {
+        console.error('Fallback query also failed:', fallbackError);
+        throw dbError; // Throw the original error for consistent error reporting
+      }
+    }
   } catch (error) {
-    console.error('Get pastes error:', error);
-    return res.status(500).json({ message: 'Server error retrieving pastes' });
+    console.error('Get pastes index error:', error);
+    return res.status(500).json({ 
+      message: 'Server error retrieving pastes',
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 });
 
@@ -462,58 +509,109 @@ router.get('/recent', async (req, res) => {
     const limit = parseInt(req.query.limit) || 10;
     const now = new Date();
     
-    const { models } = req.db;
-    const { Paste, Block } = models;
+    // Check if database connection is available
+    if (!req.db || !req.db.success) {
+      console.error('Database connection not available for recent pastes');
+      return res.status(500).json({ 
+        message: 'Database connection error', 
+        error: req.db ? req.db.error : 'No database connection' 
+      });
+    }
     
-    // Query for recent public pastes, including blocks for Jupyter-style pastes
-    const publicPastes = await Paste.findAll({
-      where: {
-        isPrivate: false,
-        [Op.or]: [
-          { expiresAt: null },
-          { expiresAt: { [Op.gt]: now } }
-        ]
-      },
-      include: [
-        { model: Block, as: 'Blocks', required: false }
-      ],
-      order: [['createdAt', 'DESC']],
-      limit,
-      attributes: ['id', 'title', 'content', 'createdAt', 'expiresAt', 'views', 'customUrl', 'isJupyterStyle']
-    });
+    const { sequelize, models } = req.db;
+    const { Paste } = models;
     
-    return res.status(200).json(
-      publicPastes.map(paste => {
+    // Use a simpler query without transactions or joins to avoid potential issues
+    try {
+      // First check if isJupyterStyle column exists to determine query approach
+      const [columns] = await sequelize.query(
+        "SELECT column_name FROM information_schema.columns WHERE table_name = 'pastes'"
+      );
+      
+      const columnNames = columns.map(c => c.column_name);
+      const hasJupyterStyle = columnNames.includes('isJupyterStyle');
+      
+      console.log('Columns in pastes table:', columnNames);
+      console.log('Has isJupyterStyle column:', hasJupyterStyle);
+      
+      // Basic query for recent public pastes
+      let query = `
+        SELECT id, title, content, "createdAt", "expiresAt", views, "customUrl"
+        ${hasJupyterStyle ? ', "isJupyterStyle"' : ''} 
+        FROM pastes 
+        WHERE "isPrivate" = false 
+        AND (
+          "expiresAt" IS NULL 
+          OR "expiresAt" > NOW()
+        )
+        ORDER BY "createdAt" DESC 
+        LIMIT ${limit}
+      `;
+      
+      const [pastes] = await sequelize.query(query);
+      
+      // Map the results to the expected format
+      const formattedPastes = pastes.map(paste => {
         let contentPreview = '';
         
-        if (paste.isJupyterStyle && paste.Blocks && paste.Blocks.length > 0) {
-          // For Jupyter-style pastes, use the first block's content
-          contentPreview = paste.Blocks[0].content || '';
-        } else {
-          // For regular pastes, use the paste content with null check
-          contentPreview = paste.content || '';
-        }
-        
-        // Truncate content preview if needed
-        if (contentPreview.length > 200) {
-          contentPreview = `${contentPreview.slice(0, 200)}...`;
+        if (paste.content) {
+          contentPreview = paste.content.length > 200 
+            ? `${paste.content.substring(0, 200)}...`
+            : paste.content;
         }
         
         return {
           id: paste.id,
-          title: paste.title,
+          title: paste.title || 'Untitled Paste',
           content: contentPreview,
           createdAt: paste.createdAt,
           expiresAt: paste.expiresAt,
-          views: paste.views,
+          views: paste.views || 0,
           customUrl: paste.customUrl,
-          isJupyterStyle: paste.isJupyterStyle
+          isJupyterStyle: hasJupyterStyle ? paste.isJupyterStyle : false
         };
-      })
-    );
+      });
+      
+      return res.status(200).json(formattedPastes);
+    } catch (dbError) {
+      console.error('Database query error for recent pastes:', dbError);
+      
+      // Fallback to simpler query if the previous one failed
+      try {
+        console.log('Attempting fallback query for recent pastes...');
+        const [simplePastes] = await sequelize.query(`
+          SELECT id, title, content, "createdAt", "expiresAt", views, "customUrl"
+          FROM pastes 
+          WHERE "isPrivate" = false 
+          ORDER BY "createdAt" DESC 
+          LIMIT ${limit}
+        `);
+        
+        const formattedPastes = simplePastes.map(paste => ({
+          id: paste.id,
+          title: paste.title || 'Untitled Paste',
+          content: paste.content 
+            ? (paste.content.length > 200 ? `${paste.content.substring(0, 200)}...` : paste.content)
+            : '',
+          createdAt: paste.createdAt,
+          expiresAt: paste.expiresAt,
+          views: paste.views || 0,
+          customUrl: paste.customUrl
+        }));
+        
+        return res.status(200).json(formattedPastes);
+      } catch (fallbackError) {
+        console.error('Fallback query also failed:', fallbackError);
+        throw dbError; // Throw the original error for consistent error reporting
+      }
+    }
   } catch (error) {
     console.error('Get recent pastes error:', error);
-    return res.status(500).json({ message: 'Server error retrieving recent pastes' });
+    return res.status(500).json({ 
+      message: 'Server error retrieving recent pastes',
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 });
 
