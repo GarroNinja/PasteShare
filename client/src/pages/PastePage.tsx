@@ -820,31 +820,15 @@ export function PastePage() {
           
           <div className="jupyter-blocks">
             {paste.blocks.map((block, index) => (
-              <div key={block.id} className="mb-4">
-                <div className="flex items-center mb-2 px-4">
-                  <span className="block text-sm font-medium text-gray-700 dark:text-gray-300 mr-2">
-                    Block {index + 1} Language:
-                  </span>
-                  <select
-                    value={blockLanguages[block.id] || block.language}
-                    onChange={(e) => handleBlockLanguageChange(block.id, e.target.value)}
-                    className="text-sm bg-white dark:bg-[#282828] border border-gray-300 dark:border-[#504945] rounded px-2 py-1 focus:ring-2 focus:ring-green-500 dark:focus:ring-[#b8bb26] focus:outline-none"
-                  >
-                    {LANGUAGE_OPTIONS.map(option => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <JupyterBlock
-                  content={block.content}
-                  language={blockLanguages[block.id] || block.language}
-                  order={index}
-                  isEditable={false}
-                  customTheme={selectedTheme}
-                />
-              </div>
+              <JupyterBlock
+                key={block.id}
+                content={block.content}
+                language={blockLanguages[block.id] || block.language}
+                order={index}
+                isEditable={false}
+                customTheme={selectedTheme}
+                onLanguageChange={(language) => handleBlockLanguageChange(block.id, language)}
+              />
             ))}
           </div>
         </div>
