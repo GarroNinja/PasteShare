@@ -34,17 +34,41 @@ const createConnection = () => {
         keepAlive: true,
         connectTimeout: 30000,
         statement_timeout: 30000, // Reduce to 30s to ensure completion within function time limit
-        idle_in_transaction_session_timeout: 30000 // Reduce to 30s
+        idle_in_transaction_session_timeout: 30000, // Reduce to 30s
+        // Add better handling for transaction issues
+        query_timeout: 30000,
+        application_name: 'pasteshare_serverless'
       },
       pool: {
         max: 3,         // Reduced to conserve memory
         min: 0,         // Start with 0 connections
         acquire: 30000,  // Reduced acquire timeout
         idle: 10000,     // Keep idle time reasonable
-        evict: 1000      // Check for idle connections every 1s
+        evict: 1000,     // Check for idle connections every 1s
+        // Handle connection errors gracefully
+        validate: async (client) => {
+          try {
+            // Check if connection is still valid
+            await client.query('SELECT 1');
+            return true;
+          } catch (e) {
+            console.error('Connection validation failed:', e.message);
+            return false;
+          }
+        }
       },
       retry: {
-        max: 3          // Reduced retry attempts to conserve function time
+        max: 3,          // Reduced retry attempts to conserve function time
+        match: [/Deadlock/i, /Lock wait timeout/i, /current transaction is aborted/i]
+      },
+      // Add hooks for better transaction management
+      hooks: {
+        afterConnect: async (connection) => {
+          // Set reasonable statement timeout
+          await connection.query('SET statement_timeout = 30000');
+          // Set reasonable idle in transaction timeout
+          await connection.query('SET idle_in_transaction_session_timeout = 30000');
+        }
       }
     });
 

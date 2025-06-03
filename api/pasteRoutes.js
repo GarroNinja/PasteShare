@@ -5,6 +5,7 @@ const { v4: uuidv4 } = require('uuid');
 const multer = require('multer');
 const { createConnection, Op } = require('./db');
 const bcrypt = require('bcryptjs');
+const { Sequelize } = require('sequelize');
 
 // Configure multer for file uploads
 const upload = multer({
@@ -481,66 +482,60 @@ router.get('/:id', async (req, res) => {
     const password = req.query.password;
     const now = new Date();
     
-    const { models } = req.db;
+    const { models, sequelize } = req.db;
     const { Paste, File, Block } = models;
     
-    // Check if the ID is a valid UUID
-    const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-    let paste = null;
+    // Use a new transaction for better isolation
+    const transaction = await sequelize.transaction({
+      isolationLevel: Sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED
+    });
     
-    if (isValidUUID) {
-      // If it's a valid UUID, try to find by ID first
-      paste = await Paste.findByPk(id, {
-        include: [
-          { model: File, as: 'Files' },
-          { model: Block, as: 'Blocks', order: [['order', 'ASC']] }
-        ]
-      });
-    }
-    
-    // If not found or not a UUID, try by customUrl
-    if (!paste) {
-      paste = await Paste.findOne({
-        where: {
-          customUrl: id
-        },
-        include: [
-          { model: File, as: 'Files' },
-          { model: Block, as: 'Blocks', order: [['order', 'ASC']] }
-        ]
-      });
-    }
-    
-    // If found, check expiration
-    if (paste) {
-      // Only check expiration if expiresAt is not null
-      if (paste.expiresAt && new Date(paste.expiresAt) < now) {
-        return res.status(404).json({ message: 'Paste has expired' });
-      }
+    try {
+      // Check if the ID is a valid UUID
+      const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+      let paste = null;
       
-      // Check if paste is password protected
-      const isPasswordProtected = !!paste.password;
-      
-      // If paste is password protected and no password provided, return limited info
-      if (isPasswordProtected && !password) {
-        return res.status(403).json({
-          message: 'This paste is password protected',
-          pasteInfo: {
-            id: paste.id,
-            title: paste.title,
-            isPasswordProtected: true,
-            customUrl: paste.customUrl
-          }
+      if (isValidUUID) {
+        // If it's a valid UUID, try to find by ID first
+        paste = await Paste.findByPk(id, {
+          include: [
+            { model: File, as: 'Files' },
+            { model: Block, as: 'Blocks', order: [['order', 'ASC']] }
+          ],
+          transaction
         });
       }
       
-      // If paste is password protected, verify the password
-      if (isPasswordProtected && password) {
-        const isPasswordValid = await bcrypt.compare(password, paste.password);
+      // If not found or not a UUID, try by customUrl
+      if (!paste) {
+        paste = await Paste.findOne({
+          where: {
+            customUrl: id
+          },
+          include: [
+            { model: File, as: 'Files' },
+            { model: Block, as: 'Blocks', order: [['order', 'ASC']] }
+          ],
+          transaction
+        });
+      }
+      
+      // If found, check expiration
+      if (paste) {
+        // Only check expiration if expiresAt is not null
+        if (paste.expiresAt && new Date(paste.expiresAt) < now) {
+          await transaction.commit();
+          return res.status(404).json({ message: 'Paste has expired' });
+        }
         
-        if (!isPasswordValid) {
+        // Check if paste is password protected
+        const isPasswordProtected = !!paste.password;
+        
+        // If paste is password protected and no password provided, return limited info
+        if (isPasswordProtected && !password) {
+          await transaction.commit();
           return res.status(403).json({
-            message: 'Invalid password',
+            message: 'This paste is password protected',
             pasteInfo: {
               id: paste.id,
               title: paste.title,
@@ -549,43 +544,88 @@ router.get('/:id', async (req, res) => {
             }
           });
         }
-      }
-      
-      // Increment views and save
-      paste.views += 1;
-      await paste.save();
-      
-      return res.status(200).json({
-        paste: {
-          id: paste.id,
-          title: paste.title,
-          content: paste.content,
-          expiresAt: paste.expiresAt,
-          isPrivate: paste.isPrivate,
-          isEditable: paste.isEditable,
-          customUrl: paste.customUrl,
-          createdAt: paste.createdAt,
-          views: paste.views,
-          user: null,
-          isJupyterStyle: paste.isJupyterStyle,
-          blocks: paste.Blocks ? paste.Blocks.map(b => ({
-            id: b.id,
-            content: b.content,
-            language: b.language,
-            order: b.order
-          })) : [],
-          files: paste.Files ? paste.Files.map(f => ({
-            id: f.id,
-            filename: f.originalname,
-            size: f.size,
-            url: `/api/pastes/${paste.id}/files/${f.id}`
-          })) : [],
-          canEdit: paste.isEditable,
-          isPasswordProtected
+        
+        // If paste is password protected, verify the password
+        if (isPasswordProtected && password) {
+          const isPasswordValid = await bcrypt.compare(password, paste.password);
+          
+          if (!isPasswordValid) {
+            await transaction.commit();
+            return res.status(403).json({
+              message: 'Invalid password',
+              pasteInfo: {
+                id: paste.id,
+                title: paste.title,
+                isPasswordProtected: true,
+                customUrl: paste.customUrl
+              }
+            });
+          }
         }
-      });
-    } else {
-      return res.status(404).json({ message: 'Paste not found' });
+        
+        // Increment views and save - use a separate transaction to avoid conflicts
+        try {
+          const viewUpdateTransaction = await sequelize.transaction();
+          try {
+            await Paste.update(
+              { views: sequelize.literal('views + 1') },
+              { 
+                where: { id: paste.id },
+                transaction: viewUpdateTransaction
+              }
+            );
+            await viewUpdateTransaction.commit();
+          } catch (viewUpdateError) {
+            console.error('Failed to update views:', viewUpdateError);
+            await viewUpdateTransaction.rollback();
+            // Continue anyway, view count is not critical
+          }
+        } catch (error) {
+          console.error('View update transaction error:', error);
+          // Continue anyway, view count is not critical
+        }
+        
+        // Commit the main transaction
+        await transaction.commit();
+        
+        return res.status(200).json({
+          paste: {
+            id: paste.id,
+            title: paste.title,
+            content: paste.content,
+            expiresAt: paste.expiresAt,
+            isPrivate: paste.isPrivate,
+            isEditable: paste.isEditable,
+            customUrl: paste.customUrl,
+            createdAt: paste.createdAt,
+            views: paste.views + 1, // Increment for the response even if DB update failed
+            user: null,
+            isJupyterStyle: paste.isJupyterStyle,
+            blocks: paste.Blocks ? paste.Blocks.map(b => ({
+              id: b.id,
+              content: b.content,
+              language: b.language,
+              order: b.order
+            })) : [],
+            files: paste.Files ? paste.Files.map(f => ({
+              id: f.id,
+              filename: f.originalname,
+              size: f.size,
+              url: `/api/pastes/${paste.id}/files/${f.id}`
+            })) : [],
+            canEdit: paste.isEditable,
+            isPasswordProtected
+          }
+        });
+      } else {
+        // No paste found
+        await transaction.commit();
+        return res.status(404).json({ message: 'Paste not found' });
+      }
+    } catch (error) {
+      // Rollback transaction on error
+      await transaction.rollback();
+      throw error;
     }
   } catch (error) {
     console.error('Get paste error:', error);
@@ -635,51 +675,69 @@ router.post('/:id/verify-password', async (req, res) => {
       return res.status(400).json({ message: 'Password is required' });
     }
     
-    const { models } = req.db;
+    const { models, sequelize } = req.db;
     const { Paste } = models;
     
-    // Check if the ID is a valid UUID
-    const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-    let paste = null;
-    
-    if (isValidUUID) {
-      // If it's a valid UUID, try to find by ID first
-      paste = await Paste.findByPk(id);
-    }
-    
-    // If not found or not a UUID, try by customUrl
-    if (!paste) {
-      paste = await Paste.findOne({
-        where: { customUrl: id }
-      });
-    }
-    
-    if (!paste) {
-      return res.status(404).json({ message: 'Paste not found' });
-    }
-    
-    // Check if paste is expired
-    if (paste.expiresAt && new Date(paste.expiresAt) < new Date()) {
-      return res.status(404).json({ message: 'Paste has expired' });
-    }
-    
-    // Check if paste is password protected
-    if (!paste.password) {
-      return res.status(400).json({ message: 'This paste is not password protected' });
-    }
-    
-    // Verify password
-    const isPasswordValid = await bcrypt.compare(password, paste.password);
-    
-    if (!isPasswordValid) {
-      return res.status(403).json({ message: 'Invalid password' });
-    }
-    
-    // Return success if password is valid
-    return res.status(200).json({
-      message: 'Password verified successfully',
-      success: true
+    // Use a transaction for better error handling
+    const transaction = await sequelize.transaction({
+      isolationLevel: Sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED
     });
+    
+    try {
+      // Check if the ID is a valid UUID
+      const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+      let paste = null;
+      
+      if (isValidUUID) {
+        // If it's a valid UUID, try to find by ID first
+        paste = await Paste.findByPk(id, { transaction });
+      }
+      
+      // If not found or not a UUID, try by customUrl
+      if (!paste) {
+        paste = await Paste.findOne({
+          where: { customUrl: id },
+          transaction
+        });
+      }
+      
+      if (!paste) {
+        await transaction.commit();
+        return res.status(404).json({ message: 'Paste not found' });
+      }
+      
+      // Check if paste is expired
+      if (paste.expiresAt && new Date(paste.expiresAt) < new Date()) {
+        await transaction.commit();
+        return res.status(404).json({ message: 'Paste has expired' });
+      }
+      
+      // Check if paste is password protected
+      if (!paste.password) {
+        await transaction.commit();
+        return res.status(400).json({ message: 'This paste is not password protected' });
+      }
+      
+      // Verify password
+      const isPasswordValid = await bcrypt.compare(password, paste.password);
+      
+      // Commit the transaction before response
+      await transaction.commit();
+      
+      if (!isPasswordValid) {
+        return res.status(403).json({ message: 'Invalid password' });
+      }
+      
+      // Return success if password is valid
+      return res.status(200).json({
+        message: 'Password verified successfully',
+        success: true
+      });
+    } catch (error) {
+      // Rollback the transaction if there's an error
+      await transaction.rollback();
+      throw error;
+    }
   } catch (error) {
     console.error('Verify paste password error:', error);
     return res.status(500).json({ message: 'Server error verifying password' });

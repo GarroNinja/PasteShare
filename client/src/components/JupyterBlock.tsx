@@ -8,6 +8,7 @@ interface JupyterBlockProps {
   language: string;
   order: number;
   isEditable: boolean;
+  customTheme?: any;
   onContentChange?: (content: string) => void;
   onLanguageChange?: (language: string) => void;
   onDelete?: () => void;
@@ -44,6 +45,7 @@ export function JupyterBlock({
   language,
   order,
   isEditable,
+  customTheme,
   onContentChange,
   onLanguageChange,
   onDelete
@@ -236,7 +238,7 @@ export function JupyterBlock({
             {localContent ? (
               <SyntaxHighlighter 
                 language={localLanguage} 
-                style={isDarkMode ? gruvboxDark : gruvboxLight}
+                style={customTheme || (isDarkMode ? gruvboxDark : gruvboxLight)}
                 customStyle={{ 
                   margin: 0,
                   padding: '1.25rem',

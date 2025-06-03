@@ -56,6 +56,33 @@ interface Paste {
   blocks?: Block[];
 }
 
+// Define language options for the language selector
+const LANGUAGE_OPTIONS = [
+  { value: 'text', label: 'Plain Text' },
+  { value: 'javascript', label: 'JavaScript' },
+  { value: 'typescript', label: 'TypeScript' },
+  { value: 'python', label: 'Python' },
+  { value: 'java', label: 'Java' },
+  { value: 'cpp', label: 'C++' },
+  { value: 'c', label: 'C' },
+  { value: 'csharp', label: 'C#' },
+  { value: 'go', label: 'Go' },
+  { value: 'rust', label: 'Rust' },
+  { value: 'php', label: 'PHP' },
+  { value: 'ruby', label: 'Ruby' },
+  { value: 'kotlin', label: 'Kotlin' },
+  { value: 'swift', label: 'Swift' },
+  { value: 'scala', label: 'Scala' },
+  { value: 'sql', label: 'SQL' },
+  { value: 'html', label: 'HTML' },
+  { value: 'css', label: 'CSS' },
+  { value: 'json', label: 'JSON' },
+  { value: 'xml', label: 'XML' },
+  { value: 'yaml', label: 'YAML' },
+  { value: 'bash', label: 'Bash' },
+  { value: 'markdown', label: 'Markdown' }
+];
+
 export function PastePage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -74,10 +101,15 @@ export function PastePage() {
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [language, setLanguage] = useState<string>('plaintext');
-  const [theme, setTheme] = useState(() => {
+  const [selectedTheme, setSelectedTheme] = useState(() => {
     // Check if the document has dark mode class to determine current theme
     const isDarkMode = document.documentElement.classList.contains('dark');
     return isDarkMode ? gruvboxDark : gruvboxLight;
+  });
+  const [selectedThemeName, setSelectedThemeName] = useState(() => {
+    // Check if the document has dark mode class to determine current theme
+    const isDarkMode = document.documentElement.classList.contains('dark');
+    return isDarkMode ? 'Gruvbox Dark' : 'Gruvbox Light';
   });
   
   // Notification state
@@ -93,6 +125,28 @@ export function PastePage() {
   const syntaxTheme = isDarkMode ? gruvboxDark : gruvboxLight;
   
   const contentRef = useRef<HTMLDivElement>(null);
+
+  // Language state for individual blocks (keyed by block id)
+  const [blockLanguages, setBlockLanguages] = useState<{[key: string]: string}>({});
+  
+  // Initialize block languages from paste data
+  useEffect(() => {
+    if (paste?.isJupyterStyle && paste.blocks && paste.blocks.length > 0) {
+      const initialLanguages: {[key: string]: string} = {};
+      paste.blocks.forEach(block => {
+        initialLanguages[block.id] = block.language;
+      });
+      setBlockLanguages(initialLanguages);
+    }
+  }, [paste?.isJupyterStyle, paste?.blocks]);
+  
+  // Handle changing language for a specific block
+  const handleBlockLanguageChange = (blockId: string, newLanguage: string) => {
+    setBlockLanguages(prev => ({
+      ...prev,
+      [blockId]: newLanguage
+    }));
+  };
 
   // Auto-detect language based on content
   useEffect(() => {
@@ -737,15 +791,60 @@ export function PastePage() {
     if (paste.isJupyterStyle && paste.blocks && paste.blocks.length > 0) {
       return (
         <div className="jupyter-notebook-container">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2 p-2 bg-gray-50 dark:bg-[#3c3836] rounded-md">
+            {/* Theme selector */}
+            <div className="flex items-center">
+              <label htmlFor="theme-selector" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mr-2">
+                Theme:
+              </label>
+              <select
+                id="theme-selector"
+                value={selectedThemeName}
+                onChange={(e) => {
+                  const selectedThemeObj = availableThemes.find(t => t.name === e.target.value);
+                  if (selectedThemeObj) {
+                    setSelectedTheme(selectedThemeObj.value);
+                    setSelectedThemeName(selectedThemeObj.name);
+                  }
+                }}
+                className="text-sm bg-white dark:bg-[#282828] border border-gray-300 dark:border-[#504945] rounded px-2 py-1 focus:ring-2 focus:ring-green-500 dark:focus:ring-[#b8bb26] focus:outline-none"
+              >
+                {availableThemes.map(theme => (
+                  <option key={theme.name} value={theme.name}>
+                    {theme.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          
           <div className="jupyter-blocks">
             {paste.blocks.map((block, index) => (
-              <JupyterBlock
-                key={block.id}
-                content={block.content}
-                language={block.language}
-                order={index}
-                isEditable={false}
-              />
+              <div key={block.id} className="mb-4">
+                <div className="flex items-center mb-2 px-4">
+                  <span className="block text-sm font-medium text-gray-700 dark:text-gray-300 mr-2">
+                    Block {index + 1} Language:
+                  </span>
+                  <select
+                    value={blockLanguages[block.id] || block.language}
+                    onChange={(e) => handleBlockLanguageChange(block.id, e.target.value)}
+                    className="text-sm bg-white dark:bg-[#282828] border border-gray-300 dark:border-[#504945] rounded px-2 py-1 focus:ring-2 focus:ring-green-500 dark:focus:ring-[#b8bb26] focus:outline-none"
+                  >
+                    {LANGUAGE_OPTIONS.map(option => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <JupyterBlock
+                  content={block.content}
+                  language={blockLanguages[block.id] || block.language}
+                  order={index}
+                  isEditable={false}
+                  customTheme={selectedTheme}
+                />
+              </div>
             ))}
           </div>
         </div>
