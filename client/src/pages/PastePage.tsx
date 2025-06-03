@@ -576,13 +576,19 @@ export function PastePage() {
   
   const handleEdit = () => {
     if (!paste) return;
-    setEditableTitle(paste.title);
     
     if (paste.isJupyterStyle && paste.blocks) {
-      // Clone blocks for editing
-      setEditableBlocks(paste.blocks.map(block => ({ ...block })));
+      // Deep clone blocks for editing to avoid reference issues
+      const blocks = paste.blocks.map(block => ({
+        ...block,
+        content: block.content || '',
+        language: block.language || 'text'
+      }));
+      
+      console.log('Initializing edit mode with blocks:', blocks);
+      setEditableBlocks(blocks);
     } else {
-      setEditableContent(paste.content);
+      setEditableContent(paste.content || '');
     }
     
     setIsEditMode(true);
@@ -602,10 +608,8 @@ export function PastePage() {
     setEditError(null);
     
     try {
-      // Prepare the data for the API
-      const updatedData: any = {
-        title: editableTitle
-      };
+      // Prepare the data for the API - don't update title
+      const updatedData: any = {};
       
       if (paste.isJupyterStyle) {
         // Format blocks properly for the API
@@ -633,7 +637,8 @@ export function PastePage() {
       });
       
       if (!response.ok) {
-        throw new Error(`Failed to update paste: ${response.status}`);
+        const errorData = await response.json();
+        throw new Error(errorData.message || `Failed to update paste: ${response.status}`);
       }
       
       const data = await response.json();
@@ -644,7 +649,6 @@ export function PastePage() {
       
       // Reset edit state
       setIsEditMode(false);
-      setEditableTitle('');
       setEditableContent('');
       setEditableBlocks([]);
       
@@ -654,10 +658,10 @@ export function PastePage() {
       setShowNotification(true);
       
       // Refresh the page to get the updated content
-      window.location.reload();
+      setTimeout(() => window.location.reload(), 1000);
     } catch (err) {
       console.error('Failed to update paste:', err);
-      setEditError('Failed to update paste. Please try again.');
+      setEditError(err instanceof Error ? err.message : 'Failed to update paste. Please try again.');
     } finally {
       setEditLoading(false);
     }
@@ -732,13 +736,8 @@ export function PastePage() {
     if (isEditMode) {
       return (
         <div className="edit-container">
-          <input
-            type="text"
-            value={editableTitle}
-            onChange={(e) => setEditableTitle(e.target.value)}
-            placeholder="Paste title"
-            className="w-full mb-4 rounded-md border border-gray-300 dark:border-[#504945] bg-white dark:bg-[#282828] px-3 py-2 text-gray-900 dark:text-[#ebdbb2] focus:border-green-500 dark:focus:border-[#b8bb26] focus:ring-green-500 dark:focus:ring-[#b8bb26]"
-          />
+          {/* Title is displayed but not editable */}
+          <h2 className="text-xl font-semibold mb-4">{paste.title || 'Untitled Paste'}</h2>
           
           {paste.isJupyterStyle && editableBlocks.length > 0 ? (
             <div>
