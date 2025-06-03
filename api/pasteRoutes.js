@@ -759,7 +759,7 @@ router.get('/:id', async (req, res) => {
       const pasteResponse = {
         id: paste.id,
         title: paste.title || 'Untitled Paste',
-        content: paste.content,
+        content: paste.content || '',
         expiresAt: paste.expiresAt,
         isPrivate: paste.isPrivate,
         isEditable: paste.isEditable,
