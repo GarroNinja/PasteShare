@@ -602,15 +602,25 @@ export function PastePage() {
     setEditError(null);
     
     try {
+      // Prepare the data for the API
       const updatedData: any = {
         title: editableTitle
       };
       
       if (paste.isJupyterStyle) {
-        updatedData.blocks = editableBlocks;
+        // Format blocks properly for the API
+        updatedData.blocks = JSON.stringify(
+          editableBlocks.map((block, index) => ({
+            content: block.content,
+            language: block.language,
+            order: index
+          }))
+        );
       } else {
         updatedData.content = editableContent;
       }
+      
+      console.log('Sending update with data:', updatedData);
       
       // Use API to update the paste
       const response = await fetch(`${getApiBaseUrl()}/pastes/${id}`, {
@@ -627,6 +637,7 @@ export function PastePage() {
       }
       
       const data = await response.json();
+      console.log('Update response:', data);
       
       // Update the paste with the response data
       setPaste(data.paste);
@@ -641,6 +652,9 @@ export function PastePage() {
       setNotificationButtonType('success');
       setNotificationMessage('Paste updated successfully');
       setShowNotification(true);
+      
+      // Refresh the page to get the updated content
+      window.location.reload();
     } catch (err) {
       console.error('Failed to update paste:', err);
       setEditError('Failed to update paste. Please try again.');
@@ -825,7 +839,7 @@ export function PastePage() {
                 content={block.content}
                 language={blockLanguages[block.id] || block.language}
                 order={index}
-                isEditable={false}
+                isEditable={isEditMode}
                 customTheme={selectedTheme}
                 onLanguageChange={(language) => handleBlockLanguageChange(block.id, language)}
               />
