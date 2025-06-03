@@ -841,6 +841,7 @@ export function PastePage() {
                 isEditable={isEditMode}
                 customTheme={selectedTheme}
                 onLanguageChange={(language) => handleBlockLanguageChange(block.id, language)}
+                showLanguageSelector={true}
               />
             ))}
           </div>
@@ -850,6 +851,51 @@ export function PastePage() {
 
     return (
       <div className="relative group">
+        {/* Theme and language selectors for standard pastes */}
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 p-2 bg-gray-50 dark:bg-[#3c3836] rounded-md">
+          <div className="flex items-center">
+            <label htmlFor="language-selector" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mr-2">
+              Language:
+            </label>
+            <select
+              id="language-selector"
+              value={language}
+              onChange={(e) => setLanguage(e.target.value)}
+              className="text-sm bg-white dark:bg-[#282828] border border-gray-300 dark:border-[#504945] rounded px-2 py-1 focus:ring-2 focus:ring-green-500 dark:focus:ring-[#b8bb26] focus:outline-none"
+            >
+              {LANGUAGE_OPTIONS.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          
+          <div className="flex items-center">
+            <label htmlFor="theme-selector-standard" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mr-2">
+              Theme:
+            </label>
+            <select
+              id="theme-selector-standard"
+              value={selectedThemeName}
+              onChange={(e) => {
+                const selectedThemeObj = availableThemes.find(t => t.name === e.target.value);
+                if (selectedThemeObj) {
+                  setSelectedTheme(selectedThemeObj.value);
+                  setSelectedThemeName(selectedThemeObj.name);
+                }
+              }}
+              className="text-sm bg-white dark:bg-[#282828] border border-gray-300 dark:border-[#504945] rounded px-2 py-1 focus:ring-2 focus:ring-green-500 dark:focus:ring-[#b8bb26] focus:outline-none"
+            >
+              {availableThemes.map(theme => (
+                <option key={theme.name} value={theme.name}>
+                  {theme.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        
         <button
           onClick={() => copyToClipboard(paste.content)}
           className="absolute top-2 right-2 p-2 bg-white dark:bg-[#3c3836] border border-gray-300 dark:border-[#504945] rounded-md text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity z-10"
@@ -861,7 +907,7 @@ export function PastePage() {
         </button>
         <SyntaxHighlighter
           language={language}
-          style={isDarkMode ? gruvboxDark : gruvboxLight}
+          style={selectedTheme || (isDarkMode ? gruvboxDark : gruvboxLight)}
           customStyle={{
             borderRadius: '0.375rem',
             padding: '1.25rem',

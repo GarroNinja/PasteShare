@@ -12,6 +12,7 @@ interface JupyterBlockProps {
   onContentChange?: (content: string) => void;
   onLanguageChange?: (language: string) => void;
   onDelete?: () => void;
+  showLanguageSelector?: boolean;
 }
 
 const LANGUAGE_OPTIONS = [
@@ -48,7 +49,8 @@ export function JupyterBlock({
   customTheme,
   onContentChange,
   onLanguageChange,
-  onDelete
+  onDelete,
+  showLanguageSelector
 }: JupyterBlockProps) {
   // Start in edit mode if the content is empty
   const [isEditing, setIsEditing] = useState(!content);
@@ -134,6 +136,19 @@ export function JupyterBlock({
               value={localLanguage}
               onChange={handleLanguageChange}
               className="text-sm bg-white dark:bg-[#282828] border border-gray-300 dark:border-[#504945] rounded px-2 py-1 focus:ring-2 focus:ring-green-500 dark:focus:ring-[#b8bb26] focus:outline-none"
+            >
+              {LANGUAGE_OPTIONS.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          ) : showLanguageSelector ? (
+            <select
+              value={localLanguage}
+              onChange={handleLanguageChange}
+              className="text-sm bg-white dark:bg-[#282828] border border-gray-300 dark:border-[#504945] rounded px-2 py-1 focus:ring-2 focus:ring-green-500 dark:focus:ring-[#b8bb26] focus:outline-none"
+              disabled={!onLanguageChange}
             >
               {LANGUAGE_OPTIONS.map(option => (
                 <option key={option.value} value={option.value}>
