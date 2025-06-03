@@ -613,13 +613,17 @@ export function PastePage() {
       
       if (paste.isJupyterStyle) {
         // Format blocks properly for the API
-        updatedData.blocks = JSON.stringify(
-          editableBlocks.map((block, index) => ({
-            content: block.content,
-            language: block.language,
-            order: index
-          }))
-        );
+        console.log('Preparing blocks for update:', editableBlocks);
+        
+        // Map blocks to the expected format
+        const formattedBlocks = editableBlocks.map((block, index) => ({
+          content: block.content || '',
+          language: block.language || 'text',
+          order: index
+        }));
+        
+        console.log('Formatted blocks for API:', formattedBlocks);
+        updatedData.blocks = JSON.stringify(formattedBlocks);
       } else {
         updatedData.content = editableContent;
       }
@@ -638,6 +642,7 @@ export function PastePage() {
       
       if (!response.ok) {
         const errorData = await response.json();
+        console.error('Server error response:', errorData);
         throw new Error(errorData.message || `Failed to update paste: ${response.status}`);
       }
       
