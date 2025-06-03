@@ -206,13 +206,162 @@ app.post('/:id/verify-password', async (req, res) => {
   }
 });
 
+// Add explicit migration endpoint to force schema updates
+app.post('/api/migrate-schema', async (req, res) => {
+  try {
+    if (!req.db || !req.db.sequelize) {
+      return res.status(500).json({ 
+        success: false, 
+        message: 'Database connection not available' 
+      });
+    }
+    
+    const { sequelize } = req.db;
+    const migrations = [];
+    
+    // Check and add isJupyterStyle column
+    const [jupyterStyleColumnExists] = await sequelize.query(
+      "SELECT column_name FROM information_schema.columns WHERE table_name = 'pastes' AND column_name = 'isJupyterStyle'"
+    );
+    
+    if (jupyterStyleColumnExists.length === 0) {
+      console.log('Migrating: Adding isJupyterStyle column to pastes table');
+      await sequelize.query('ALTER TABLE "pastes" ADD COLUMN "isJupyterStyle" BOOLEAN DEFAULT FALSE;');
+      migrations.push('Added isJupyterStyle column');
+    }
+    
+    // Check and make content column nullable
+    const [contentColumnIsNotNull] = await sequelize.query(
+      "SELECT is_nullable FROM information_schema.columns WHERE table_name = 'pastes' AND column_name = 'content'"
+    );
+    
+    if (contentColumnIsNotNull.length > 0 && contentColumnIsNotNull[0].is_nullable === 'NO') {
+      console.log('Migrating: Making content column nullable');
+      await sequelize.query('ALTER TABLE "pastes" ALTER COLUMN "content" DROP NOT NULL;');
+      migrations.push('Made content column nullable');
+    }
+    
+    // Check and create blocks table
+    const [blocksTableExists] = await sequelize.query(
+      "SELECT to_regclass('public.blocks') IS NOT NULL as exists"
+    );
+    
+    if (blocksTableExists.length === 0 || !blocksTableExists[0].exists) {
+      console.log('Migrating: Creating blocks table');
+      await sequelize.query(`
+        CREATE TABLE IF NOT EXISTS "blocks" (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          content TEXT NOT NULL,
+          language VARCHAR(50) DEFAULT 'text',
+          "order" INTEGER NOT NULL,
+          "pasteId" UUID NOT NULL REFERENCES pastes(id) ON DELETE CASCADE,
+          "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+          "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+        );
+      `);
+      migrations.push('Created blocks table');
+    }
+    
+    // Return results
+    if (migrations.length === 0) {
+      return res.status(200).json({ 
+        success: true, 
+        message: 'No migrations needed. Schema is already up to date.' 
+      });
+    }
+    
+    return res.status(200).json({ 
+      success: true, 
+      message: 'Schema migrations completed successfully',
+      migrations
+    });
+  } catch (error) {
+    console.error('Schema migration error:', error);
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Schema migration failed', 
+      error: error.message 
+    });
+  }
+});
+
 // Health check route
-app.get('/api/health', (req, res) => {
+app.get('/api/health', async (req, res) => {
   // Get info about database usage from the pasteRoutes module
   const databaseStatus = pasteRoutes.getDatabaseStatus ? pasteRoutes.getDatabaseStatus() : {
     isConnected: !!pasteRoutes.useDatabase,
     mode: pasteRoutes.useDatabase ? 'PostgreSQL' : 'In-Memory'
   };
+  
+  // Check database schema at runtime
+  let schemaStatus = { checked: false };
+  
+  if (req.db && req.db.sequelize) {
+    try {
+      // Check if isJupyterStyle column exists
+      const [jupyterStyleColumnResult] = await req.db.sequelize.query(
+        "SELECT column_name FROM information_schema.columns WHERE table_name = 'pastes' AND column_name = 'isJupyterStyle'"
+      );
+      
+      // Check if content column is nullable
+      const [contentColumnResult] = await req.db.sequelize.query(
+        "SELECT is_nullable FROM information_schema.columns WHERE table_name = 'pastes' AND column_name = 'content'"
+      );
+      
+      // Check if blocks table exists
+      const [blocksTableResult] = await req.db.sequelize.query(
+        "SELECT to_regclass('public.blocks') IS NOT NULL as exists"
+      );
+      
+      schemaStatus = {
+        checked: true,
+        hasJupyterStyleColumn: jupyterStyleColumnResult.length > 0,
+        contentIsNullable: contentColumnResult.length > 0 && contentColumnResult[0].is_nullable === 'YES',
+        hasBlocksTable: blocksTableResult.length > 0 && blocksTableResult[0].exists,
+        isFullyCompatible: jupyterStyleColumnResult.length > 0 && 
+                         contentColumnResult.length > 0 && 
+                         contentColumnResult[0].is_nullable === 'YES' &&
+                         blocksTableResult.length > 0 && 
+                         blocksTableResult[0].exists
+      };
+      
+      // Auto-fix schema issues if possible
+      if (!schemaStatus.isFullyCompatible) {
+        console.log('Schema issues detected, attempting auto-fix...');
+        
+        if (!schemaStatus.hasJupyterStyleColumn) {
+          console.log('Adding missing isJupyterStyle column...');
+          await req.db.sequelize.query('ALTER TABLE "pastes" ADD COLUMN "isJupyterStyle" BOOLEAN DEFAULT FALSE;');
+          schemaStatus.fixedJupyterStyleColumn = true;
+        }
+        
+        if (!schemaStatus.contentIsNullable) {
+          console.log('Making content column nullable...');
+          await req.db.sequelize.query('ALTER TABLE "pastes" ALTER COLUMN "content" DROP NOT NULL;');
+          schemaStatus.fixedContentColumn = true;
+        }
+        
+        if (!schemaStatus.hasBlocksTable) {
+          console.log('Creating missing blocks table...');
+          await req.db.sequelize.query(`
+            CREATE TABLE IF NOT EXISTS "blocks" (
+              id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              content TEXT NOT NULL,
+              language VARCHAR(50) DEFAULT 'text',
+              "order" INTEGER NOT NULL,
+              "pasteId" UUID NOT NULL REFERENCES pastes(id) ON DELETE CASCADE,
+              "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+              "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+            );
+          `);
+          schemaStatus.createdBlocksTable = true;
+        }
+      }
+    } catch (error) {
+      console.error('Schema check error:', error);
+      schemaStatus.error = error.message;
+    }
+  }
   
   res.status(200).json({ 
     status: 'UP', 
@@ -225,9 +374,10 @@ app.get('/api/health', (req, res) => {
       url: process.env.DATABASE_URL ? 'Configured' : 'Not configured',
       mode: databaseStatus.mode,
       connected: databaseStatus.isConnected,
-      details: databaseStatus.details || 'No additional details available'
+      details: databaseStatus.details || 'No additional details available',
+      schema: schemaStatus
     },
-    version: '1.0.2',
+    version: '1.0.3',
     serverInfo: {
       platform: process.platform,
       nodeVersion: process.version,

@@ -402,9 +402,9 @@ router.get('/', async (req, res) => {
     const now = new Date();
     
     const { models } = req.db;
-    const { Paste } = models;
+    const { Paste, Block } = models;
     
-    // Query for recent public pastes
+    // Query for recent public pastes, including blocks for Jupyter-style pastes
     const publicPastes = await Paste.findAll({
       where: {
         isPrivate: false,
@@ -413,21 +413,42 @@ router.get('/', async (req, res) => {
           { expiresAt: { [Op.gt]: now } }
         ]
       },
+      include: [
+        { model: Block, as: 'Blocks', required: false }
+      ],
       order: [['createdAt', 'DESC']],
       limit,
-      attributes: ['id', 'title', 'content', 'createdAt', 'expiresAt', 'views', 'customUrl']
+      attributes: ['id', 'title', 'content', 'createdAt', 'expiresAt', 'views', 'customUrl', 'isJupyterStyle']
     });
     
     return res.status(200).json(
-      publicPastes.map(paste => ({
-        id: paste.id,
-        title: paste.title,
-        content: paste.content.length > 200 ? `${paste.content.slice(0, 200)}...` : paste.content,
-        createdAt: paste.createdAt,
-        expiresAt: paste.expiresAt,
-        views: paste.views,
-        customUrl: paste.customUrl
-      }))
+      publicPastes.map(paste => {
+        let contentPreview = '';
+        
+        if (paste.isJupyterStyle && paste.Blocks && paste.Blocks.length > 0) {
+          // For Jupyter-style pastes, use the first block's content
+          contentPreview = paste.Blocks[0].content || '';
+        } else {
+          // For regular pastes, use the paste content with null check
+          contentPreview = paste.content || '';
+        }
+        
+        // Truncate content preview if needed
+        if (contentPreview.length > 200) {
+          contentPreview = `${contentPreview.slice(0, 200)}...`;
+        }
+        
+        return {
+          id: paste.id,
+          title: paste.title,
+          content: contentPreview,
+          createdAt: paste.createdAt,
+          expiresAt: paste.expiresAt,
+          views: paste.views,
+          customUrl: paste.customUrl,
+          isJupyterStyle: paste.isJupyterStyle
+        };
+      })
     );
   } catch (error) {
     console.error('Get pastes error:', error);
@@ -442,9 +463,9 @@ router.get('/recent', async (req, res) => {
     const now = new Date();
     
     const { models } = req.db;
-    const { Paste } = models;
+    const { Paste, Block } = models;
     
-    // Query for recent public pastes
+    // Query for recent public pastes, including blocks for Jupyter-style pastes
     const publicPastes = await Paste.findAll({
       where: {
         isPrivate: false,
@@ -453,21 +474,42 @@ router.get('/recent', async (req, res) => {
           { expiresAt: { [Op.gt]: now } }
         ]
       },
+      include: [
+        { model: Block, as: 'Blocks', required: false }
+      ],
       order: [['createdAt', 'DESC']],
       limit,
-      attributes: ['id', 'title', 'content', 'createdAt', 'expiresAt', 'views', 'customUrl']
+      attributes: ['id', 'title', 'content', 'createdAt', 'expiresAt', 'views', 'customUrl', 'isJupyterStyle']
     });
     
     return res.status(200).json(
-      publicPastes.map(paste => ({
-        id: paste.id,
-        title: paste.title,
-        content: paste.content.length > 200 ? `${paste.content.slice(0, 200)}...` : paste.content,
-        createdAt: paste.createdAt,
-        expiresAt: paste.expiresAt,
-        views: paste.views,
-        customUrl: paste.customUrl
-      }))
+      publicPastes.map(paste => {
+        let contentPreview = '';
+        
+        if (paste.isJupyterStyle && paste.Blocks && paste.Blocks.length > 0) {
+          // For Jupyter-style pastes, use the first block's content
+          contentPreview = paste.Blocks[0].content || '';
+        } else {
+          // For regular pastes, use the paste content with null check
+          contentPreview = paste.content || '';
+        }
+        
+        // Truncate content preview if needed
+        if (contentPreview.length > 200) {
+          contentPreview = `${contentPreview.slice(0, 200)}...`;
+        }
+        
+        return {
+          id: paste.id,
+          title: paste.title,
+          content: contentPreview,
+          createdAt: paste.createdAt,
+          expiresAt: paste.expiresAt,
+          views: paste.views,
+          customUrl: paste.customUrl,
+          isJupyterStyle: paste.isJupyterStyle
+        };
+      })
     );
   } catch (error) {
     console.error('Get recent pastes error:', error);

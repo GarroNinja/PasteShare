@@ -225,8 +225,24 @@ async function setupDatabase() {
       console.log('Adding isJupyterStyle column to pastes table...');
       await sequelize.query('ALTER TABLE "pastes" ADD COLUMN "isJupyterStyle" BOOLEAN DEFAULT FALSE;');
       console.log('isJupyterStyle column added successfully.');
+      
+      // Make content column nullable to support Jupyter-style pastes
+      console.log('Modifying content column to be nullable...');
+      await sequelize.query('ALTER TABLE "pastes" ALTER COLUMN "content" DROP NOT NULL;');
+      console.log('Content column modified successfully.');
     } else {
       console.log('isJupyterStyle column already exists in pastes table.');
+      
+      // Check if content column is still NOT NULL
+      const [contentColumnIsNotNull] = await sequelize.query(
+        "SELECT is_nullable FROM information_schema.columns WHERE table_name = 'pastes' AND column_name = 'content'"
+      );
+      
+      if (contentColumnIsNotNull.length > 0 && contentColumnIsNotNull[0].is_nullable === 'NO') {
+        console.log('Making content column nullable to support Jupyter-style pastes...');
+        await sequelize.query('ALTER TABLE "pastes" ALTER COLUMN "content" DROP NOT NULL;');
+        console.log('Content column modified successfully.');
+      }
     }
     
     console.log('Database setup completed successfully.');
