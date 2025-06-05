@@ -99,7 +99,7 @@ export function HomePage() {
         }
         
         console.log("Standard paste content length:", data.content.length);
-        formData.append("content", data.content);
+      formData.append("content", data.content);
         formData.append("isJupyterStyle", "false");
       }
       
@@ -197,12 +197,12 @@ export function HomePage() {
                     
         // Use a timeout to avoid navigation race conditions that might cause page glitches
         setTimeout(() => {
-          // If a custom URL is used, navigate to that
-          if (result.paste.customUrl) {
-            navigate(`/${result.paste.customUrl}`);
+        // If a custom URL is used, navigate to that
+        if (result.paste.customUrl) {
+          navigate(`/${result.paste.customUrl}`);
           } else {
-            navigate(`/${result.paste.id}`);
-          }
+          navigate(`/${result.paste.id}`);
+        }
         }, 100);
       } else {
         console.error("Invalid response structure:", result);

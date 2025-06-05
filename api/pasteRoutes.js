@@ -251,14 +251,14 @@ router.post('/', upload.array('files', 3), async (req, res) => {
         const { File } = models;
         for (const file of req.files) {
           // Convert file buffer to base64
-          const base64Content = file.buffer.toString('base64');
-          
+            const base64Content = file.buffer.toString('base64');
+            
           await File.create({
-            filename: file.originalname,
-            originalname: file.originalname,
-            mimetype: file.mimetype,
-            size: file.size,
-            content: base64Content,
+              filename: file.originalname,
+              originalname: file.originalname,
+              mimetype: file.mimetype,
+              size: file.size,
+              content: base64Content,
             pasteId: newPaste.id
           });
         }
@@ -541,15 +541,15 @@ router.get('/recent', async (req, res) => {
         `);
         
         const formattedPastes = simplePastes.map(paste => ({
-          id: paste.id,
+        id: paste.id,
           title: paste.title || 'Untitled Paste',
           content: paste.content 
             ? (paste.content.length > 200 ? `${paste.content.substring(0, 200)}...` : paste.content)
             : '',
-          createdAt: paste.createdAt,
-          expiresAt: paste.expiresAt,
+        createdAt: paste.createdAt,
+        expiresAt: paste.expiresAt,
           views: paste.views || 0,
-          customUrl: paste.customUrl
+        customUrl: paste.customUrl
         }));
         
         return res.status(200).json(formattedPastes);
@@ -653,8 +653,8 @@ router.get('/:id', async (req, res) => {
           return res.status(403).json({
             message: 'Invalid password',
             pasteInfo: {
-              id: paste.id,
-              title: paste.title,
+          id: paste.id,
+          title: paste.title,
               isPasswordProtected: true,
               customUrl: paste.customUrl
             }
@@ -719,13 +719,13 @@ router.get('/:id', async (req, res) => {
         id: paste.id,
         title: paste.title || 'Untitled Paste',
         content: paste.content || '',
-        expiresAt: paste.expiresAt,
-        isPrivate: paste.isPrivate,
-        isEditable: paste.isEditable,
-        customUrl: paste.customUrl,
-        createdAt: paste.createdAt,
+          expiresAt: paste.expiresAt,
+          isPrivate: paste.isPrivate,
+          isEditable: paste.isEditable,
+          customUrl: paste.customUrl,
+          createdAt: paste.createdAt,
         views: paste.views + 1, // Increment for the response even if DB update failed
-        user: null,
+          user: null,
         isJupyterStyle: isJupyterStyle, // Use the detected value
         blocks: blocks,
         files: files,
@@ -876,277 +876,200 @@ router.post('/:id/verify-password', async (req, res) => {
 
 // PUT /api/pastes/:id - Update an existing paste
 router.put('/:id', async (req, res) => {
+  console.log('--- UPDATE ROUTE CALLED ---');
   try {
     const { id } = req.params;
     const { title, content, blocks } = req.body;
-    
-    console.log('Update request for paste ID:', id);
-    console.log('Request body keys:', Object.keys(req.body));
-    console.log('Blocks provided:', blocks ? (typeof blocks === 'string' ? 'as string' : 'as object') : 'none');
-    
+    console.log('Request body:', req.body);
+    console.log('typeof blocks:', typeof blocks, 'blocks:', blocks);
     if (!req.db || !req.db.success) {
+      console.error('No DB connection');
       return res.status(503).json({ message: 'Database connection error' });
     }
-    
     const { sequelize } = req.db;
-    
-    // Find the paste using prepared statements to prevent SQL injection
-    let pasteQuery = `SELECT * FROM pastes WHERE `;
-    let queryParams = [];
-    
-    // Check if the ID is a valid UUID
-    const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-    
-    if (isValidUUID) {
-      pasteQuery += `id = ?`;
-      queryParams.push(id);
-    } else {
-      pasteQuery += `"customUrl" = ?`;
-      queryParams.push(id);
-    }
-    
-    const [pasteResults] = await sequelize.query(pasteQuery, { 
-      replacements: queryParams 
+    const pasteQuery = `SELECT * FROM pastes WHERE id = $1 OR "customUrl" = $1`;
+    const [pasteResults] = await sequelize.query(pasteQuery, {
+      bind: [id],
+      type: sequelize.QueryTypes.SELECT,
+      raw: true
     });
-    
-    if (pasteResults.length === 0) {
+    if (!pasteResults || pasteResults.length === 0) {
+      console.error('Paste not found');
       return res.status(404).json({ message: 'Paste not found' });
     }
-    
     const paste = pasteResults[0];
-    console.log('Found paste with ID:', paste.id);
-    
-    // Check if editable
     if (!paste.isEditable) {
+      console.error('Paste not editable');
       return res.status(403).json({ message: 'This paste is not editable' });
     }
-    
-    // Check if expired
     if (paste.expiresAt && new Date(paste.expiresAt) < new Date()) {
+      console.error('Paste expired');
       return res.status(404).json({ message: 'Paste has expired' });
     }
-    
-    // Start a transaction for atomic updates
     const transaction = await sequelize.transaction();
-    
     try {
-      // Update title if provided
       if (title !== undefined) {
         await sequelize.query(
-          `UPDATE pastes SET title = ? WHERE id = ?`,
+          `UPDATE pastes SET title = $1 WHERE id = $2`,
           {
-            replacements: [title, paste.id],
+            bind: [title, paste.id],
+            type: sequelize.QueryTypes.UPDATE,
             transaction
           }
         );
         console.log(`Updated title for paste ${paste.id}`);
       }
-      
-      // Check if blocks table exists
-      const [blocksTableResult] = await sequelize.query(
-        "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'blocks') AS exists"
-      );
-      
-      const hasBlocksTable = blocksTableResult[0].exists;
-      console.log('Blocks table exists:', hasBlocksTable);
-      
-      if (!hasBlocksTable) {
-        await transaction.rollback();
-        return res.status(500).json({ 
-          message: 'Server configuration error: blocks table does not exist' 
+      let isJupyterUpdate = false;
+      let parsedBlocks = [];
+      try {
+        if (typeof blocks === 'string') {
+          parsedBlocks = JSON.parse(blocks);
+          isJupyterUpdate = Array.isArray(parsedBlocks) && parsedBlocks.length > 0;
+        } else if (Array.isArray(blocks)) {
+          parsedBlocks = blocks;
+          isJupyterUpdate = parsedBlocks.length > 0;
+        }
+      } catch (e) {
+        isJupyterUpdate = false;
+      }
+      console.log('isJupyterUpdate:', isJupyterUpdate, 'parsedBlocks:', parsedBlocks);
+      if (isJupyterUpdate) {
+        console.log('Processing Jupyter-style paste update');
+        const deleteQuery = `DELETE FROM blocks WHERE "pasteId" = $1`;
+        await sequelize.query(deleteQuery, {
+          bind: [paste.id],
+          type: sequelize.QueryTypes.DELETE,
+          transaction
+        });
+        let insertedCount = 0;
+        for (let i = 0; i < parsedBlocks.length; i++) {
+          const block = parsedBlocks[i];
+          if (!block) continue;
+          const blockId = (block.id && typeof block.id === 'string' && 
+                     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(block.id))
+            ? block.id 
+            : uuidv4();
+          const blockContent = block.content || '';
+          const blockLanguage = block.language || 'text';
+          const blockOrder = i;
+          if (blockContent.trim() === '') continue;
+          console.log('Inserting block:', {
+            pasteId: paste.id,
+            blockId,
+            blockContent,
+            blockLanguage,
+            blockOrder
+          });
+          try {
+            await sequelize.query(`
+              INSERT INTO blocks (id, content, language, "order", "pasteId", "createdAt", "updatedAt") 
+              VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+            `, {
+              bind: [blockId, blockContent, blockLanguage, blockOrder, paste.id],
+              type: sequelize.QueryTypes.INSERT,
+              transaction
+            });
+            insertedCount++;
+          } catch (blockInsertError) {
+            console.error('Block insert error:', blockInsertError);
+          }
+        }
+        console.log(`Inserted ${insertedCount} blocks for paste ${paste.id}`);
+        if (insertedCount === 0) {
+          await transaction.rollback();
+          console.error('No blocks inserted for Jupyter-style paste update!');
+          return res.status(500).json({ message: 'No blocks inserted for Jupyter-style paste update.' });
+        }
+        const jupyterUpdateQuery = `
+          UPDATE pastes 
+          SET "isJupyterStyle" = true, content = '', "updatedAt" = NOW() 
+          WHERE id = $1
+        `;
+        await sequelize.query(jupyterUpdateQuery, {
+          bind: [paste.id],
+          type: sequelize.QueryTypes.UPDATE,
+          transaction
+        });
+      } else if (content !== undefined) {
+        console.log(`Updating regular paste content for ${paste.id}, length: ${content.length}`);
+        const updateContentQuery = `
+          UPDATE pastes 
+          SET content = $1, "updatedAt" = NOW() 
+          WHERE id = $2
+        `;
+        await sequelize.query(updateContentQuery, {
+          bind: [content, paste.id],
+          type: sequelize.QueryTypes.UPDATE,
+          transaction
         });
       }
-      
-      // Check if this is a Jupyter-style paste by looking for blocks
-      const [blockCountResult] = await sequelize.query(
-        `SELECT COUNT(*) AS count FROM blocks WHERE "pasteId" = ?`,
-        { 
-          replacements: [paste.id],
-          type: sequelize.QueryTypes.SELECT
-        }
-      );
-      
-      const existingBlockCount = parseInt(blockCountResult.count, 10);
-      console.log(`Found ${existingBlockCount} existing blocks for paste ${paste.id}`);
-      
-      const isJupyterStyle = existingBlockCount > 0 || blocks !== undefined;
-      
-      if (isJupyterStyle) {
-        if (blocks) {
-          try {
-            // Parse blocks if provided as string
-            let parsedBlocks;
-            if (typeof blocks === 'string') {
-              try {
-                parsedBlocks = JSON.parse(blocks);
-                console.log(`Successfully parsed blocks string into ${parsedBlocks.length} blocks`);
-              } catch (parseError) {
-                console.error('Failed to parse blocks JSON:', parseError);
-                throw new Error(`Invalid blocks JSON: ${parseError.message}`);
-              }
-            } else if (Array.isArray(blocks)) {
-              parsedBlocks = blocks;
-              console.log(`Received ${parsedBlocks.length} blocks as array`);
-            } else {
-              throw new Error(`Invalid blocks format: expected string or array, got ${typeof blocks}`);
-            }
-            
-            if (!Array.isArray(parsedBlocks)) {
-              throw new Error('Blocks must be an array');
-            }
-            
-            // Log details about the blocks
-            console.log('Blocks to update:', 
-              parsedBlocks.map((b, i) => ({
-                index: i,
-                id: b.id || 'new',
-                contentLength: b.content ? b.content.length : 0,
-                language: b.language || 'text'
-              }))
-            );
-            
-            // First delete all existing blocks for this paste
-            const deleteResult = await sequelize.query(
-              `DELETE FROM blocks WHERE "pasteId" = ?`,
-              {
-                replacements: [paste.id],
-                transaction
-              }
-            );
-            
-            console.log(`Deleted ${deleteResult[1].rowCount} existing blocks for paste ${paste.id}`);
-            
-            // Now insert all the new/updated blocks
-            for (let i = 0; i < parsedBlocks.length; i++) {
-              const block = parsedBlocks[i];
-              
-              // Validate block data
-              if (!block) {
-                console.error(`Block at index ${i} is null or undefined`);
-                continue; // Skip invalid blocks
-              }
-              
-              // Generate a new UUID if not provided or invalid
-              const blockId = (block.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(block.id))
-                ? block.id
-                : uuidv4();
-                
-              // Sanitize block content and language
-              const blockContent = block.content || '';
-              const blockLanguage = block.language || 'text';
-              
-              try {
-                const insertResult = await sequelize.query(
-                  `INSERT INTO blocks (id, content, language, "order", "pasteId", "createdAt", "updatedAt") 
-                   VALUES (?, ?, ?, ?, ?, NOW(), NOW())`,
-                  {
-                    replacements: [
-                      blockId,
-                      blockContent,
-                      blockLanguage,
-                      i, // Order by position in array
-                      paste.id
-                    ],
-                    transaction
-                  }
-                );
-                
-                console.log(`Inserted block ${i+1}/${parsedBlocks.length} with ID ${blockId} for paste ${paste.id}`);
-              } catch (insertError) {
-                console.error(`Error inserting block ${i}:`, insertError);
-                throw new Error(`Failed to insert block ${i}: ${insertError.message}`);
-              }
-            }
-          } catch (blocksError) {
-            console.error('Error processing blocks:', blocksError);
-            throw blocksError;
-          }
-        } else {
-          console.log('No blocks provided for Jupyter-style paste update');
-        }
-      } else if (content !== undefined) {
-        // Standard paste, update content
-        await sequelize.query(
-          `UPDATE pastes SET content = ? WHERE id = ?`,
-          {
-            replacements: [content, paste.id],
-            transaction
-          }
-        );
-        console.log(`Updated content for standard paste ${paste.id}`);
-      } else {
-        console.log('No content provided for standard paste update');
-      }
-      
-      // Update timestamp
-      await sequelize.query(
-        `UPDATE pastes SET "updatedAt" = NOW() WHERE id = ?`,
-        {
-          replacements: [paste.id],
-          transaction
-        }
-      );
-      
-      // Commit all changes
       await transaction.commit();
-      console.log(`Successfully committed all updates for paste ${paste.id}`);
-      
-      // Fetch the updated paste to return in response
-      const [updatedPasteResults] = await sequelize.query(
-        `SELECT * FROM pastes WHERE id = ?`,
-        { replacements: [paste.id] }
+      console.log(`Successfully committed updates for paste ${paste.id}`);
+      const [allBlocks] = await sequelize.query(
+        `SELECT id, content, language, "order" FROM blocks WHERE "pasteId" = $1 ORDER BY "order" ASC`,
+        { bind: [paste.id], type: sequelize.QueryTypes.SELECT }
       );
-      
-      if (updatedPasteResults.length === 0) {
-        return res.status(404).json({ message: 'Failed to retrieve updated paste' });
-      }
-      
-      const updatedPaste = updatedPasteResults[0];
-      
-      // Fetch updated blocks if this is a Jupyter-style paste
+      console.log('All blocks for paste after update:', allBlocks);
+      const [updatedPaste] = await sequelize.query(
+        `SELECT * FROM pastes WHERE id = $1`,
+        {
+          bind: [paste.id],
+          type: sequelize.QueryTypes.SELECT,
+          plain: true
+        }
+      );
+      const blocksQuery = `
+        SELECT id, content, language, "order" 
+        FROM blocks 
+        WHERE "pasteId" = $1 
+        ORDER BY "order" ASC
+      `;
+      const [blocksResult] = await sequelize.query(blocksQuery, {
+        bind: [paste.id],
+        type: sequelize.QueryTypes.SELECT
+      });
+      let isJupyterStyle = false;
       let updatedBlocks = [];
-      const [blockResults] = await sequelize.query(
-        `SELECT id, content, language, "order" FROM blocks WHERE "pasteId" = ? ORDER BY "order" ASC`,
-        { replacements: [paste.id] }
-      );
-      
-      if (blockResults.length > 0) {
-        updatedBlocks = blockResults.map(b => ({
-          id: b.id,
-          content: b.content || '',
-          language: b.language || 'text',
-          order: b.order
-        }));
-        console.log(`Retrieved ${updatedBlocks.length} blocks for updated paste ${paste.id}`);
+      if (blocksResult && blocksResult.length > 0) {
+        console.log(`Found ${blocksResult.length} blocks for paste ${paste.id}`);
+        updatedBlocks = blocksResult;
+        isJupyterStyle = true;
+      } else {
+        console.log(`No blocks found for paste ${paste.id}`);
+        updatedBlocks = [];
       }
-      
-      // Return the updated paste with all relevant data
       return res.status(200).json({
         message: 'Paste updated successfully',
         paste: {
           id: updatedPaste.id,
           title: updatedPaste.title || 'Untitled Paste',
-          content: updatedPaste.content || '',
+          content: isJupyterStyle ? '' : (updatedPaste.content || ''),
           expiresAt: updatedPaste.expiresAt,
-          isPrivate: updatedPaste.isPrivate,
-          isEditable: updatedPaste.isEditable,
+          isPrivate: updatedPaste.isPrivate === true,
+          isEditable: updatedPaste.isEditable === true,
           customUrl: updatedPaste.customUrl,
           createdAt: updatedPaste.createdAt,
           updatedAt: updatedPaste.updatedAt,
           views: updatedPaste.views || 0,
-          isJupyterStyle: updatedBlocks.length > 0,
+          isJupyterStyle: updatedPaste.isJupyterStyle === true || isJupyterStyle,
           blocks: updatedBlocks,
-          canEdit: updatedPaste.isEditable
+          canEdit: updatedPaste.isEditable === true
         }
       });
-    } catch (transactionError) {
-      // Rollback on any error
-      await transaction.rollback();
-      console.error(`Transaction rolled back for paste ${paste.id}:`, transactionError);
-      throw transactionError;
+    } catch (error) {
+      try {
+        if (transaction) await transaction.rollback();
+        console.error('Transaction rolled back due to error:', error);
+      } catch (rollbackError) {
+        console.error('Error rolling back transaction:', rollbackError);
+      }
+      return res.status(500).json({
+        message: 'Server error updating paste',
+        error: error.message
+      });
     }
   } catch (error) {
-    console.error('Update paste error:', error);
+    console.error('Unhandled error in update paste route:', error);
     return res.status(500).json({
       message: 'Server error updating paste',
       error: error.message,

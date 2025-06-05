@@ -581,12 +581,27 @@ export function PastePage() {
       // Deep clone blocks for editing to avoid reference issues
       const blocks = paste.blocks.map(block => ({
         ...block,
+        id: block.id, // Explicitly preserve block ID for proper updating
         content: block.content || '',
-        language: block.language || 'text'
+        language: block.language || 'text',
+        order: block.order
       }));
       
-      console.log('Initializing edit mode with blocks:', blocks);
+      console.log('Initializing edit mode with blocks:', blocks.map(b => ({
+        id: b.id.substring(0, 8) + '...',
+        language: b.language,
+        contentLength: b.content.length,
+        order: b.order
+      })));
+      
       setEditableBlocks(blocks);
+      
+      // Also initialize the block languages state
+      const initialLanguages: {[key: string]: string} = {};
+      blocks.forEach(block => {
+        initialLanguages[block.id] = block.language;
+      });
+      setBlockLanguages(initialLanguages);
     } else {
       setEditableContent(paste.content || '');
     }
@@ -604,122 +619,68 @@ export function PastePage() {
   
   const handleSaveEdit = async () => {
     if (!paste) return;
-    
     setEditLoading(true);
     setEditError(null);
-    
     try {
-      // Prepare the data for the API
-      const updatedData: any = {
-        title: editableTitle
-      };
-      
+      const updatedData: any = { title: editableTitle };
       if (paste.isJupyterStyle) {
-        console.log('Preparing blocks for update:', editableBlocks.length, 'blocks');
-        
-        // Validate all blocks have required data
         if (!editableBlocks || editableBlocks.length === 0) {
           throw new Error("No blocks found. Jupyter notebook requires at least one block.");
         }
-        
-        // Make sure each block has required fields and preserve IDs
-        const formattedBlocks = editableBlocks.map((block, index) => ({
-          id: block.id || crypto.randomUUID(), // Ensure each block has an ID
-          content: block.content || '',
-          language: block.language || 'text',
-          order: index
-        }));
-        
-        console.log('Formatted blocks with preserved IDs:', 
-          formattedBlocks.map(b => ({ 
-            id: b.id.substring(0, 8) + '...', 
-            language: b.language, 
-            contentLength: b.content.length 
-          }))
-        );
-        
-        // Important: send the blocks as a string to ensure proper parsing on the server
-        updatedData.blocks = JSON.stringify(formattedBlocks);
+        const formattedBlocks = editableBlocks.map((block, index) => {
+          const blockId = (block.id && typeof block.id === 'string' && 
+                     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(block.id))
+            ? block.id
+            : crypto.randomUUID();
+          return {
+            id: blockId,
+            content: block.content || '',
+            language: block.language || 'text',
+            order: index
+          };
+        });
+        updatedData.blocks = formattedBlocks;
+        console.log('Sending blocks to server:', formattedBlocks);
       } else {
-        // Standard paste
         if (!editableContent || editableContent.trim() === '') {
           throw new Error("Content cannot be empty");
         }
         updatedData.content = editableContent;
       }
-      
-      console.log('Sending update to server for paste ID:', id);
-      
-      // Use API to update the paste
-      const response = await fetch(`${getApiBaseUrl()}/pastes/${id}`, {
+      const requestOptions = {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedData),
-        credentials: 'include'
-      });
-      
-      // Handle non-2xx responses
-      if (!response.ok) {
-        const contentType = response.headers.get('content-type');
-        
-        if (contentType && contentType.includes('application/json')) {
-          const errorData = await response.json();
-          console.error('Server error response:', errorData);
-          throw new Error(errorData.message || `Failed to update paste: ${response.status}`);
-        } else {
-          const errorText = await response.text();
-          console.error(`Server error (${response.status}):`, errorText);
-          throw new Error(`Server error (${response.status}): ${errorText.substring(0, 100)}`);
+        credentials: 'include' as RequestCredentials
+      };
+      console.log('Sending update payload:', updatedData);
+      try {
+        const response = await fetch(`${getApiBaseUrl()}/pastes/${id}`, requestOptions);
+        if (!response.ok) {
+          let errorMsg = `Failed to update paste: ${response.status}`;
+          try {
+            const errorData = await response.json();
+            errorMsg = errorData.message || errorMsg;
+          } catch {}
+          setEditError(errorMsg);
+          setEditLoading(false);
+          return;
         }
-      }
-      
-      // Parse the successful response
-      const data = await response.json();
-      console.log('Update response success:', data.message);
-      
-      // Update the paste with the response data
-      if (data.paste) {
-        console.log('Received updated paste data:', {
-          id: data.paste.id,
-          title: data.paste.title,
-          blockCount: data.paste.blocks?.length || 0,
-          isJupyterStyle: data.paste.isJupyterStyle
-        });
-        
-        setPaste(data.paste);
-        
-        // Set the blocks if they exist
-        if (data.paste.blocks && data.paste.blocks.length > 0) {
-          console.log('Setting blocks from response:', 
-            data.paste.blocks.map((b: any) => ({ 
-              id: b.id.substring(0, 8) + '...', 
-              language: b.language 
-            }))
-          );
-          setEditableBlocks(data.paste.blocks);
+        const data = await response.json();
+        console.log('Server response:', data);
+        if (data.paste) {
+          setPaste(data.paste);
+          setEditableBlocks([]);
+          setEditableContent('');
+          setIsEditMode(false);
+          setNotificationButtonType('success');
+          setNotificationMessage('Paste updated successfully');
+          setShowNotification(true);
         }
-      } else {
-        console.warn('Response contained no paste data');
+      } catch (fetchError) {
+        setEditError(fetchError instanceof Error ? fetchError.message : String(fetchError));
       }
-      
-      // Reset edit state
-      setIsEditMode(false);
-      
-      // Show success notification
-      setNotificationButtonType('success');
-      setNotificationMessage('Paste updated successfully');
-      setShowNotification(true);
-      
-      // Reload the page after a short delay to ensure the state is updated
-      console.log('Scheduling page reload...');
-      setTimeout(() => {
-        console.log('Reloading page to show updated content');
-        window.location.reload();
-      }, 1000);
     } catch (err) {
-      console.error('Failed to update paste:', err);
       setEditError(err instanceof Error ? err.message : 'Failed to update paste. Please try again.');
     } finally {
       setEditLoading(false);
@@ -764,11 +725,20 @@ export function PastePage() {
   };
   
   const updateBlockLanguage = (id: string, newLanguage: string) => {
+    // Update the language in editableBlocks
     setEditableBlocks(prev => 
       prev.map(block => 
         block.id === id ? { ...block, language: newLanguage } : block
       )
     );
+    
+    // Also update in blockLanguages for consistent state
+    setBlockLanguages(prev => ({
+      ...prev,
+      [id]: newLanguage
+    }));
+    
+    console.log(`Updated block ${id.substring(0, 8)}... language to ${newLanguage}`);
   };
 
   // Structure the paste content display based on paste type

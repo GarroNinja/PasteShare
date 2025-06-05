@@ -210,14 +210,14 @@ export const createPaste = async (req: Request, res: Response) => {
     
     // Format paste response data
     const responseData = {
-      id: paste.id,
-      title: paste.title,
+        id: paste.id,
+        title: paste.title,
       content: paste.content === null ? '' : String(paste.content),
-      expiresAt: paste.expiresAt,
-      isPrivate: paste.isPrivate,
-      isEditable: paste.isEditable,
-      customUrl: paste.customUrl,
-      createdAt: paste.createdAt,
+        expiresAt: paste.expiresAt,
+        isPrivate: paste.isPrivate,
+        isEditable: paste.isEditable,
+        customUrl: paste.customUrl,
+        createdAt: paste.createdAt,
       isPasswordProtected,
       isJupyterStyle: hasJupyterBlocks,
       blocks: blockRecords.map(block => ({
@@ -226,7 +226,7 @@ export const createPaste = async (req: Request, res: Response) => {
         language: block.language,
         order: block.order
       })),
-      files: uploadedFiles,
+        files: uploadedFiles,
     };
     
     console.log('Paste creation successful, returning response');
@@ -348,7 +348,7 @@ export const getPasteById = async (req: Request, res: Response) => {
         content: block.content,
         language: block.language,
         order: block.order
-      }));
+    }));
     
     // Check if current user can edit this paste
     const canEdit = paste.canEdit(null);
@@ -504,13 +504,13 @@ export const getRecentPastes = async (req: Request, res: Response) => {
         }
         
         return {
-          id: paste.id,
-          title: paste.title,
+        id: paste.id,
+        title: paste.title,
           content: formattedContent,
-          createdAt: paste.createdAt,
-          expiresAt: paste.expiresAt,
-          views: paste.views,
-          customUrl: paste.customUrl,
+        createdAt: paste.createdAt,
+        expiresAt: paste.expiresAt,
+        views: paste.views,
+        customUrl: paste.customUrl,
           isJupyterStyle: hasBlocks,
         };
       }),
