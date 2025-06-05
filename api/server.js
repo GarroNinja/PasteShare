@@ -530,6 +530,26 @@ app.get('/api/test-connection', async (req, res) => {
   }
 });
 
+// Add route to serve the migration HTML page
+app.get('/migrate', (req, res) => {
+  const fs = require('fs');
+  const path = require('path');
+  
+  try {
+    const htmlPath = path.join(__dirname, 'migrate.html');
+    if (fs.existsSync(htmlPath)) {
+      const htmlContent = fs.readFileSync(htmlPath, 'utf8');
+      res.setHeader('Content-Type', 'text/html');
+      return res.send(htmlContent);
+    } else {
+      return res.status(404).send('Migration page not found');
+    }
+  } catch (error) {
+    console.error('Error serving migration page:', error);
+    return res.status(500).send('Error serving migration page');
+  }
+});
+
 // Handle route not found
 app.use((req, res) => {
   res.status(404).json({ 

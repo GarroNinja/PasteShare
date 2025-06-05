@@ -256,27 +256,39 @@ router.post('/', upload.array('files', 3), async (req, res) => {
       return res.status(400).json({ message: 'Content is required for standard pastes' });
     }
     
-    // Parse blocks if this is a Jupyter-style paste
+    // Parse blocks for Jupyter-style pastes
     let parsedBlocks = [];
+    
     if (isJupyterStylePaste) {
       try {
-        if (!blocks) {
-          return res.status(400).json({ message: 'Blocks are required for Jupyter-style pastes' });
-        }
-        
         if (typeof blocks === 'string') {
-          parsedBlocks = JSON.parse(blocks);
+          try {
+            parsedBlocks = JSON.parse(blocks);
+          } catch (jsonError) {
+            console.error('Error parsing blocks JSON:', jsonError);
+            return res.status(400).json({ 
+              message: 'Invalid blocks format - could not parse JSON',
+              error: jsonError.message
+            });
+          }
         } else if (Array.isArray(blocks)) {
           parsedBlocks = blocks;
         } else {
-          throw new Error(`Invalid blocks format: ${typeof blocks}`);
+          parsedBlocks = [];
         }
         
-        if (!Array.isArray(parsedBlocks)) {
-          return res.status(400).json({ message: 'Blocks must be an array' });
+        // Validate blocks
+        if (!Array.isArray(parsedBlocks) || parsedBlocks.length === 0) {
+          return res.status(400).json({
+            message: 'Jupyter-style paste requires at least one valid block'
+          });
         }
-      } catch (error) {
-        return res.status(400).json({ message: 'Invalid blocks data: ' + error.message });
+      } catch (blockParseError) {
+        console.error('Error processing blocks:', blockParseError);
+        return res.status(400).json({
+          message: 'Error processing blocks',
+          error: blockParseError.message
+        });
       }
     }
     
@@ -320,19 +332,55 @@ router.post('/', upload.array('files', 3), async (req, res) => {
       
       // Process blocks for Jupyter-style paste
       if (isJupyterStylePaste && parsedBlocks.length > 0) {
-        const blockPromises = parsedBlocks
-          .filter(block => block.content && block.content.trim())
-          .map((block, index) => {
+        const validBlocks = parsedBlocks.filter(block => 
+          block && 
+          typeof block === 'object' && 
+          block.content && 
+          block.content.trim() !== ''
+        );
+        
+        if (validBlocks.length === 0) {
+          await transaction.rollback();
+          return res.status(400).json({ 
+            message: 'No valid blocks found in the request. Each block must have non-empty content.'
+          });
+        }
+        
+        try {
+          const blockPromises = validBlocks.map((block, index) => {
+            // Generate or validate block ID
+            let blockId;
+            try {
+              blockId = (block.id && typeof block.id === 'string' && 
+                      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(block.id))
+                ? block.id 
+                : uuidv4();
+            } catch (idError) {
+              console.error('Error processing block ID, generating new one:', idError);
+              blockId = uuidv4();
+            }
+            
+            // Ensure content is a string
+            const content = String(block.content || '');
+            
             return Block.create({
-              id: uuidv4(),
-              content: block.content,
+              id: blockId,
+              content: content,
               language: block.language || 'text',
               order: index,
               pasteId: paste.id
             }, { transaction });
           });
-        
-        await Promise.all(blockPromises);
+          
+          await Promise.all(blockPromises);
+        } catch (blockError) {
+          console.error('Error creating blocks:', blockError);
+          await transaction.rollback();
+          return res.status(500).json({ 
+            message: 'Error creating blocks for Jupyter-style paste',
+            error: blockError.message
+          });
+        }
       }
       
       // Handle file uploads
@@ -474,16 +522,18 @@ router.get('/:id', async (req, res) => {
       }
       
       // Verify password
-      const isPasswordValid = await bcrypt.compare(password, paste.password);
-      if (!isPasswordValid) {
-        return res.status(403).json({
-          message: 'Invalid password',
-          pasteInfo: {
-            id: paste.id,
-            title: paste.title,
-            isPasswordProtected: true,
-            customUrl: paste.customUrl
-          }
+      try {
+        const isPasswordValid = await bcrypt.compare(password, paste.password);
+        if (!isPasswordValid) {
+          return res.status(403).json({ message: 'Invalid password' });
+        }
+        
+        return res.status(200).json({ success: true });
+      } catch (bcryptError) {
+        console.error('bcrypt compare error:', bcryptError);
+        return res.status(500).json({
+          message: 'Server error verifying password',
+          error: 'Error comparing passwords'
         });
       }
     }
@@ -582,12 +632,20 @@ router.post('/:id/verify-password', async (req, res) => {
     }
     
     // Verify password
-    const isPasswordValid = await bcrypt.compare(password, paste.password);
-    if (!isPasswordValid) {
-      return res.status(403).json({ message: 'Invalid password' });
+    try {
+      const isPasswordValid = await bcrypt.compare(password, paste.password);
+      if (!isPasswordValid) {
+        return res.status(403).json({ message: 'Invalid password' });
+      }
+      
+      return res.status(200).json({ success: true });
+    } catch (bcryptError) {
+      console.error('bcrypt compare error:', bcryptError);
+      return res.status(500).json({
+        message: 'Server error verifying password',
+        error: 'Error comparing passwords'
+      });
     }
-    
-    return res.status(200).json({ success: true });
   } catch (error) {
     console.error('Verify password error:', error);
     return res.status(500).json({
@@ -707,17 +765,26 @@ router.put('/:id', async (req, res) => {
     
     try {
       if (typeof blocks === 'string') {
-        parsedBlocks = JSON.parse(blocks);
-        isJupyterUpdate = Array.isArray(parsedBlocks) && parsedBlocks.length > 0;
+        try {
+          parsedBlocks = JSON.parse(blocks);
+          isJupyterUpdate = Array.isArray(parsedBlocks) && parsedBlocks.length > 0;
+        } catch (jsonError) {
+          console.error('Error parsing blocks JSON:', jsonError);
+          return res.status(400).json({ 
+            message: 'Invalid blocks format - could not parse JSON',
+            error: jsonError.message
+          });
+        }
       } else if (Array.isArray(blocks)) {
         parsedBlocks = blocks;
         isJupyterUpdate = parsedBlocks.length > 0;
       }
     } catch (e) {
+      console.error('Error processing blocks:', e);
       isJupyterUpdate = false;
     }
     
-    console.log('isJupyterUpdate:', isJupyterUpdate, 'parsedBlocks:', parsedBlocks);
+    console.log('isJupyterUpdate:', isJupyterUpdate, 'parsedBlocks length:', parsedBlocks?.length);
     
     // Start transaction
     const transaction = await sequelize.transaction();
@@ -758,22 +825,58 @@ router.put('/:id', async (req, res) => {
         
         // Create new blocks
         let insertedBlocks = [];
-        for (let i = 0; i < validBlocks.length; i++) {
-          const block = validBlocks[i];
-          const blockId = (block.id && typeof block.id === 'string' && 
-                    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(block.id))
-            ? block.id 
-            : uuidv4();
+        try {
+          for (let i = 0; i < validBlocks.length; i++) {
+            const block = validBlocks[i];
             
-          const newBlock = await Block.create({
-            id: blockId,
-            content: block.content,
-            language: block.language || 'text',
-            order: i,
-            pasteId: paste.id
-          }, { transaction });
-          
-          insertedBlocks.push(newBlock);
+            // Validate block structure
+            if (!block || typeof block !== 'object') {
+              console.error(`Invalid block at index ${i}:`, block);
+              continue;
+            }
+            
+            // Generate or validate block ID
+            let blockId;
+            try {
+              blockId = (block.id && typeof block.id === 'string' && 
+                      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(block.id))
+                ? block.id 
+                : uuidv4();
+            } catch (idError) {
+              console.error('Error processing block ID, generating new one:', idError);
+              blockId = uuidv4();
+            }
+            
+            // Ensure content is a string
+            const content = String(block.content || '');
+            if (!content.trim()) {
+              console.warn(`Skipping empty block at index ${i}`);
+              continue;
+            }
+            
+            // Create the block with error handling
+            try {
+              const newBlock = await Block.create({
+                id: blockId,
+                content: content,
+                language: block.language || 'text',
+                order: i,
+                pasteId: paste.id
+              }, { transaction });
+              
+              insertedBlocks.push(newBlock);
+            } catch (blockCreateError) {
+              console.error(`Error creating block at index ${i}:`, blockCreateError);
+              // Continue with other blocks instead of failing completely
+            }
+          }
+        } catch (blocksError) {
+          console.error('Error processing blocks:', blocksError);
+          await transaction.rollback();
+          return res.status(500).json({ 
+            message: 'Error processing blocks for Jupyter-style paste update',
+            error: blocksError.message
+          });
         }
         
         console.log(`Inserted ${insertedBlocks.length} blocks for paste ${paste.id}`);
