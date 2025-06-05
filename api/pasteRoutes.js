@@ -37,10 +37,45 @@ router.use(async (req, res, next) => {
   req.db = createConnection();
   
   if (!req.db.success) {
+    console.error('Database connection failed:', req.db.error);
     return res.status(503).json({
       error: 'Database unavailable',
-      message: 'Could not establish database connection'
+      message: 'Could not establish database connection',
+      details: req.db.error
     });
+  }
+  
+  // Check if we can query the database
+  try {
+    // Attempt a simple query to verify connection is working
+    const testResult = await req.db.testConnection();
+    
+    if (!testResult.connected) {
+      console.error('Database connection test failed:', testResult);
+      return res.status(503).json({
+        error: 'Database connectivity issue',
+        message: 'Database connection test failed',
+        details: testResult
+      });
+    }
+    
+    // Verify required tables exist
+    if (!testResult.hasPastesTable || !testResult.hasBlocksTable) {
+      console.error('Missing required database tables:', testResult);
+      return res.status(503).json({
+        error: 'Database schema issue',
+        message: 'Required database tables are missing',
+        details: {
+          hasPastesTable: testResult.hasPastesTable,
+          hasFilesTable: testResult.hasFilesTable,
+          hasBlocksTable: testResult.hasBlocksTable
+        }
+      });
+    }
+  } catch (testError) {
+    console.error('Database connection test error:', testError);
+    // Continue anyway as the initial connection was successful
+    console.log('Proceeding despite test error - will attempt to use database');
   }
   
   next();
@@ -1000,7 +1035,29 @@ router.put('/:id', async (req, res) => {
         
         if (isJupyterStyle && hasBlocksTable) {
           if (blocks) {
-            const parsedBlocks = typeof blocks === 'string' ? JSON.parse(blocks) : blocks;
+            let parsedBlocks;
+            try {
+              // Improve blocks parsing to handle different formats
+              if (typeof blocks === 'string') {
+                parsedBlocks = JSON.parse(blocks);
+              } else if (Array.isArray(blocks)) {
+                parsedBlocks = blocks;
+              } else if (typeof blocks === 'object') {
+                parsedBlocks = [blocks];
+              } else {
+                throw new Error(`Unsupported blocks format: ${typeof blocks}`);
+              }
+              
+              // Validate blocks data
+              if (!Array.isArray(parsedBlocks)) {
+                throw new Error('Blocks must be an array after parsing');
+              }
+              
+              console.log(`Processing ${parsedBlocks.length} blocks for update`);
+            } catch (parseError) {
+              console.error('Error parsing blocks:', parseError);
+              throw new Error(`Invalid blocks data format: ${parseError.message}`);
+            }
             
             // Delete existing blocks
             await sequelize.query(
@@ -1020,7 +1077,7 @@ router.put('/:id', async (req, res) => {
                 {
                   replacements: [
                     uuidv4(),
-                    block.content,
+                    block.content || '',
                     block.language || 'text',
                     i,
                     paste.id

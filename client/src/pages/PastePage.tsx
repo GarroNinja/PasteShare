@@ -615,7 +615,7 @@ export function PastePage() {
         // Format blocks properly for the API
         console.log('Preparing blocks for update:', editableBlocks);
         
-        // Map blocks to the expected format
+        // Map blocks to the expected format and ensure all required fields
         const formattedBlocks = editableBlocks.map((block, index) => ({
           content: block.content || '',
           language: block.language || 'text',
@@ -623,7 +623,9 @@ export function PastePage() {
         }));
         
         console.log('Formatted blocks for API:', formattedBlocks);
+        // Stringify the blocks array to ensure it's properly serialized
         updatedData.blocks = JSON.stringify(formattedBlocks);
+        console.log('Stringified blocks:', updatedData.blocks);
       } else {
         updatedData.content = editableContent;
       }

@@ -136,7 +136,7 @@ async function setupDatabase() {
         CREATE TABLE IF NOT EXISTS "pastes" (
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
           title VARCHAR(255) NOT NULL DEFAULT 'Untitled Paste',
-          content TEXT NOT NULL,
+          content TEXT,
           "expiresAt" TIMESTAMP WITH TIME ZONE,
           "isPrivate" BOOLEAN DEFAULT FALSE,
           "isEditable" BOOLEAN DEFAULT FALSE,
@@ -144,6 +144,7 @@ async function setupDatabase() {
           "userId" UUID,
           views INTEGER DEFAULT 0,
           password VARCHAR(255),
+          "isJupyterStyle" BOOLEAN DEFAULT FALSE,
           "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
           "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
         );
@@ -163,6 +164,30 @@ async function setupDatabase() {
         console.log('Password column added successfully.');
       } else {
         console.log('Password column already exists in pastes table.');
+      }
+
+      // Check if the isJupyterStyle column exists
+      const [jupyterStyleColumnExists] = await sequelize.query(
+        "SELECT column_name FROM information_schema.columns WHERE table_name = 'pastes' AND column_name = 'isJupyterStyle'"
+      );
+      
+      if (jupyterStyleColumnExists.length === 0) {
+        console.log('Adding isJupyterStyle column to pastes table...');
+        await sequelize.query('ALTER TABLE "pastes" ADD COLUMN "isJupyterStyle" BOOLEAN DEFAULT FALSE;');
+        console.log('isJupyterStyle column added successfully.');
+      } else {
+        console.log('isJupyterStyle column already exists in pastes table.');
+      }
+
+      // Check if content column is nullable
+      const [contentColumnInfo] = await sequelize.query(
+        "SELECT is_nullable FROM information_schema.columns WHERE table_name = 'pastes' AND column_name = 'content'"
+      );
+      
+      if (contentColumnInfo.length > 0 && contentColumnInfo[0].is_nullable === 'NO') {
+        console.log('Making content column nullable to support Jupyter-style pastes...');
+        await sequelize.query('ALTER TABLE "pastes" ALTER COLUMN "content" DROP NOT NULL;');
+        console.log('Content column modified successfully.');
       }
     }
     
@@ -214,35 +239,6 @@ async function setupDatabase() {
       console.log('Blocks table created successfully.');
     } else {
       console.log('Blocks table already exists.');
-    }
-    
-    // Check if isJupyterStyle column exists in pastes table
-    const [jupyterStyleColumnExists] = await sequelize.query(
-      "SELECT column_name FROM information_schema.columns WHERE table_name = 'pastes' AND column_name = 'isJupyterStyle'"
-    );
-    
-    if (jupyterStyleColumnExists.length === 0) {
-      console.log('Adding isJupyterStyle column to pastes table...');
-      await sequelize.query('ALTER TABLE "pastes" ADD COLUMN "isJupyterStyle" BOOLEAN DEFAULT FALSE;');
-      console.log('isJupyterStyle column added successfully.');
-      
-      // Make content column nullable to support Jupyter-style pastes
-      console.log('Modifying content column to be nullable...');
-      await sequelize.query('ALTER TABLE "pastes" ALTER COLUMN "content" DROP NOT NULL;');
-      console.log('Content column modified successfully.');
-    } else {
-      console.log('isJupyterStyle column already exists in pastes table.');
-      
-      // Check if content column is still NOT NULL
-      const [contentColumnIsNotNull] = await sequelize.query(
-        "SELECT is_nullable FROM information_schema.columns WHERE table_name = 'pastes' AND column_name = 'content'"
-      );
-      
-      if (contentColumnIsNotNull.length > 0 && contentColumnIsNotNull[0].is_nullable === 'NO') {
-        console.log('Making content column nullable to support Jupyter-style pastes...');
-        await sequelize.query('ALTER TABLE "pastes" ALTER COLUMN "content" DROP NOT NULL;');
-        console.log('Content column modified successfully.');
-      }
     }
     
     console.log('Database setup completed successfully.');

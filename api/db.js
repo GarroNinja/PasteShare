@@ -14,15 +14,23 @@ const createConnection = () => {
     // Parse and validate the URL
     const urlObj = new URL(process.env.DATABASE_URL);
     
-    // Always use Supabase's connection pooler on port 6543
+    // Build connection string with correct parameters for Supabase
     let connectionString = process.env.DATABASE_URL;
+    
+    // Add connection pooling for Supabase environments
     if (urlObj.hostname.includes('supabase')) {
       // Force port 6543 for connection pooling
       connectionString = connectionString.replace(/:5432\//g, ':6543/').replace(/:5432$/g, ':6543');
-      console.log('Using Supabase connection pooler');
+      
+      // Add connection parameters if not already present
+      if (!urlObj.searchParams.has('pool')) {
+        const connector = connectionString.includes('?') ? '&' : '?';
+        connectionString += `${connector}pool=true&sslmode=require`;
+      }
+      console.log('Using Supabase connection pooler with enhanced configuration');
     }
 
-    // Initialize a new Sequelize instance
+    // Initialize a new Sequelize instance with optimized settings for serverless
     const sequelize = new Sequelize(connectionString, {
       dialect: 'postgres',
       logging: false,
@@ -229,23 +237,79 @@ const createConnection = () => {
       // Helper to test the connection
       async testConnection() {
         try {
+          const startTime = Date.now();
           const timeout = new Promise((_, reject) => 
             setTimeout(() => reject(new Error('Connection timeout')), 10000)  // Increased timeout
           );
           
+          // First test basic authentication
           await Promise.race([sequelize.authenticate(), timeout]);
+          const authTime = Date.now() - startTime;
           
-          // Try a simple query to check tables
-          const [tables] = await sequelize.query(
-            "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'"
-          );
+          // Now try a simple query to check tables
+          let tablesResult = [];
+          let queryTime = 0;
+          let tableCount = 0;
+          let queryWorking = false;
+          
+          try {
+            const queryStartTime = Date.now();
+            const [tables] = await sequelize.query(
+              "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'"
+            );
+            
+            queryTime = Date.now() - queryStartTime;
+            tablesResult = tables.map(t => t.table_name);
+            tableCount = tables.length;
+            queryWorking = true;
+          } catch (queryError) {
+            console.error('Query error during connection test:', queryError);
+            return {
+              connected: true,
+              queryWorking: false,
+              authTime,
+              queryError: queryError.message,
+              fullError: process.env.NODE_ENV === 'development' ? queryError : undefined
+            };
+          }
+          
+          const hasPastesTable = tablesResult.some(t => t.toLowerCase() === 'pastes');
+          const hasFilesTable = tablesResult.some(t => t.toLowerCase() === 'files');
+          const hasBlocksTable = tablesResult.some(t => t.toLowerCase() === 'blocks');
+          
+          // Check additional details about blocks table if it exists
+          let blocksTableDetails = null;
+          if (hasBlocksTable) {
+            try {
+              const [columns] = await sequelize.query(
+                "SELECT column_name FROM information_schema.columns WHERE table_name = 'blocks'"
+              );
+              blocksTableDetails = {
+                columnCount: columns.length,
+                columns: columns.map(c => c.column_name)
+              };
+            } catch (e) {
+              blocksTableDetails = { error: e.message };
+            }
+          }
           
           return {
             connected: true,
-            tables: tables.map(t => t.table_name),
-            hasPastesTable: tables.some(t => t.table_name === 'pastes'),
-            hasFilesTable: tables.some(t => t.table_name === 'files'),
-            hasBlocksTable: tables.some(t => t.table_name === 'blocks')
+            queryWorking: true,
+            tables: tablesResult,
+            tableCount,
+            hasPastesTable,
+            hasFilesTable,
+            hasBlocksTable,
+            connectionStats: {
+              authTime,
+              queryTime,
+              totalTime: Date.now() - startTime
+            },
+            blocksTableDetails,
+            url: process.env.DATABASE_URL ? 
+              (new URL(process.env.DATABASE_URL)).hostname : 
+              'unknown'
           };
         } catch (error) {
           console.error('Connection test failed:', error.message);
