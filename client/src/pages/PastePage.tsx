@@ -627,7 +627,15 @@ export function PastePage() {
         if (!editableBlocks || editableBlocks.length === 0) {
           throw new Error("No blocks found. Jupyter notebook requires at least one block.");
         }
-        const formattedBlocks = editableBlocks.map((block, index) => {
+        
+        // Filter out completely empty blocks
+        const nonEmptyBlocks = editableBlocks.filter(block => block.content.trim() !== '');
+        
+        if (nonEmptyBlocks.length === 0) {
+          throw new Error("All blocks are empty. Jupyter notebook requires at least one non-empty block.");
+        }
+        
+        const formattedBlocks = nonEmptyBlocks.map((block, index) => {
           const blockId = (block.id && typeof block.id === 'string' && 
                      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(block.id))
             ? block.id
@@ -678,9 +686,11 @@ export function PastePage() {
           setShowNotification(true);
         }
       } catch (fetchError) {
+        console.error('Fetch error:', fetchError);
         setEditError(fetchError instanceof Error ? fetchError.message : String(fetchError));
       }
     } catch (err) {
+      console.error('Edit error:', err);
       setEditError(err instanceof Error ? err.message : 'Failed to update paste. Please try again.');
     } finally {
       setEditLoading(false);

@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { Paste, File, Block } from '../models';
+import { Paste, File, Block, sequelize } from '../models';
 import { Op } from 'sequelize';
 import { deleteFile } from '../middleware/upload';
 import path from 'path';
@@ -687,7 +687,11 @@ export const deletePaste = async (req: Request, res: Response) => {
 export const editPaste = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { title, content } = req.body;
+    const { title, content, blocks } = req.body;
+    
+    console.log('--- EDIT PASTE CONTROLLER ---');
+    console.log('Request body:', req.body);
+    console.log('typeof blocks:', typeof blocks, 'blocks:', blocks);
     
     // Check if the ID is a valid UUID format
     const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
@@ -700,6 +704,13 @@ export const editPaste = async (req: Request, res: Response) => {
     // Find paste using the appropriate condition
     const paste = await Paste.findOne({
       where: whereCondition,
+      include: [
+        {
+          model: Block,
+          as: 'blocks',
+          required: false
+        }
+      ]
     });
     
     if (!paste) {
@@ -722,30 +733,198 @@ export const editPaste = async (req: Request, res: Response) => {
       });
     }
     
-    // Update paste
-    if (title) paste.title = title;
-    if (content) paste.content = content;
+    // Process Jupyter-style paste update
+    let isJupyterUpdate = false;
+    let parsedBlocks: any[] = [];
     
-    await paste.save();
+    try {
+      if (typeof blocks === 'string') {
+        parsedBlocks = JSON.parse(blocks);
+        isJupyterUpdate = Array.isArray(parsedBlocks) && parsedBlocks.length > 0;
+      } else if (Array.isArray(blocks)) {
+        parsedBlocks = blocks;
+        isJupyterUpdate = parsedBlocks.length > 0;
+      }
+    } catch (e) {
+      isJupyterUpdate = false;
+    }
     
-    return res.status(200).json({
-      message: 'Paste updated successfully',
-      paste: {
-        id: paste.id,
-        title: paste.title,
-        content: paste.content,
-        expiresAt: paste.expiresAt,
-        isPrivate: paste.isPrivate,
-        isEditable: paste.isEditable,
-        customUrl: paste.customUrl,
-        createdAt: paste.createdAt,
-        updatedAt: paste.updatedAt,
-      },
-    });
+    console.log('isJupyterUpdate:', isJupyterUpdate, 'parsedBlocks length:', parsedBlocks.length);
+    
+    // Handle transaction for database operations
+    const transaction = await sequelize.transaction();
+    
+    try {
+      // Update title if provided
+      if (title !== undefined) {
+        paste.title = title;
+        await paste.save({ transaction });
+        console.log(`Updated title for paste ${paste.id}`);
+      }
+      
+      if (isJupyterUpdate) {
+        console.log('Processing Jupyter-style paste update');
+        console.log('Number of blocks received:', parsedBlocks.length);
+        
+        // Validate blocks before proceeding
+        const validBlocks = parsedBlocks.filter(block => 
+          block && 
+          typeof block === 'object' && 
+          block.content && 
+          block.content.trim() !== ''
+        );
+        
+        if (validBlocks.length === 0) {
+          await transaction.rollback();
+          console.error('No valid blocks found in the request');
+          return res.status(400).json({ message: 'No valid blocks found in the request' });
+        }
+        
+        console.log('Valid blocks count:', validBlocks.length);
+        
+        // Delete existing blocks
+        await Block.destroy({
+          where: { pasteId: paste.id },
+          transaction
+        });
+        
+        // Create new blocks
+        let insertedBlocks = [];
+        for (let i = 0; i < validBlocks.length; i++) {
+          const block = validBlocks[i];
+          const blockId = (block.id && typeof block.id === 'string' && 
+                    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(block.id))
+            ? block.id 
+            : require('crypto').randomUUID();
+            
+          const newBlock = await Block.create({
+            id: blockId,
+            content: block.content,
+            language: block.language || 'text',
+            order: i,
+            pasteId: paste.id
+          }, { transaction });
+          
+          insertedBlocks.push(newBlock);
+        }
+        
+        console.log(`Inserted ${insertedBlocks.length} blocks for paste ${paste.id}`);
+        
+        if (insertedBlocks.length === 0) {
+          await transaction.rollback();
+          console.error('No blocks inserted for Jupyter-style paste update!');
+          return res.status(500).json({ message: 'No blocks inserted for Jupyter-style paste update.' });
+        }
+        
+        // Update paste to be Jupyter style with empty content
+        paste.content = '';
+        await paste.save({ transaction });
+        
+        // Commit the transaction
+        await transaction.commit();
+        
+        // Reload the paste with blocks
+        await paste.reload({
+          include: [
+            {
+              model: Block,
+              as: 'blocks',
+              required: false
+            }
+          ]
+        });
+        
+        // Get blocks from the association
+        const pasteWithBlocks = paste as any; // Cast to any to access blocks property
+        const blockRecords = pasteWithBlocks.blocks ? pasteWithBlocks.blocks.map((block: any) => ({
+          id: block.id,
+          content: block.content,
+          language: block.language,
+          order: block.order
+        })) : [];
+        
+        return res.status(200).json({
+          message: 'Paste updated successfully',
+          paste: {
+            id: paste.id,
+            title: paste.title,
+            content: '',
+            expiresAt: paste.expiresAt,
+            isPrivate: paste.isPrivate,
+            isEditable: paste.isEditable,
+            customUrl: paste.customUrl,
+            createdAt: paste.createdAt,
+            updatedAt: paste.updatedAt,
+            isJupyterStyle: true,
+            blocks: blockRecords,
+            canEdit: paste.isEditable
+          },
+        });
+      } else if (content !== undefined) {
+        // Regular paste update
+        console.log(`Updating regular paste content for ${paste.id}, length: ${content.length}`);
+        paste.content = content;
+        await paste.save({ transaction });
+        await transaction.commit();
+        
+        return res.status(200).json({
+          message: 'Paste updated successfully',
+          paste: {
+            id: paste.id,
+            title: paste.title,
+            content: paste.content,
+            expiresAt: paste.expiresAt,
+            isPrivate: paste.isPrivate,
+            isEditable: paste.isEditable,
+            customUrl: paste.customUrl,
+            createdAt: paste.createdAt,
+            updatedAt: paste.updatedAt,
+            isJupyterStyle: false,
+            blocks: [],
+            canEdit: paste.isEditable
+          },
+        });
+      } else {
+        // Only title was updated
+        await transaction.commit();
+        
+        // Get blocks if any
+        const pasteWithBlocks = paste as any; // Cast to any to access blocks property
+        const blockRecords = pasteWithBlocks.blocks ? pasteWithBlocks.blocks.map((block: any) => ({
+          id: block.id,
+          content: block.content,
+          language: block.language,
+          order: block.order
+        })) : [];
+        
+        return res.status(200).json({
+          message: 'Paste updated successfully',
+          paste: {
+            id: paste.id,
+            title: paste.title,
+            content: paste.content,
+            expiresAt: paste.expiresAt,
+            isPrivate: paste.isPrivate,
+            isEditable: paste.isEditable,
+            customUrl: paste.customUrl,
+            createdAt: paste.createdAt,
+            updatedAt: paste.updatedAt,
+            isJupyterStyle: paste.isJupyterStyle(),
+            blocks: blockRecords,
+            canEdit: paste.isEditable
+          },
+        });
+      }
+    } catch (error) {
+      // Rollback transaction on error
+      await transaction.rollback();
+      throw error;
+    }
   } catch (error) {
     console.error('Edit paste error:', error);
     return res.status(500).json({
       message: 'Server error updating paste',
+      error: error instanceof Error ? error.message : String(error),
     });
   }
 }; 
