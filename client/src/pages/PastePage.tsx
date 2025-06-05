@@ -610,19 +610,22 @@ export function PastePage() {
     
     try {
       // Prepare the data for the API
-      const updatedData: any = {};
+      const updatedData: any = {
+        title: editableTitle
+      };
       
       if (paste.isJupyterStyle) {
         console.log('Preparing blocks for update:', editableBlocks);
         
         // Make sure each block has required fields
         const formattedBlocks = editableBlocks.map((block, index) => ({
+          id: block.id,
           content: block.content || '',
           language: block.language || 'text',
           order: index
         }));
         
-        // Important: stringified blocks must be sent in the blocks property
+        // Important: send the blocks as a string to ensure proper parsing on the server
         updatedData.blocks = JSON.stringify(formattedBlocks);
       } else {
         updatedData.content = editableContent;
@@ -652,6 +655,11 @@ export function PastePage() {
       // Update the paste with the response data
       if (data.paste) {
         setPaste(data.paste);
+        
+        // Set the blocks if they exist
+        if (data.paste.blocks) {
+          setEditableBlocks(data.paste.blocks);
+        }
       }
       
       // Reset edit state
@@ -662,8 +670,8 @@ export function PastePage() {
       setNotificationMessage('Paste updated successfully');
       setShowNotification(true);
       
-      // Refresh the page to get the updated content
-      setTimeout(() => window.location.reload(), 1000);
+      // Reload the page to get the updated content
+      window.location.reload();
     } catch (err) {
       console.error('Failed to update paste:', err);
       setEditError(err instanceof Error ? err.message : 'Failed to update paste. Please try again.');
