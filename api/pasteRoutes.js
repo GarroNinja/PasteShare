@@ -935,6 +935,85 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// Add explicit migration endpoint to force schema updates
+router.post('/migrate-schema', async (req, res) => {
+  try {
+    if (!req.db || !req.db.sequelize) {
+      return res.status(500).json({ 
+        success: false, 
+        message: 'Database connection not available' 
+      });
+    }
+    
+    const { sequelize } = req.db;
+    const migrations = [];
+    
+    // Check and add isJupyterStyle column
+    const [jupyterStyleColumnExists] = await sequelize.query(
+      "SELECT column_name FROM information_schema.columns WHERE table_name = 'pastes' AND column_name = 'isJupyterStyle'"
+    );
+    
+    if (jupyterStyleColumnExists.length === 0) {
+      console.log('Migrating: Adding isJupyterStyle column to pastes table');
+      await sequelize.query('ALTER TABLE "pastes" ADD COLUMN "isJupyterStyle" BOOLEAN DEFAULT FALSE;');
+      migrations.push('Added isJupyterStyle column');
+    }
+    
+    // Check and make content column nullable
+    const [contentColumnIsNotNull] = await sequelize.query(
+      "SELECT is_nullable FROM information_schema.columns WHERE table_name = 'pastes' AND column_name = 'content'"
+    );
+    
+    if (contentColumnIsNotNull.length > 0 && contentColumnIsNotNull[0].is_nullable === 'NO') {
+      console.log('Migrating: Making content column nullable');
+      await sequelize.query('ALTER TABLE "pastes" ALTER COLUMN "content" DROP NOT NULL;');
+      migrations.push('Made content column nullable');
+    }
+    
+    // Check and create blocks table
+    const [blocksTableExists] = await sequelize.query(
+      "SELECT to_regclass('public.blocks') IS NOT NULL as exists"
+    );
+    
+    if (blocksTableExists.length === 0 || !blocksTableExists[0].exists) {
+      console.log('Migrating: Creating blocks table');
+      await sequelize.query(`
+        CREATE TABLE IF NOT EXISTS "blocks" (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          content TEXT NOT NULL,
+          language VARCHAR(50) DEFAULT 'text',
+          "order" INTEGER NOT NULL,
+          "pasteId" UUID NOT NULL REFERENCES pastes(id) ON DELETE CASCADE,
+          "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+          "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+        );
+      `);
+      migrations.push('Created blocks table');
+    }
+    
+    // Return results
+    if (migrations.length === 0) {
+      return res.status(200).json({ 
+        success: true, 
+        message: 'No migrations needed. Schema is already up to date.' 
+      });
+    }
+    
+    return res.status(200).json({ 
+      success: true, 
+      message: 'Schema migrations completed successfully',
+      migrations
+    });
+  } catch (error) {
+    console.error('Schema migration error:', error);
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Schema migration failed', 
+      error: error.message 
+    });
+  }
+});
+
 // Export the router and createConnection for use in server.js
 module.exports = router;
 module.exports.createConnection = createConnection; 
