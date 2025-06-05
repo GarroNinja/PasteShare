@@ -688,20 +688,26 @@ router.get('/:id', async (req, res) => {
         // Continue anyway, files are optional
       }
       
-      // Get blocks for Jupyter-style pastes
+      // Always check for blocks regardless of isJupyterStyle column
       let blocks = [];
-      if (hasJupyterStyle && paste.isJupyterStyle && hasBlocksTable) {
+      let isJupyterStyle = false;
+      
+      if (hasBlocksTable) {
         try {
           const [blockResults] = await sequelize.query(
             `SELECT id, content, language, "order" FROM blocks WHERE "pasteId" = '${paste.id}' ORDER BY "order" ASC`
           );
           
-          blocks = blockResults.map(block => ({
-            id: block.id,
-            content: block.content,
-            language: block.language || 'text',
-            order: block.order
-          }));
+          // If we have blocks, consider it a Jupyter-style paste
+          if (blockResults.length > 0) {
+            isJupyterStyle = true;
+            blocks = blockResults.map(block => ({
+              id: block.id,
+              content: block.content,
+              language: block.language || 'text',
+              order: block.order
+            }));
+          }
         } catch (blockError) {
           console.error('Error fetching blocks:', blockError);
           // Continue anyway, we'll fall back to content
@@ -720,7 +726,7 @@ router.get('/:id', async (req, res) => {
         createdAt: paste.createdAt,
         views: paste.views + 1, // Increment for the response even if DB update failed
         user: null,
-        isJupyterStyle: hasJupyterStyle ? paste.isJupyterStyle : false,
+        isJupyterStyle: isJupyterStyle, // Use the detected value
         blocks: blocks,
         files: files,
         canEdit: paste.isEditable,
@@ -874,6 +880,9 @@ router.put('/:id', async (req, res) => {
     const { id } = req.params;
     const { title, content, blocks } = req.body;
     
+    console.log('Update request for paste', id);
+    console.log('Request body:', { title, content, blocksProvided: !!blocks });
+    
     if (!req.db || !req.db.success) {
       return res.status(503).json({ message: 'Database connection error' });
     }
@@ -891,6 +900,7 @@ router.put('/:id', async (req, res) => {
     }
     
     const paste = pasteResults[0];
+    console.log('Found paste:', paste.id);
     
     // Check if editable
     if (!paste.isEditable) {
@@ -929,7 +939,8 @@ router.put('/:id', async (req, res) => {
         { replacements: [paste.id] }
       );
       
-      const isJupyterStyle = blockCount[0].count > 0;
+      const isJupyterStyle = blockCount[0].count > 0 || blocks !== undefined;
+      console.log('Is Jupyter style paste:', isJupyterStyle);
       
       if (isJupyterStyle && hasBlocksTable) {
         if (blocks) {
@@ -938,8 +949,10 @@ router.put('/:id', async (req, res) => {
             // Parse blocks data
             if (typeof blocks === 'string') {
               parsedBlocks = JSON.parse(blocks);
+              console.log('Parsed blocks from string:', parsedBlocks.length);
             } else if (Array.isArray(blocks)) {
               parsedBlocks = blocks;
+              console.log('Blocks provided as array:', parsedBlocks.length);
             } else {
               throw new Error(`Invalid blocks format: ${typeof blocks}`);
             }
@@ -947,6 +960,13 @@ router.put('/:id', async (req, res) => {
             if (!Array.isArray(parsedBlocks)) {
               throw new Error('Blocks must be an array');
             }
+            
+            // Log the blocks we're going to save
+            console.log('Blocks to save:', JSON.stringify(parsedBlocks.map(b => ({
+              id: b.id ? 'has ID' : 'no ID',
+              content_length: b.content ? b.content.length : 0,
+              language: b.language
+            }))));
             
             // Delete existing blocks
             await sequelize.query(
@@ -957,15 +977,23 @@ router.put('/:id', async (req, res) => {
               }
             );
             
+            console.log('Deleted existing blocks');
+            
             // Create new blocks
             for (let i = 0; i < parsedBlocks.length; i++) {
               const block = parsedBlocks[i];
+              
+              // Use the block's id if provided, otherwise generate a new one
+              const blockId = (block.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(block.id))
+                ? block.id
+                : uuidv4();
+              
               await sequelize.query(
                 `INSERT INTO blocks (id, content, language, "order", "pasteId", "createdAt", "updatedAt") 
                  VALUES (?, ?, ?, ?, ?, NOW(), NOW())`,
                 {
                   replacements: [
-                    uuidv4(),
+                    blockId,
                     block.content || '',
                     block.language || 'text',
                     i,
@@ -974,6 +1002,8 @@ router.put('/:id', async (req, res) => {
                   transaction
                 }
               );
+              
+              console.log(`Inserted block ${i+1}/${parsedBlocks.length} with ID ${blockId}`);
             }
           } catch (parseError) {
             console.error('Error processing blocks:', parseError);
@@ -989,6 +1019,7 @@ router.put('/:id', async (req, res) => {
             transaction
           }
         );
+        console.log('Updated standard paste content');
       }
       
       // Update timestamp
@@ -1002,6 +1033,7 @@ router.put('/:id', async (req, res) => {
       
       // Commit transaction
       await transaction.commit();
+      console.log('Transaction committed successfully');
       
       // Fetch updated paste
       const [updatedPasteResults] = await sequelize.query(
@@ -1013,7 +1045,7 @@ router.put('/:id', async (req, res) => {
       
       // Fetch blocks if needed
       let updatedBlocks = [];
-      if (isJupyterStyle && hasBlocksTable) {
+      if (hasBlocksTable) {
         const [blockResults] = await sequelize.query(
           `SELECT * FROM blocks WHERE "pasteId" = ? ORDER BY "order" ASC`,
           { replacements: [paste.id] }
@@ -1025,6 +1057,8 @@ router.put('/:id', async (req, res) => {
           language: b.language || 'text',
           order: b.order
         }));
+        
+        console.log(`Found ${updatedBlocks.length} blocks after update`);
       }
       
       // Return updated paste
@@ -1041,13 +1075,14 @@ router.put('/:id', async (req, res) => {
           createdAt: updatedPaste.createdAt,
           updatedAt: updatedPaste.updatedAt,
           views: updatedPaste.views,
-          isJupyterStyle: isJupyterStyle,
+          isJupyterStyle: updatedBlocks.length > 0,
           blocks: updatedBlocks
         }
       });
     } catch (error) {
       // Rollback on error
       await transaction.rollback();
+      console.error('Transaction rolled back due to error:', error);
       throw error;
     }
   } catch (error) {

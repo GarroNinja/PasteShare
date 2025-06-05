@@ -617,13 +617,15 @@ export function PastePage() {
       if (paste.isJupyterStyle) {
         console.log('Preparing blocks for update:', editableBlocks);
         
-        // Make sure each block has required fields
+        // Make sure each block has required fields and preserve IDs
         const formattedBlocks = editableBlocks.map((block, index) => ({
           id: block.id,
           content: block.content || '',
           language: block.language || 'text',
           order: index
         }));
+        
+        console.log('Formatted blocks with preserved IDs:', formattedBlocks);
         
         // Important: send the blocks as a string to ensure proper parsing on the server
         updatedData.blocks = JSON.stringify(formattedBlocks);
@@ -658,6 +660,7 @@ export function PastePage() {
         
         // Set the blocks if they exist
         if (data.paste.blocks) {
+          console.log('Setting blocks from response:', data.paste.blocks);
           setEditableBlocks(data.paste.blocks);
         }
       }
@@ -670,8 +673,11 @@ export function PastePage() {
       setNotificationMessage('Paste updated successfully');
       setShowNotification(true);
       
-      // Reload the page to get the updated content
-      window.location.reload();
+      // Reload the page after a short delay to ensure the state is updated
+      setTimeout(() => {
+        console.log('Reloading page to show updated content');
+        window.location.reload();
+      }, 500);
     } catch (err) {
       console.error('Failed to update paste:', err);
       setEditError(err instanceof Error ? err.message : 'Failed to update paste. Please try again.');
