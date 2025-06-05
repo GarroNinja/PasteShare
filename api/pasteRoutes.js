@@ -68,6 +68,180 @@ router.get('/test-connection', async (req, res) => {
   }
 });
 
+// Debug route for Vercel deployment
+router.get('/debug', async (req, res) => {
+  try {
+    // Collect environment info
+    const envInfo = {
+      nodeEnv: process.env.NODE_ENV || 'not set',
+      isVercel: !!process.env.VERCEL,
+      vercelEnv: process.env.VERCEL_ENV || 'not set',
+      hasDbUrl: !!process.env.DATABASE_URL,
+      region: process.env.VERCEL_REGION || 'unknown'
+    };
+    
+    // Test database connection
+    let dbStatus = { connected: false, error: 'Not attempted' };
+    if (req.db && req.db.success) {
+      try {
+        const testResult = await req.db.testConnection();
+        dbStatus = {
+          connected: testResult.connected,
+          message: testResult.message || 'No message',
+          error: testResult.error
+        };
+      } catch (dbError) {
+        dbStatus = {
+          connected: false,
+          error: dbError.message || 'Unknown error testing connection'
+        };
+      }
+    } else {
+      dbStatus = {
+        connected: false,
+        error: req.db ? 'DB connection failed' : 'DB middleware not initialized'
+      };
+    }
+    
+    // Test model availability
+    let modelsStatus = { available: false };
+    if (req.db && req.db.models) {
+      const { models } = req.db;
+      modelsStatus = {
+        available: true,
+        pasteModel: !!models.Paste,
+        blockModel: !!models.Block,
+        fileModel: !!models.File
+      };
+    }
+    
+    // Get memory usage
+    const memoryUsage = process.memoryUsage();
+    const formatMemory = (bytes) => (bytes / 1024 / 1024).toFixed(2) + ' MB';
+    
+    return res.status(200).json({
+      timestamp: new Date().toISOString(),
+      environment: envInfo,
+      database: dbStatus,
+      models: modelsStatus,
+      memory: {
+        rss: formatMemory(memoryUsage.rss),
+        heapTotal: formatMemory(memoryUsage.heapTotal),
+        heapUsed: formatMemory(memoryUsage.heapUsed),
+        external: formatMemory(memoryUsage.external)
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: 'Error generating debug info',
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
+// GET /api/pastes/recent - Get recent pastes
+// IMPORTANT: This route must be defined BEFORE the /:id route to avoid conflicts
+router.get('/recent', async (req, res) => {
+  try {
+    console.log('Getting recent pastes');
+    
+    if (!req.db || !req.db.success) {
+      console.error('Database connection error in /recent route');
+      return res.status(503).json({ 
+        message: 'Database connection error',
+        details: 'Could not establish database connection'
+      });
+    }
+    
+    const { sequelize, models } = req.db;
+    
+    // Validate models are available
+    if (!models || !models.Paste || !models.Block) {
+      console.error('Database models not properly initialized in /recent route');
+      return res.status(500).json({ 
+        message: 'Server configuration error',
+        details: 'Database models not properly initialized'
+      });
+    }
+    
+    const { Paste, Block } = models;
+    
+    // Get recent public pastes with try/catch for the query itself
+    try {
+      const pastes = await Paste.findAll({
+        where: {
+          isPrivate: false,
+          [Op.or]: [
+            { expiresAt: null },
+            { expiresAt: { [Op.gt]: new Date() } }
+          ]
+        },
+        order: [['createdAt', 'DESC']],
+        limit: 10,
+        include: [
+          {
+            model: Block,
+            as: 'Blocks',
+            attributes: ['id', 'content', 'language', 'order'],
+            required: false
+          }
+        ]
+      });
+      
+      console.log(`Found ${pastes.length} recent pastes`);
+      
+      // Format pastes for response with additional error handling
+      const formattedPastes = pastes.map(paste => {
+        try {
+          return {
+            id: paste.id,
+            title: paste.title || 'Untitled Paste',
+            content: paste.isJupyterStyle ? '' : (paste.content || ''),
+            createdAt: paste.createdAt,
+            expiresAt: paste.expiresAt,
+            customUrl: paste.customUrl,
+            isJupyterStyle: !!paste.isJupyterStyle,
+            blocks: Array.isArray(paste.Blocks) ? paste.Blocks.map(block => ({
+              id: block.id,
+              content: block.content || '',
+              language: block.language || 'text',
+              order: block.order || 0
+            })) : []
+          };
+        } catch (formatError) {
+          console.error('Error formatting paste:', formatError, paste?.id);
+          // Return a simplified version if there's an error
+          return {
+            id: paste.id || 'unknown',
+            title: paste.title || 'Error: Malformed Paste',
+            content: '',
+            createdAt: paste.createdAt || new Date(),
+            isJupyterStyle: false,
+            blocks: []
+          };
+        }
+      });
+      
+      return res.status(200).json({ pastes: formattedPastes });
+    } catch (queryError) {
+      console.error('Database query error in /recent route:', queryError);
+      return res.status(500).json({
+        message: 'Error retrieving recent pastes',
+        details: queryError.message
+      });
+    }
+  } catch (error) {
+    console.error('Unhandled error in /recent route:', error);
+    return res.status(500).json({
+      message: 'Server error retrieving recent pastes',
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
 // POST /api/pastes - Create a new paste
 router.post('/', upload.array('files', 3), async (req, res) => {
   try {
@@ -475,67 +649,6 @@ router.get('/:pasteId/files/:fileId', async (req, res) => {
   }
 });
 
-// GET /api/pastes/recent - Get recent pastes
-router.get('/recent', async (req, res) => {
-  try {
-    console.log('Getting recent pastes');
-    
-    if (!req.db || !req.db.success) {
-      return res.status(503).json({ message: 'Database connection error' });
-    }
-    
-    const { sequelize, models } = req.db;
-    const { Paste, Block } = models;
-    
-    // Get recent public pastes
-    const pastes = await Paste.findAll({
-      where: {
-        isPrivate: false,
-        [Op.or]: [
-          { expiresAt: null },
-          { expiresAt: { [Op.gt]: new Date() } }
-        ]
-      },
-      order: [['createdAt', 'DESC']],
-      limit: 10,
-      include: [
-        {
-          model: Block,
-          as: 'Blocks',
-          attributes: ['id', 'content', 'language', 'order']
-        }
-      ]
-    });
-    
-    console.log(`Found ${pastes.length} recent pastes`);
-    
-    // Format pastes for response
-    const formattedPastes = pastes.map(paste => ({
-      id: paste.id,
-      title: paste.title,
-      content: paste.isJupyterStyle ? '' : paste.content,
-      createdAt: paste.createdAt,
-      expiresAt: paste.expiresAt,
-      customUrl: paste.customUrl,
-      isJupyterStyle: paste.isJupyterStyle,
-      blocks: paste.Blocks ? paste.Blocks.map(block => ({
-        id: block.id,
-        content: block.content,
-        language: block.language,
-        order: block.order
-      })) : []
-    }));
-    
-    return res.status(200).json({ pastes: formattedPastes });
-  } catch (error) {
-    console.error('Get recent pastes error:', error);
-    return res.status(500).json({
-      message: 'Server error retrieving recent pastes',
-      error: error.message
-    });
-  }
-});
-
 // PUT /api/pastes/:id - Update a paste
 router.put('/:id', async (req, res) => {
   console.log('--- UPDATE ROUTE CALLED ---');
@@ -822,4 +935,6 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-module.exports = router; 
+// Export the router and createConnection for use in server.js
+module.exports = router;
+module.exports.createConnection = createConnection; 

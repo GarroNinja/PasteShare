@@ -123,6 +123,37 @@ if (useLogging) {
   console.log('Request logging disabled in production for performance');
 }
 
+// Add database connection middleware
+app.use((req, res, next) => {
+  try {
+    // Ensure the createConnection function is available from pasteRoutes
+    if (!pasteRoutes.createConnection) {
+      console.error('Database middleware error: createConnection function not available');
+      res.setHeader('X-DB-Status', 'middleware-error');
+      next();
+      return;
+    }
+    
+    // Create a fresh database connection for this request
+    req.db = pasteRoutes.createConnection();
+    
+    // Log connection status
+    if (req.db && req.db.success) {
+      console.log(`[${req.requestId}] Database connection established`);
+      res.setHeader('X-DB-Status', 'connected');
+    } else {
+      console.error(`[${req.requestId}] Database connection failed:`, req.db?.error || 'Unknown error');
+      res.setHeader('X-DB-Status', 'failed');
+    }
+    
+    next();
+  } catch (error) {
+    console.error(`[${req.requestId}] Error in database middleware:`, error);
+    res.setHeader('X-DB-Status', 'error');
+    next();
+  }
+});
+
 // Add a middleware for cache control headers
 app.use((req, res, next) => {
   // Set default cache control headers
