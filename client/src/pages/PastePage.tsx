@@ -615,25 +615,40 @@ export function PastePage() {
       };
       
       if (paste.isJupyterStyle) {
-        console.log('Preparing blocks for update:', editableBlocks);
+        console.log('Preparing blocks for update:', editableBlocks.length, 'blocks');
+        
+        // Validate all blocks have required data
+        if (!editableBlocks || editableBlocks.length === 0) {
+          throw new Error("No blocks found. Jupyter notebook requires at least one block.");
+        }
         
         // Make sure each block has required fields and preserve IDs
         const formattedBlocks = editableBlocks.map((block, index) => ({
-          id: block.id,
+          id: block.id || crypto.randomUUID(), // Ensure each block has an ID
           content: block.content || '',
           language: block.language || 'text',
           order: index
         }));
         
-        console.log('Formatted blocks with preserved IDs:', formattedBlocks);
+        console.log('Formatted blocks with preserved IDs:', 
+          formattedBlocks.map(b => ({ 
+            id: b.id.substring(0, 8) + '...', 
+            language: b.language, 
+            contentLength: b.content.length 
+          }))
+        );
         
         // Important: send the blocks as a string to ensure proper parsing on the server
         updatedData.blocks = JSON.stringify(formattedBlocks);
       } else {
+        // Standard paste
+        if (!editableContent || editableContent.trim() === '') {
+          throw new Error("Content cannot be empty");
+        }
         updatedData.content = editableContent;
       }
       
-      console.log('Sending update with data:', updatedData);
+      console.log('Sending update to server for paste ID:', id);
       
       // Use API to update the paste
       const response = await fetch(`${getApiBaseUrl()}/pastes/${id}`, {
@@ -645,24 +660,48 @@ export function PastePage() {
         credentials: 'include'
       });
       
+      // Handle non-2xx responses
       if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Server error response:', errorData);
-        throw new Error(errorData.message || `Failed to update paste: ${response.status}`);
+        const contentType = response.headers.get('content-type');
+        
+        if (contentType && contentType.includes('application/json')) {
+          const errorData = await response.json();
+          console.error('Server error response:', errorData);
+          throw new Error(errorData.message || `Failed to update paste: ${response.status}`);
+        } else {
+          const errorText = await response.text();
+          console.error(`Server error (${response.status}):`, errorText);
+          throw new Error(`Server error (${response.status}): ${errorText.substring(0, 100)}`);
+        }
       }
       
+      // Parse the successful response
       const data = await response.json();
-      console.log('Update response:', data);
+      console.log('Update response success:', data.message);
       
       // Update the paste with the response data
       if (data.paste) {
+        console.log('Received updated paste data:', {
+          id: data.paste.id,
+          title: data.paste.title,
+          blockCount: data.paste.blocks?.length || 0,
+          isJupyterStyle: data.paste.isJupyterStyle
+        });
+        
         setPaste(data.paste);
         
         // Set the blocks if they exist
-        if (data.paste.blocks) {
-          console.log('Setting blocks from response:', data.paste.blocks);
+        if (data.paste.blocks && data.paste.blocks.length > 0) {
+          console.log('Setting blocks from response:', 
+            data.paste.blocks.map((b: any) => ({ 
+              id: b.id.substring(0, 8) + '...', 
+              language: b.language 
+            }))
+          );
           setEditableBlocks(data.paste.blocks);
         }
+      } else {
+        console.warn('Response contained no paste data');
       }
       
       // Reset edit state
@@ -674,10 +713,11 @@ export function PastePage() {
       setShowNotification(true);
       
       // Reload the page after a short delay to ensure the state is updated
+      console.log('Scheduling page reload...');
       setTimeout(() => {
         console.log('Reloading page to show updated content');
         window.location.reload();
-      }, 500);
+      }, 1000);
     } catch (err) {
       console.error('Failed to update paste:', err);
       setEditError(err instanceof Error ? err.message : 'Failed to update paste. Please try again.');
