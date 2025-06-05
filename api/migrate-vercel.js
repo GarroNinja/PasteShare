@@ -25,19 +25,6 @@ async function migrateDatabase() {
     await sequelize.authenticate();
     console.log('Connection has been established successfully.');
     
-    // Check if the isJupyterStyle column exists
-    const [jupyterStyleColumnExists] = await sequelize.query(
-      "SELECT column_name FROM information_schema.columns WHERE table_name = 'pastes' AND column_name = 'isJupyterStyle'"
-    );
-    
-    if (jupyterStyleColumnExists.length === 0) {
-      console.log('Adding isJupyterStyle column to pastes table...');
-      await sequelize.query('ALTER TABLE "pastes" ADD COLUMN "isJupyterStyle" BOOLEAN DEFAULT FALSE;');
-      console.log('isJupyterStyle column added successfully.');
-    } else {
-      console.log('isJupyterStyle column already exists in pastes table.');
-    }
-
     // Check if content column is nullable
     const [contentColumnInfo] = await sequelize.query(
       "SELECT is_nullable FROM information_schema.columns WHERE table_name = 'pastes' AND column_name = 'content'"

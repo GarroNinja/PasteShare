@@ -198,11 +198,11 @@ router.get('/recent', async (req, res) => {
           return {
             id: paste.id,
             title: paste.title || 'Untitled Paste',
-            content: paste.isJupyterStyle ? '' : (paste.content || ''),
+            content: paste.isJupyterStyle() ? '' : (paste.content || ''),
             createdAt: paste.createdAt,
             expiresAt: paste.expiresAt,
             customUrl: paste.customUrl,
-            isJupyterStyle: !!paste.isJupyterStyle,
+            isJupyterStyle: paste.isJupyterStyle(),
             blocks: Array.isArray(paste.Blocks) ? paste.Blocks.map(block => ({
               id: block.id,
               content: block.content || '',
@@ -305,19 +305,20 @@ router.post('/', upload.array('files', 3), async (req, res) => {
     const transaction = await sequelize.transaction();
     
     try {
-      // Create paste record
+      // Create paste
       const paste = await Paste.create({
         title: title || 'Untitled Paste',
         content: isJupyterStylePaste ? null : content,
-        expiresAt,
+        expiresAt: expiresAt,
         isPrivate: isPrivate === 'true' || isPrivate === true,
-        customUrl: customUrl || null,
         isEditable: isEditable === 'true' || isEditable === true,
-        password: hashedPassword,
-        isJupyterStyle: isJupyterStylePaste
+        customUrl: customUrl || null,
+        password: hashedPassword
       }, { transaction });
       
-      // Create blocks for Jupyter-style pastes
+      console.log(`Created paste with ID: ${paste.id}`);
+      
+      // Process blocks for Jupyter-style paste
       if (isJupyterStylePaste && parsedBlocks.length > 0) {
         const blockPromises = parsedBlocks
           .filter(block => block.content && block.content.trim())
@@ -515,7 +516,7 @@ router.get('/:id', async (req, res) => {
       paste: {
         id: paste.id,
         title: paste.title,
-        content: paste.isJupyterStyle ? '' : paste.content,
+        content: paste.isJupyterStyle() ? '' : paste.content,
         expiresAt: paste.expiresAt,
         isPrivate: paste.isPrivate,
         views: paste.views,
@@ -524,7 +525,7 @@ router.get('/:id', async (req, res) => {
         createdAt: paste.createdAt,
         updatedAt: paste.updatedAt,
         isPasswordProtected: !!paste.password,
-        isJupyterStyle: paste.isJupyterStyle,
+        isJupyterStyle: paste.isJupyterStyle(),
         blocks,
         files,
         canEdit: paste.isEditable
@@ -785,7 +786,6 @@ router.put('/:id', async (req, res) => {
         
         // Update paste to be Jupyter style with empty content
         paste.content = '';
-        paste.isJupyterStyle = true;
         await paste.save({ transaction });
         
         // Commit the transaction
@@ -830,7 +830,6 @@ router.put('/:id', async (req, res) => {
         // Regular paste update
         console.log(`Updating regular paste content for ${paste.id}, length: ${content.length}`);
         paste.content = content;
-        paste.isJupyterStyle = false;
         await paste.save({ transaction });
         await transaction.commit();
         
@@ -875,7 +874,7 @@ router.put('/:id', async (req, res) => {
             customUrl: paste.customUrl,
             createdAt: paste.createdAt,
             updatedAt: paste.updatedAt,
-            isJupyterStyle: paste.isJupyterStyle,
+            isJupyterStyle: paste.isJupyterStyle(),
             blocks: blockRecords,
             canEdit: paste.isEditable
           }
@@ -947,17 +946,6 @@ router.post('/migrate-schema', async (req, res) => {
     
     const { sequelize } = req.db;
     const migrations = [];
-    
-    // Check and add isJupyterStyle column
-    const [jupyterStyleColumnExists] = await sequelize.query(
-      "SELECT column_name FROM information_schema.columns WHERE table_name = 'pastes' AND column_name = 'isJupyterStyle'"
-    );
-    
-    if (jupyterStyleColumnExists.length === 0) {
-      console.log('Migrating: Adding isJupyterStyle column to pastes table');
-      await sequelize.query('ALTER TABLE "pastes" ADD COLUMN "isJupyterStyle" BOOLEAN DEFAULT FALSE;');
-      migrations.push('Added isJupyterStyle column');
-    }
     
     // Check and make content column nullable
     const [contentColumnIsNotNull] = await sequelize.query(

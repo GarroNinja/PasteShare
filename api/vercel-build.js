@@ -144,7 +144,6 @@ async function setupDatabase() {
           "userId" UUID,
           views INTEGER DEFAULT 0,
           password VARCHAR(255),
-          "isJupyterStyle" BOOLEAN DEFAULT FALSE,
           "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
           "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
         );
@@ -152,24 +151,6 @@ async function setupDatabase() {
       console.log('Pastes table created successfully.');
     } else {
       console.log('Pastes table already exists.');
-      
-      // IMPORTANT: Always check for and add the isJupyterStyle column
-      try {
-        const [jupyterStyleColumnExists] = await sequelize.query(
-          "SELECT column_name FROM information_schema.columns WHERE table_name = 'pastes' AND column_name = 'isJupyterStyle'"
-        );
-        
-        if (jupyterStyleColumnExists.length === 0) {
-          console.log('Adding isJupyterStyle column to pastes table...');
-          await sequelize.query('ALTER TABLE "pastes" ADD COLUMN "isJupyterStyle" BOOLEAN DEFAULT FALSE;');
-          console.log('isJupyterStyle column added successfully.');
-        } else {
-          console.log('isJupyterStyle column already exists in pastes table.');
-        }
-      } catch (columnError) {
-        console.error('Error checking/adding isJupyterStyle column:', columnError);
-        // Continue execution despite this error
-      }
       
       // Check if the password column exists
       try {

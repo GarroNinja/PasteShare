@@ -84,16 +84,17 @@ const createConnection = () => {
       password: {
         type: DataTypes.STRING,
         allowNull: true
-      },
-      isJupyterStyle: {
-        type: DataTypes.BOOLEAN,
-        defaultValue: false
       }
     }, {
       tableName: 'pastes',
       timestamps: true,
       freezeTableName: true
     });
+
+    // Add isJupyterStyle method to Paste model prototype
+    Paste.prototype.isJupyterStyle = function() {
+      return this.content === null || this.content === ''; // If content is empty/null, assume Jupyter-style
+    };
 
     // Define Block model for Jupyter-style notebook blocks
     const Block = sequelize.define('Block', {
