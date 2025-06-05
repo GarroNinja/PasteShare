@@ -277,6 +277,40 @@ const createConnection = () => {
           const hasFilesTable = tablesResult.some(t => t.toLowerCase() === 'files');
           const hasBlocksTable = tablesResult.some(t => t.toLowerCase() === 'blocks');
           
+          // Check additional details about columns in pastes table
+          let pastesColumns = [];
+          let hasJupyterStyleColumn = false;
+          
+          if (hasPastesTable) {
+            try {
+              // Get column names from pastes table with case-insensitive comparison
+              const [columns] = await sequelize.query(
+                "SELECT column_name FROM information_schema.columns WHERE table_name = 'pastes'"
+              );
+              
+              pastesColumns = columns.map(c => c.column_name);
+              
+              // Check for isJupyterStyle column (case-insensitive)
+              hasJupyterStyleColumn = pastesColumns.some(c => 
+                c.toLowerCase() === 'isjupyterstyle' || c.toLowerCase() === 'is_jupyter_style'
+              );
+              
+              // If column doesn't exist, try to add it
+              if (!hasJupyterStyleColumn) {
+                try {
+                  console.log('isJupyterStyle column not found, attempting to add it...');
+                  await sequelize.query('ALTER TABLE "pastes" ADD COLUMN "isJupyterStyle" BOOLEAN DEFAULT FALSE');
+                  console.log('Successfully added isJupyterStyle column');
+                  hasJupyterStyleColumn = true;
+                } catch (alterError) {
+                  console.error('Failed to add isJupyterStyle column:', alterError.message);
+                }
+              }
+            } catch (columnsError) {
+              console.error('Error checking paste columns:', columnsError);
+            }
+          }
+          
           // Check additional details about blocks table if it exists
           let blocksTableDetails = null;
           if (hasBlocksTable) {
@@ -291,6 +325,26 @@ const createConnection = () => {
             } catch (e) {
               blocksTableDetails = { error: e.message };
             }
+          } else {
+            // If blocks table doesn't exist, try to create it
+            try {
+              console.log('blocks table not found, attempting to create it...');
+              await sequelize.query(`
+                CREATE TABLE IF NOT EXISTS "blocks" (
+                  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                  content TEXT NOT NULL,
+                  language VARCHAR(50) DEFAULT 'text',
+                  "order" INTEGER NOT NULL,
+                  "pasteId" UUID NOT NULL REFERENCES pastes(id) ON DELETE CASCADE,
+                  "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                  "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+                );
+              `);
+              console.log('Successfully created blocks table');
+              hasBlocksTable = true;
+            } catch (createError) {
+              console.error('Failed to create blocks table:', createError.message);
+            }
           }
           
           return {
@@ -301,6 +355,8 @@ const createConnection = () => {
             hasPastesTable,
             hasFilesTable,
             hasBlocksTable,
+            hasJupyterStyleColumn,
+            pastesColumns,
             connectionStats: {
               authTime,
               queryTime,

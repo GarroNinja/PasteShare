@@ -156,7 +156,7 @@ PasteShare supports a Jupyter Notebook-like interface allowing users to create m
 - Edited separately when in edit mode
 - Deleted (except for the first block which is required)
 
-This makes PasteShare ideal for educational content, tutorials, or multi-language code demonstrations.
+This makes PasteShare ideal for sharing multiple files easily, avoid having to create multiple pastes for the same purpose, or multi-language code demonstrations.
 
 ### Password Protection
 PasteShare supports password protection for sensitive content. When creating a paste, you can enable password protection and set a password. Anyone trying to access the paste will need to enter the correct password to view its contents. This provides an additional layer of security beyond the unlisted paste option.

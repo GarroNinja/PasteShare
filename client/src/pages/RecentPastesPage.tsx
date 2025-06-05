@@ -14,6 +14,8 @@ interface Paste {
   views: number;
   isPrivate: boolean;
   customUrl?: string;
+  isJupyterStyle?: boolean;
+  blocks?: { language: string; content: string }[];
 }
 
 export function RecentPastesPage() {
@@ -208,6 +210,36 @@ export function RecentPastesPage() {
     </div>
   );
 
+  const renderPasteContent = (paste: Paste) => {
+    // For Jupyter-style pastes with blocks, show blocks content
+    if (paste.isJupyterStyle && paste.blocks && paste.blocks.length > 0) {
+      // Show just the first block or a combined preview
+      const firstBlock = paste.blocks[0];
+      const previewContent = firstBlock ? firstBlock.content : '';
+      
+      return (
+        <SyntaxHighlighter
+          language={firstBlock ? firstBlock.language : 'text'}
+          style={syntaxTheme}
+          customStyle={{ maxHeight: '200px', overflow: 'hidden' }}
+        >
+          {previewContent}
+        </SyntaxHighlighter>
+      );
+    }
+    
+    // Standard paste - show regular content
+    return (
+      <SyntaxHighlighter
+        language={detectLanguage(paste.content)}
+        style={syntaxTheme}
+        customStyle={{ maxHeight: '200px', overflow: 'hidden' }}
+      >
+        {paste.content}
+      </SyntaxHighlighter>
+    );
+  };
+
   if (loading) {
     return (
       <PageWrapper>
@@ -280,24 +312,7 @@ export function RecentPastesPage() {
                       ? '#1d2021'  // Dark background for dark mode
                       : '#fbf1c7'  // Light background for light mode (Gruvbox light bg)
                   }}>
-                    <SyntaxHighlighter
-                      language={detectLanguage(paste.content)}
-                      style={syntaxTheme}
-                      customStyle={{
-                        margin: 0,
-                        padding: '0.5rem',
-                        fontSize: '0.75rem',
-                        height: '40px',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                        backgroundColor: 'transparent',
-                        borderRadius: 0
-                      }}
-                      className="syntax-highlighter-override"
-                    >
-                      {truncateContent(paste.content)}
-                    </SyntaxHighlighter>
+                    {renderPasteContent(paste)}
                   </div>
                   <div className="mt-2 flex justify-between text-xs text-gray-500 dark:text-gray-400">
                     <span>Created: {new Date(paste.createdAt).toLocaleString()}</span>

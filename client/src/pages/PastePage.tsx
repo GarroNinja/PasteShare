@@ -591,6 +591,7 @@ export function PastePage() {
       setEditableContent(paste.content || '');
     }
     
+    setEditableTitle(paste.title || '');
     setIsEditMode(true);
   };
   
@@ -652,12 +653,12 @@ export function PastePage() {
       console.log('Update response:', data);
       
       // Update the paste with the response data
-      setPaste(data.paste);
+      if (data.paste) {
+        setPaste(data.paste);
+      }
       
       // Reset edit state
       setIsEditMode(false);
-      setEditableContent('');
-      setEditableBlocks([]);
       
       // Show success notification
       setNotificationButtonType('success');
@@ -900,32 +901,36 @@ export function PastePage() {
                 </option>
               ))}
             </select>
+            
+            <button
+              onClick={() => copyToClipboard(paste.content)}
+              className="ml-3 p-2 bg-white dark:bg-[#3c3836] border border-gray-300 dark:border-[#504945] rounded-md text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-opacity"
+              aria-label="Copy to clipboard"
+              title="Copy to clipboard"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+            </button>
           </div>
         </div>
         
-        <button
-          onClick={() => copyToClipboard(paste.content)}
-          className="absolute top-2 right-2 p-2 bg-white dark:bg-[#3c3836] border border-gray-300 dark:border-[#504945] rounded-md text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity z-10"
-          aria-label="Copy to clipboard"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-          </svg>
-        </button>
-        <SyntaxHighlighter
-          language={language}
-          style={selectedTheme || (isDarkMode ? gruvboxDark : gruvboxLight)}
-          customStyle={{
-            borderRadius: '0.375rem',
-            padding: '1.25rem',
-            fontSize: '0.875rem',
-            lineHeight: '1.5',
-          }}
-          wrapLines={true}
-          wrapLongLines={true}
-        >
-          {paste.content}
-        </SyntaxHighlighter>
+        <div className="relative">
+          <SyntaxHighlighter
+            language={language}
+            style={selectedTheme || (isDarkMode ? gruvboxDark : gruvboxLight)}
+            customStyle={{
+              borderRadius: '0.375rem',
+              padding: '1.25rem',
+              fontSize: '0.875rem',
+              lineHeight: '1.5',
+            }}
+            wrapLines={true}
+            wrapLongLines={true}
+          >
+            {paste.content}
+          </SyntaxHighlighter>
+        </div>
       </div>
     );
   };
