@@ -14,23 +14,14 @@ const createConnection = () => {
     // Parse and validate the URL
     const urlObj = new URL(process.env.DATABASE_URL);
     
-    // Build connection string with correct parameters for Supabase
+    // Use standard connection string, just adjust the port for Supabase
     let connectionString = process.env.DATABASE_URL;
-    
-    // Add connection pooling for Supabase environments
     if (urlObj.hostname.includes('supabase')) {
-      // Force port 6543 for connection pooling
+      // Use connection pooler port for Supabase
       connectionString = connectionString.replace(/:5432\//g, ':6543/').replace(/:5432$/g, ':6543');
-      
-      // Add connection parameters if not already present
-      if (!urlObj.searchParams.has('pool')) {
-        const connector = connectionString.includes('?') ? '&' : '?';
-        connectionString += `${connector}pool=true&sslmode=require`;
-      }
-      console.log('Using Supabase connection pooler with enhanced configuration');
     }
 
-    // Initialize a new Sequelize instance with optimized settings for serverless
+    // Initialize a new Sequelize instance
     const sequelize = new Sequelize(connectionString, {
       dialect: 'postgres',
       logging: false,
@@ -38,45 +29,13 @@ const createConnection = () => {
         ssl: {
           require: true,
           rejectUnauthorized: false
-        },
-        keepAlive: true,
-        connectTimeout: 30000,
-        statement_timeout: 30000, // Reduce to 30s to ensure completion within function time limit
-        idle_in_transaction_session_timeout: 30000, // Reduce to 30s
-        // Add better handling for transaction issues
-        query_timeout: 30000,
-        application_name: 'pasteshare_serverless'
+        }
       },
       pool: {
-        max: 3,         // Reduced to conserve memory
-        min: 0,         // Start with 0 connections
-        acquire: 30000,  // Reduced acquire timeout
-        idle: 10000,     // Keep idle time reasonable
-        evict: 1000,     // Check for idle connections every 1s
-        // Handle connection errors gracefully
-        validate: async (client) => {
-          try {
-            // Check if connection is still valid
-            await client.query('SELECT 1');
-            return true;
-          } catch (e) {
-            console.error('Connection validation failed:', e.message);
-            return false;
-          }
-        }
-      },
-      retry: {
-        max: 3,          // Reduced retry attempts to conserve function time
-        match: [/Deadlock/i, /Lock wait timeout/i, /current transaction is aborted/i]
-      },
-      // Add hooks for better transaction management
-      hooks: {
-        afterConnect: async (connection) => {
-          // Set reasonable statement timeout
-          await connection.query('SET statement_timeout = 30000');
-          // Set reasonable idle in transaction timeout
-          await connection.query('SET idle_in_transaction_session_timeout = 30000');
-        }
+        max: 3,
+        min: 0,
+        acquire: 30000,
+        idle: 10000
       }
     });
 
@@ -234,141 +193,30 @@ const createConnection = () => {
         File,
         Block
       },
-      // Helper to test the connection
+      // Simple connection test
       async testConnection() {
         try {
-          const startTime = Date.now();
-          const timeout = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Connection timeout')), 10000)  // Increased timeout
+          // Test basic connectivity
+          await sequelize.authenticate();
+          
+          // Try a simple query
+          const [tables] = await sequelize.query(
+            "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'"
           );
           
-          // First test basic authentication
-          await Promise.race([sequelize.authenticate(), timeout]);
-          const authTime = Date.now() - startTime;
-          
-          // Now try a simple query to check tables
-          let tablesResult = [];
-          let queryTime = 0;
-          let tableCount = 0;
-          let queryWorking = false;
-          
-          try {
-            const queryStartTime = Date.now();
-            const [tables] = await sequelize.query(
-              "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'"
-            );
-            
-            queryTime = Date.now() - queryStartTime;
-            tablesResult = tables.map(t => t.table_name);
-            tableCount = tables.length;
-            queryWorking = true;
-          } catch (queryError) {
-            console.error('Query error during connection test:', queryError);
-            return {
-              connected: true,
-              queryWorking: false,
-              authTime,
-              queryError: queryError.message,
-              fullError: process.env.NODE_ENV === 'development' ? queryError : undefined
-            };
-          }
-          
-          const hasPastesTable = tablesResult.some(t => t.toLowerCase() === 'pastes');
-          const hasFilesTable = tablesResult.some(t => t.toLowerCase() === 'files');
-          const hasBlocksTable = tablesResult.some(t => t.toLowerCase() === 'blocks');
-          
-          // Check additional details about columns in pastes table
-          let pastesColumns = [];
-          let hasJupyterStyleColumn = false;
-          
-          if (hasPastesTable) {
-            try {
-              // Get column names from pastes table with case-insensitive comparison
-              const [columns] = await sequelize.query(
-                "SELECT column_name FROM information_schema.columns WHERE table_name = 'pastes'"
-              );
-              
-              pastesColumns = columns.map(c => c.column_name);
-              
-              // Check for isJupyterStyle column (case-insensitive)
-              hasJupyterStyleColumn = pastesColumns.some(c => 
-                c.toLowerCase() === 'isjupyterstyle' || c.toLowerCase() === 'is_jupyter_style'
-              );
-              
-              // If column doesn't exist, try to add it
-              if (!hasJupyterStyleColumn) {
-                try {
-                  console.log('isJupyterStyle column not found, attempting to add it...');
-                  await sequelize.query('ALTER TABLE "pastes" ADD COLUMN "isJupyterStyle" BOOLEAN DEFAULT FALSE');
-                  console.log('Successfully added isJupyterStyle column');
-                  hasJupyterStyleColumn = true;
-                } catch (alterError) {
-                  console.error('Failed to add isJupyterStyle column:', alterError.message);
-                }
-              }
-            } catch (columnsError) {
-              console.error('Error checking paste columns:', columnsError);
-            }
-          }
-          
-          // Check additional details about blocks table if it exists
-          let blocksTableDetails = null;
-          if (hasBlocksTable) {
-            try {
-              const [columns] = await sequelize.query(
-                "SELECT column_name FROM information_schema.columns WHERE table_name = 'blocks'"
-              );
-              blocksTableDetails = {
-                columnCount: columns.length,
-                columns: columns.map(c => c.column_name)
-              };
-            } catch (e) {
-              blocksTableDetails = { error: e.message };
-            }
-          } else {
-            // If blocks table doesn't exist, try to create it
-            try {
-              console.log('blocks table not found, attempting to create it...');
-              await sequelize.query(`
-                CREATE TABLE IF NOT EXISTS "blocks" (
-                  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                  content TEXT NOT NULL,
-                  language VARCHAR(50) DEFAULT 'text',
-                  "order" INTEGER NOT NULL,
-                  "pasteId" UUID NOT NULL REFERENCES pastes(id) ON DELETE CASCADE,
-                  "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-                  "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
-                );
-              `);
-              console.log('Successfully created blocks table');
-              hasBlocksTable = true;
-            } catch (createError) {
-              console.error('Failed to create blocks table:', createError.message);
-            }
-          }
+          const hasPastesTable = tables.some(t => t.table_name === 'pastes');
+          const hasFilesTable = tables.some(t => t.table_name === 'files');
+          const hasBlocksTable = tables.some(t => t.table_name === 'blocks');
           
           return {
             connected: true,
-            queryWorking: true,
-            tables: tablesResult,
-            tableCount,
+            tables: tables.map(t => t.table_name),
             hasPastesTable,
             hasFilesTable,
-            hasBlocksTable,
-            hasJupyterStyleColumn,
-            pastesColumns,
-            connectionStats: {
-              authTime,
-              queryTime,
-              totalTime: Date.now() - startTime
-            },
-            blocksTableDetails,
-            url: process.env.DATABASE_URL ? 
-              (new URL(process.env.DATABASE_URL)).hostname : 
-              'unknown'
+            hasBlocksTable
           };
         } catch (error) {
-          console.error('Connection test failed:', error.message);
+          console.error('Database connection test failed:', error.message);
           return {
             connected: false,
             error: error.message

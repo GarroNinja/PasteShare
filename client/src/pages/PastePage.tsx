@@ -609,24 +609,21 @@ export function PastePage() {
     setEditError(null);
     
     try {
-      // Prepare the data for the API - don't update title
+      // Prepare the data for the API
       const updatedData: any = {};
       
       if (paste.isJupyterStyle) {
-        // Format blocks properly for the API
         console.log('Preparing blocks for update:', editableBlocks);
         
-        // Map blocks to the expected format and ensure all required fields
+        // Make sure each block has required fields
         const formattedBlocks = editableBlocks.map((block, index) => ({
           content: block.content || '',
           language: block.language || 'text',
           order: index
         }));
         
-        console.log('Formatted blocks for API:', formattedBlocks);
-        // Stringify the blocks array to ensure it's properly serialized
+        // Important: stringified blocks must be sent in the blocks property
         updatedData.blocks = JSON.stringify(formattedBlocks);
-        console.log('Stringified blocks:', updatedData.blocks);
       } else {
         updatedData.content = editableContent;
       }

@@ -37,45 +37,10 @@ router.use(async (req, res, next) => {
   req.db = createConnection();
   
   if (!req.db.success) {
-    console.error('Database connection failed:', req.db.error);
     return res.status(503).json({
       error: 'Database unavailable',
-      message: 'Could not establish database connection',
-      details: req.db.error
+      message: 'Could not establish database connection'
     });
-  }
-  
-  // Check if we can query the database
-  try {
-    // Attempt a simple query to verify connection is working
-    const testResult = await req.db.testConnection();
-    
-    if (!testResult.connected) {
-      console.error('Database connection test failed:', testResult);
-      return res.status(503).json({
-        error: 'Database connectivity issue',
-        message: 'Database connection test failed',
-        details: testResult
-      });
-    }
-    
-    // Verify required tables exist
-    if (!testResult.hasPastesTable || !testResult.hasBlocksTable) {
-      console.error('Missing required database tables:', testResult);
-      return res.status(503).json({
-        error: 'Database schema issue',
-        message: 'Required database tables are missing',
-        details: {
-          hasPastesTable: testResult.hasPastesTable,
-          hasFilesTable: testResult.hasFilesTable,
-          hasBlocksTable: testResult.hasBlocksTable
-        }
-      });
-    }
-  } catch (testError) {
-    console.error('Database connection test error:', testError);
-    // Continue anyway as the initial connection was successful
-    console.log('Proceeding despite test error - will attempt to use database');
   }
   
   next();
@@ -971,60 +936,71 @@ router.put('/:id', async (req, res) => {
         }
         
         // Update content for standard pastes or handle blocks for Jupyter-style pastes
-        const isJupyterStyle = hasJupyterStyle && paste.isJupyterStyle;
+        let isJupyterStyle = false;
+        
+        // Check if isJupyterStyle property exists in the paste object
+        if ('isJupyterStyle' in paste) {
+          isJupyterStyle = paste.isJupyterStyle === true;
+        } else {
+          // Check if column exists and add it if needed
+          const hasColumn = await checkColumnExists(sequelize, 'pastes', 'isJupyterStyle');
+          if (!hasColumn) {
+            try {
+              await sequelize.query('ALTER TABLE "pastes" ADD COLUMN "isJupyterStyle" BOOLEAN DEFAULT FALSE');
+            } catch (error) {
+              console.error('Failed to add isJupyterStyle column:', error);
+            }
+          }
+        }
         
         if (isJupyterStyle && hasBlocksTable) {
           if (blocks) {
             let parsedBlocks;
             try {
-              // Improve blocks parsing to handle different formats
+              // Parse blocks data
               if (typeof blocks === 'string') {
                 parsedBlocks = JSON.parse(blocks);
               } else if (Array.isArray(blocks)) {
                 parsedBlocks = blocks;
-              } else if (typeof blocks === 'object') {
-                parsedBlocks = [blocks];
               } else {
-                throw new Error(`Unsupported blocks format: ${typeof blocks}`);
+                throw new Error(`Invalid blocks format: ${typeof blocks}`);
               }
               
-              // Validate blocks data
+              // Validate blocks
               if (!Array.isArray(parsedBlocks)) {
-                throw new Error('Blocks must be an array after parsing');
+                throw new Error('Blocks must be an array');
               }
               
-              console.log(`Processing ${parsedBlocks.length} blocks for update`);
-            } catch (parseError) {
-              console.error('Error parsing blocks:', parseError);
-              throw new Error(`Invalid blocks data format: ${parseError.message}`);
-            }
-            
-            // Delete existing blocks
-            await sequelize.query(
-              `DELETE FROM blocks WHERE "pasteId" = ?`,
-              {
-                replacements: [paste.id],
-                transaction
-              }
-            );
-            
-            // Create new blocks with updated content
-            for (let i = 0; i < parsedBlocks.length; i++) {
-              const block = parsedBlocks[i];
+              // Delete existing blocks
               await sequelize.query(
-                `INSERT INTO blocks (id, content, language, "order", "pasteId", "createdAt", "updatedAt") 
-                VALUES (?, ?, ?, ?, ?, NOW(), NOW())`,
+                `DELETE FROM blocks WHERE "pasteId" = ?`,
                 {
-                  replacements: [
-                    uuidv4(),
-                    block.content || '',
-                    block.language || 'text',
-                    i,
-                    paste.id
-                  ],
+                  replacements: [paste.id],
                   transaction
                 }
               );
+              
+              // Create new blocks with updated content
+              for (let i = 0; i < parsedBlocks.length; i++) {
+                const block = parsedBlocks[i];
+                await sequelize.query(
+                  `INSERT INTO blocks (id, content, language, "order", "pasteId", "createdAt", "updatedAt") 
+                  VALUES (?, ?, ?, ?, ?, NOW(), NOW())`,
+                  {
+                    replacements: [
+                      uuidv4(),
+                      block.content || '',
+                      block.language || 'text',
+                      i,
+                      paste.id
+                    ],
+                    transaction
+                  }
+                );
+              }
+            } catch (parseError) {
+              console.error('Error processing blocks:', parseError);
+              throw parseError;
             }
           }
         } else if (content !== undefined) {
@@ -1124,6 +1100,21 @@ async function checkTableExists(sequelize, tableName) {
     return result[0].exists;
   } catch (error) {
     console.error(`Error checking if table ${tableName} exists:`, error);
+    return false;
+  }
+}
+
+// Helper function to check if a column exists in a table
+async function checkColumnExists(sequelize, tableName, columnName) {
+  try {
+    const [result] = await sequelize.query(
+      `SELECT column_name FROM information_schema.columns 
+       WHERE table_name = '${tableName}' 
+       AND column_name = '${columnName}'`
+    );
+    return result.length > 0;
+  } catch (error) {
+    console.error(`Error checking if column ${columnName} exists in table ${tableName}:`, error);
     return false;
   }
 }
