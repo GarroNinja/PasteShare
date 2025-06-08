@@ -328,7 +328,7 @@ const cleanupExpiredPastes = async (db) => {
 
     // Start transaction for cleanup
     const transaction = await sequelize.transaction();
-
+    
     try {
       let deletedCount = 0;
 
@@ -338,8 +338,8 @@ const cleanupExpiredPastes = async (db) => {
           if (paste.Blocks && paste.Blocks.length > 0) {
             await Block.destroy({
               where: { pasteId: paste.id },
-              transaction
-            });
+          transaction
+        });
           }
 
           // Delete associated files
@@ -366,7 +366,7 @@ const cleanupExpiredPastes = async (db) => {
       
       return { success: true, deletedCount };
     } catch (transactionError) {
-      await transaction.rollback();
+          await transaction.rollback();
       console.error('Transaction error during cleanup:', transactionError);
       return { success: false, error: transactionError.message };
     }
@@ -570,12 +570,12 @@ router.post('/', upload.array('files', 3), async (req, res) => {
         const filePromises = files.map(file => {
           return File.create({
             id: uuidv4(),
-            filename: file.originalname,
-            originalname: file.originalname,
-            mimetype: file.mimetype,
-            size: file.size,
+              filename: file.originalname,
+              originalname: file.originalname,
+              mimetype: file.mimetype,
+              size: file.size,
             content: file.buffer.toString('base64'),
-            pasteId: paste.id
+              pasteId: paste.id
           }, { transaction });
         });
         
@@ -696,10 +696,10 @@ router.get('/:id', async (req, res) => {
         return res.status(403).json({
           message: 'Password required',
           pasteInfo: {
-            id: paste.id,
-            title: paste.title,
+        id: paste.id,
+        title: paste.title,
             isPasswordProtected: true,
-            customUrl: paste.customUrl
+        customUrl: paste.customUrl
           }
         });
       }
@@ -726,7 +726,7 @@ router.get('/:id', async (req, res) => {
     
     // Increment view count
     paste.views = (paste.views || 0) + 1;
-    await paste.save();
+      await paste.save();
     
     // Format files for response
     const files = paste.Files ? paste.Files.map(file => ({
@@ -747,26 +747,26 @@ router.get('/:id', async (req, res) => {
     
     // Sort blocks by order
     blocks.sort((a, b) => a.order - b.order);
-    
-    return res.status(200).json({
-      paste: {
-        id: paste.id,
-        title: paste.title,
+      
+      return res.status(200).json({
+        paste: {
+          id: paste.id,
+          title: paste.title,
         content: paste.isJupyterStyle() ? '' : paste.content,
-        expiresAt: paste.expiresAt,
-        isPrivate: paste.isPrivate,
+          expiresAt: paste.expiresAt,
+          isPrivate: paste.isPrivate,
         views: paste.views,
-        customUrl: paste.customUrl,
+          customUrl: paste.customUrl,
         isEditable: paste.isEditable,
-        createdAt: paste.createdAt,
+          createdAt: paste.createdAt,
         updatedAt: paste.updatedAt,
         isPasswordProtected: !!paste.password,
         isJupyterStyle: paste.isJupyterStyle(),
         blocks,
         files,
-        canEdit: paste.isEditable
-      }
-    });
+          canEdit: paste.isEditable
+        }
+      });
   } catch (error) {
     console.error('Get paste error:', error);
     return res.status(500).json({
@@ -813,7 +813,7 @@ router.post('/:id/verify-password', async (req, res) => {
             where: { customUrl: id }
           });
         }
-      } else {
+    } else {
         // Only search by customUrl for non-UUID strings
         paste = await Paste.findOne({
           where: { customUrl: id }
@@ -892,7 +892,7 @@ router.get('/:pasteId/files/:fileId', async (req, res) => {
     
     // Find file
     const file = await File.findOne({
-      where: {
+      where: { 
         id: fileId,
         pasteId
       }
@@ -944,7 +944,7 @@ router.put('/:id', async (req, res) => {
     
     let paste;
     try {
-      if (isValidUUID) {
+    if (isValidUUID) {
         // Try to find by ID first, then by customUrl
         paste = await Paste.findOne({
           where: { id },
@@ -956,8 +956,8 @@ router.put('/:id', async (req, res) => {
           ]
         });
         
-        if (!paste) {
-          paste = await Paste.findOne({
+    if (!paste) {
+      paste = await Paste.findOne({
             where: { customUrl: id },
             include: [
               {
@@ -992,11 +992,11 @@ router.put('/:id', async (req, res) => {
     }
     
     // Check if paste is editable
-    if (!paste.isEditable) {
+      if (!paste.isEditable) {
       console.error('Paste not editable');
-      return res.status(403).json({ message: 'This paste is not editable' });
-    }
-    
+        return res.status(403).json({ message: 'This paste is not editable' });
+      }
+      
     // Check if paste has expired
     if (paste.expiresAt && new Date() > new Date(paste.expiresAt)) {
       console.error('Paste expired');
@@ -1179,25 +1179,25 @@ router.put('/:id', async (req, res) => {
         paste.content = content;
         await paste.save({ transaction });
         await transaction.commit();
-        
-        return res.status(200).json({
-          message: 'Paste updated successfully',
-          paste: {
-            id: paste.id,
-            title: paste.title,
-            content: paste.content,
-            expiresAt: paste.expiresAt,
-            isPrivate: paste.isPrivate,
-            isEditable: paste.isEditable,
-            customUrl: paste.customUrl,
-            createdAt: paste.createdAt,
-            updatedAt: paste.updatedAt,
+      
+      return res.status(200).json({
+        message: 'Paste updated successfully',
+        paste: {
+          id: paste.id,
+          title: paste.title,
+          content: paste.content,
+          expiresAt: paste.expiresAt,
+          isPrivate: paste.isPrivate,
+          isEditable: paste.isEditable,
+          customUrl: paste.customUrl,
+          createdAt: paste.createdAt,
+          updatedAt: paste.updatedAt,
             isJupyterStyle: false,
             blocks: [],
             canEdit: paste.isEditable
-          }
-        });
-      } else {
+        }
+      });
+    } else {
         // Only title was updated
         await transaction.commit();
         
@@ -1350,5 +1350,5 @@ router.post('/migrate-schema', async (req, res) => {
 });
 
 // Export the router and createConnection for use in server.js
-module.exports = router;
+module.exports = router; 
 module.exports.createConnection = createConnection; 

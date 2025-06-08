@@ -896,24 +896,24 @@ export const editPaste = async (req: Request, res: Response) => {
           language: block.language,
           order: block.order
         })) : [];
-        
-        return res.status(200).json({
-          message: 'Paste updated successfully',
-          paste: {
-            id: paste.id,
-            title: paste.title,
-            content: paste.content,
-            expiresAt: paste.expiresAt,
-            isPrivate: paste.isPrivate,
-            isEditable: paste.isEditable,
-            customUrl: paste.customUrl,
-            createdAt: paste.createdAt,
-            updatedAt: paste.updatedAt,
+    
+    return res.status(200).json({
+      message: 'Paste updated successfully',
+      paste: {
+        id: paste.id,
+        title: paste.title,
+        content: paste.content,
+        expiresAt: paste.expiresAt,
+        isPrivate: paste.isPrivate,
+        isEditable: paste.isEditable,
+        customUrl: paste.customUrl,
+        createdAt: paste.createdAt,
+        updatedAt: paste.updatedAt,
             isJupyterStyle: paste.isJupyterStyle(),
             blocks: blockRecords,
             canEdit: paste.isEditable
-          },
-        });
+      },
+    });
       }
     } catch (error) {
       // Rollback transaction on error

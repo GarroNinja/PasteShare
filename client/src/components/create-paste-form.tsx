@@ -518,15 +518,22 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
         <button 
           type="button"
           onClick={togglePasteStyle}
-          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-green-500 dark:focus:ring-[#b8bb26] focus:ring-offset-2 ${
-            isJupyterStyle ? 'bg-green-600 dark:bg-[#98971a]' : 'bg-gray-300 dark:bg-[#504945]'
+          className={`p-2 rounded-full transition-colors ${
+            isJupyterStyle 
+              ? 'bg-green-600 dark:bg-[#98971a] text-white dark:text-[#1d2021]' 
+              : 'bg-gray-200 dark:bg-[#3c3836] text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-[#504945]'
           }`}
+          aria-label={`${isJupyterStyle ? 'Disable' : 'Enable'} Jupyter Notebook Style`}
         >
-          <span
-            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ease-in-out shadow-sm ${
-              isJupyterStyle ? 'translate-x-6' : 'translate-x-1'
-            }`}
-          />
+          {isJupyterStyle ? (
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          ) : (
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          )}
         </button>
       </div>
       

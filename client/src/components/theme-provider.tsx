@@ -98,14 +98,14 @@ export function ThemeProvider({
     // Set color-scheme for proper browser styling
     root.style.colorScheme = actualTheme;
     
-    // Ensure viewport meta tag for mobile
+    // Ensure viewport meta tag for mobile with safe area support
     let viewportMeta = document.querySelector('meta[name="viewport"]');
     if (!viewportMeta) {
       viewportMeta = document.createElement('meta');
       viewportMeta.setAttribute('name', 'viewport');
       document.head.appendChild(viewportMeta);
     }
-    viewportMeta.setAttribute('content', 'width=device-width, initial-scale=1.0, viewport-fit=cover');
+    viewportMeta.setAttribute('content', 'width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no');
     
   }, [theme]);
 
