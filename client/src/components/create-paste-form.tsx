@@ -34,6 +34,7 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
   const [isEditable, setIsEditable] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const [fileError, setFileError] = useState<string | null>(null);
+  const [pasteSuccess, setPasteSuccess] = useState<string | null>(null);
   const [customUrlError, setCustomUrlError] = useState<string | null>(null);
   const [isPasswordProtected, setIsPasswordProtected] = useState(false);
   const [password, setPassword] = useState('');
@@ -52,6 +53,17 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
   const [jupyterError, setJupyterError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
 
+  // Utility function for formatting file sizes
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return bytes + ' B';
+    else if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    else if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    else return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
+  };
+
+  // Utility function for formatting file sizes
+
+
   // Close dropdown when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -65,6 +77,90 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
+
+  // Handle clipboard paste events for images
+  useEffect(() => {
+    const handlePaste = async (event: ClipboardEvent) => {
+      // Only handle paste events when the form is focused or when pasting in content areas
+      const target = event.target as HTMLElement;
+      const isInForm = target.closest('form') !== null;
+      const isTextInput = target.tagName === 'TEXTAREA' || target.tagName === 'INPUT';
+      
+      if (!isInForm && !isTextInput) {
+        return;
+      }
+
+      const clipboardData = event.clipboardData;
+      if (!clipboardData) return;
+
+      // Check if clipboard contains image data
+      const items = Array.from(clipboardData.items);
+      const imageItems = items.filter(item => item.type.startsWith('image/'));
+
+      if (imageItems.length === 0) {
+        return; // No images in clipboard, let default paste behavior continue
+      }
+
+      // Prevent default paste behavior for images
+      event.preventDefault();
+
+      for (const item of imageItems) {
+        try {
+          const file = item.getAsFile();
+          if (!file) continue;
+
+          // Generate a filename with timestamp
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+          const extension = file.type.split('/')[1] || 'png';
+          const filename = `pasted-image-${timestamp}.${extension}`;
+
+          // Create a new File object with a proper name
+          const namedFile = new File([file], filename, {
+            type: file.type,
+            lastModified: Date.now()
+          });
+
+          // Check file size limit (10MB)
+          const maxSize = 10 * 1024 * 1024;
+          if (namedFile.size > maxSize) {
+            setFileError(`Pasted image is too large (${formatFileSize(namedFile.size)}). Maximum size is 10MB.`);
+            continue;
+          }
+
+          // Check total number of files (max 3)
+          if (files.length >= 3) {
+            setFileError('You can upload a maximum of 3 files. Remove some files before pasting images.');
+            continue;
+          }
+
+          // Add the file to the files array
+          setFiles(prev => [...prev, namedFile]);
+          setFileError(null);
+
+          // Show a success message
+          setPasteSuccess(`Pasted image: ${filename} (${formatFileSize(namedFile.size)})`);
+          
+          // Clear success message after 3 seconds
+          setTimeout(() => {
+            setPasteSuccess(null);
+          }, 3000);
+
+          console.log(`Pasted image: ${filename} (${formatFileSize(namedFile.size)})`);
+          
+        } catch (error) {
+          console.error('Error processing pasted image:', error);
+          setFileError('Failed to process pasted image. Please try again.');
+        }
+      }
+    };
+
+    // Add event listener to document
+    document.addEventListener('paste', handlePaste);
+
+    return () => {
+      document.removeEventListener('paste', handlePaste);
+    };
+  }, [files]); // Re-run when files array changes
 
   // Get the label for the currently selected expiry option
   const selectedExpiryLabel = EXPIRY_OPTIONS.find(option => 
@@ -251,13 +347,6 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
   const removeFile = (index: number) => {
     setFiles(prev => prev.filter((_, i) => i !== index));
     setFileError(null);
-  };
-  
-  const formatFileSize = (bytes: number) => {
-    if (bytes < 1024) return bytes + ' B';
-    else if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-    else if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-    else return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
   };
   
   const getFileIcon = (filename: string) => {
@@ -650,6 +739,14 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
               </label>
               <p className="pl-1">or drag and drop</p>
             </div>
+            <div className="flex items-center justify-center mt-2">
+              <div className="flex items-center text-xs text-blue-600 dark:text-blue-400">
+                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+                <span>or paste images with Ctrl+V</span>
+              </div>
+            </div>
             <p className="text-xs text-gray-500 dark:text-gray-400">
               Up to 3 files, 10MB each
             </p>
@@ -658,6 +755,10 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
         
         {fileError && (
           <p className="mt-1 text-sm text-red-600 dark:text-red-400">{fileError}</p>
+        )}
+        
+        {pasteSuccess && (
+          <p className="mt-1 text-sm text-green-600 dark:text-green-400">{pasteSuccess}</p>
         )}
       
       {files.length > 0 && (
