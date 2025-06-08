@@ -38,8 +38,7 @@ export function HomePage() {
       // Add title
       formData.append("title", data.title || "Untitled Paste");
       
-      console.log("Preparing paste submission:");
-      console.log("- isJupyterStyle:", data.isJupyterStyle);
+      
       
       // Handle Jupyter-style pastes differently
       if (data.isJupyterStyle) {
@@ -63,10 +62,7 @@ export function HomePage() {
               order: index
             }));
             
-            console.log(`Processing ${processedBlocks.length} blocks for Jupyter paste:`);
-            processedBlocks.forEach((block, i) => {
-              console.log(`- Block ${i}: ${block.language}, ${block.content.substring(0, 30)}...`);
-            });
+            
             
             // Convert blocks to JSON string
             const blocksJson = JSON.stringify(processedBlocks);
@@ -98,8 +94,7 @@ export function HomePage() {
           return;
         }
         
-        console.log("Standard paste content length:", data.content.length);
-      formData.append("content", data.content);
+        formData.append("content", data.content);
         formData.append("isJupyterStyle", "false");
       }
       
@@ -119,32 +114,11 @@ export function HomePage() {
       
       // Add files to form data if they exist
       if (data.files && data.files.length > 0) {
-        console.log(`Adding ${data.files.length} files to submission`);
         data.files.forEach(file => formData.append("files", file));
       }
       
-      // Print form data entries for debugging
-      console.log("Form data entries:");
-      // Use array spread to safely iterate over FormData entries
-      Array.from(formData.entries()).forEach(pair => {
-        const [key, value] = pair;
-        // Don't log the full content or files, just indicate they exist
-        if (key === 'content' && !data.isJupyterStyle) {
-          console.log('- content: [text content]');
-        } else if (key === 'files') {
-          const file = value as File;
-          console.log(`- files: ${file.name} (${file.size} bytes)`);
-        } else if (key === 'blocks') {
-          console.log('- blocks: [JSON data]');
-        } else {
-          console.log(`- ${key}: ${value}`);
-        }
-      });
-      
       // Get the API base URL
       const apiBaseUrl = getApiBaseUrl();
-      
-      console.log("Submitting paste to:", `${apiBaseUrl}/pastes`);
       
       // Make API call with explicit mode and credentials
       const response = await fetch(`${apiBaseUrl}/pastes`, {
@@ -191,10 +165,6 @@ export function HomePage() {
       const result = await response.json();
       
       if (result.paste && result.paste.id) {
-        console.log("Paste created successfully:", result.paste.id, 
-                    "isJupyterStyle:", result.paste.isJupyterStyle,
-                    "blocks:", result.paste.blocks?.length || 0);
-                    
         // Use a timeout to avoid navigation race conditions that might cause page glitches
         setTimeout(() => {
         // If a custom URL is used, navigate to that

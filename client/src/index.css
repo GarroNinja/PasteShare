@@ -1,16 +1,19 @@
+/* Tailwind CSS imports */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 /* Prevent theme flash during page load */
 :root {
   color-scheme: light;
-}
-
-/* Force initial Gruvbox colors for critical UI elements */
-:root {
+  
+  /* Gruvbox dark theme colors */
   --gruvbox-bg: #282828;
   --gruvbox-bg-hard: #1d2021;
   --gruvbox-fg: #ebdbb2;
   --gruvbox-green: #98971a;
   
-  /* Improved light theme colors - more consistent with dark mode */
+  /* Improved light theme colors */
   --light-bg: #fefefe;
   --light-bg-hard: #f9f9f9;
   --light-bg-soft: #f5f5f5;
@@ -25,15 +28,17 @@
   --light-border-soft: #f0f0f0;
 }
 
-/* Set immediate colors for html and body - ensure full coverage */
+/* Base HTML and body styles */
 html, body {
   background-color: var(--light-bg) !important;
   color: var(--light-fg) !important;
   min-height: 100vh;
-  min-height: 100dvh; /* Dynamic viewport height for mobile */
+  min-height: 100dvh;
   width: 100%;
   margin: 0;
   padding: 0;
+  overflow-x: hidden;
+  max-width: 100vw;
 }
 
 .dark html, .dark body {
@@ -41,36 +46,53 @@ html, body {
   color: var(--gruvbox-fg) !important;
 }
 
-/* Safe area support - apply to main content only, not header/footer */
+/* Root container styles */
 #root {
   min-height: 100vh;
   min-height: 100dvh;
   background-color: var(--light-bg);
+  width: 100%;
+  overflow-x: hidden;
+  max-width: 100vw;
 }
 
 .dark #root {
   background-color: var(--gruvbox-bg);
 }
 
-/* Apply safe area padding only to main content */
+/* Safe area support - main content only */
 main {
   padding-left: env(safe-area-inset-left);
   padding-right: env(safe-area-inset-right);
 }
 
-/* Header content should respect safe areas but background extends full width */
+/* Header content respects safe areas but background extends full width */
+header {
+  background-color: var(--light-bg-hard) !important;
+}
+
+.dark header {
+  background-color: var(--gruvbox-bg-hard) !important;
+}
+
 header .max-w-6xl {
   padding-left: max(env(safe-area-inset-left), 1rem);
   padding-right: max(env(safe-area-inset-right), 1rem);
 }
 
-/* Mobile nav bar should respect safe areas */
+/* Mobile navigation safe areas */
 .md\\:hidden.fixed.bottom-0 {
   padding-left: max(env(safe-area-inset-left), 1rem);
   padding-right: max(env(safe-area-inset-right), 1rem);
 }
 
-/* Ensure full viewport coverage on mobile landscape with safe areas */
+/* Container padding */
+.max-w-4xl, .max-w-6xl {
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+/* Mobile landscape safe area support */
 @media screen and (orientation: landscape) and (max-height: 500px) {
   html, body {
     min-height: 100vh !important;
@@ -81,7 +103,6 @@ header .max-w-6xl {
     background-color: var(--gruvbox-bg) !important;
   }
   
-  /* Enhanced safe area support for landscape - apply to main content */
   main {
     padding-left: max(env(safe-area-inset-left), 16px);
     padding-right: max(env(safe-area-inset-right), 16px);
@@ -89,13 +110,11 @@ header .max-w-6xl {
     padding-bottom: env(safe-area-inset-bottom);
   }
   
-  /* Header content should respect safe areas but background extends full width */
   header .max-w-6xl {
     padding-left: max(env(safe-area-inset-left), 1rem);
     padding-right: max(env(safe-area-inset-right), 1rem);
   }
   
-  /* Mobile nav bar adjustments */
   .md\\:hidden.fixed.bottom-0 {
     left: 0;
     right: 0;
@@ -105,27 +124,24 @@ header .max-w-6xl {
   }
 }
 
-/* Mobile responsiveness improvements */
+/* Mobile responsiveness */
 @media (max-width: 768px) {
-  /* Ensure proper spacing on mobile */
-  .max-w-4xl {
+  .max-w-4xl, .max-w-6xl {
     padding-left: 1rem;
     padding-right: 1rem;
   }
   
-  /* Better mobile form styling */
+  /* Prevent iOS zoom on form inputs */
   textarea, input, select {
-    font-size: 16px; /* Prevent zoom on iOS */
+    font-size: 16px;
   }
   
-  /* Mobile-friendly buttons */
+  /* iOS touch target size */
   button {
-    min-height: 44px; /* iOS touch target size */
+    min-height: 44px;
   }
   
-
-  
-  /* Better mobile paste page layout */
+  /* Mobile Jupyter notebook layout */
   .jupyter-notebook-container .mb-4 {
     flex-direction: column;
     gap: 0.5rem;
@@ -135,18 +151,18 @@ header .max-w-6xl {
     flex-wrap: wrap;
   }
   
-  /* Mobile syntax highlighter improvements */
+  /* Mobile syntax highlighter */
   pre[class*="language-"] {
     font-size: 14px !important;
     overflow-x: auto;
   }
   
-  /* Mobile table responsiveness */
+  /* Mobile scrolling */
   .overflow-x-auto {
     -webkit-overflow-scrolling: touch;
   }
   
-  /* Mobile form improvements */
+  /* Mobile form spacing */
   .flex.flex-col.gap-4.sm\\:flex-row {
     gap: 1rem;
   }
@@ -155,9 +171,7 @@ header .max-w-6xl {
     gap: 1rem;
   }
   
-
-  
-  /* Better mobile input spacing */
+  /* Mobile input layout */
   .mt-1.flex.rounded-md {
     min-width: 0;
   }
@@ -168,173 +182,12 @@ header .max-w-6xl {
   }
 }
 
-/* Prevent horizontal scroll on mobile */
-html, body, #root {
-  overflow-x: hidden;
-  width: 100%;
-  max-width: 100vw;
-}
-
-/* Safe area support for all devices - remove since we handle it at root level */
-.max-w-4xl, .max-w-6xl {
-  padding-left: 1rem;
-  padding-right: 1rem;
-}
-
-/* Additional safe area support for mobile */
-@media (max-width: 768px) {
-  .max-w-4xl, .max-w-6xl {
-    padding-left: 1rem;
-    padding-right: 1rem;
-  }
-}
-
-/* Navbar colors */
-header {
-  background-color: var(--light-bg-hard) !important;
-}
-
-.dark header {
-  background-color: var(--gruvbox-bg-hard) !important;
-}
-
-/* End of critical CSS */
-
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-@layer base {
-  /* Set consistent base colors for both light and dark modes */
-  :root {
-    --background: 0 0% 100%;
-    --foreground: 27 9% 24%;
-    
-    /* Ensure green colors are consistent across themes */
-    --green-100: rgba(121, 116, 14, 0.1);
-    --green-300: #98971a;
-    --green-400: #79740e;
-    --green-500: #79740e;
-    --green-600: #98971a;
-    --green-700: #98971a;
-    --green-800: #79740e;
-    --green-900: #79740e;
-  }
-
-  .dark {
-    --background: 40 6% 11%;
-    --foreground: 50 8% 88%;
-    
-    /* Ensure all green colors are Gruvbox-themed in dark mode */
-    --green-100: rgba(184, 187, 38, 0.1);
-    --green-300: #d8e082;
-    --green-400: #b8bb26;
-    --green-500: #b8bb26;
-    --green-600: #98971a;
-    --green-700: #98971a;
-    --green-800: #79740e;
-    --green-900: #79740e;
-  }
-}
-
-/* Apply light theme by default to prevent flashing */
-html {
-  color-scheme: light;
-}
-
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
-}
-
-/* Gruvbox Dark theme */
+/* Dark mode overrides */
 .dark {
-  /* Base colors */
-  --gruvbox-bg: #282828;
-  --gruvbox-bg-soft: #32302f;
-  --gruvbox-bg-hard: #1d2021;
-  --gruvbox-fg: #ebdbb2;
-  
-  /* Accent colors */
-  --gruvbox-green: #b8bb26;
-  --gruvbox-green-soft: #98971a;
-  --gruvbox-aqua: #8ec07c;
-  --gruvbox-yellow: #fabd2f;
-  --gruvbox-red: #fb4934;
-  --gruvbox-blue: #83a598;
-  --gruvbox-purple: #d3869b;
-  --gruvbox-orange: #fe8019;
-  
-  /* Apply base colors */
-  background-color: var(--gruvbox-bg);
-  color: var(--gruvbox-fg);
+  color-scheme: dark;
 }
 
-/* Minimalist Light theme */
-:root:not(.dark) {
-  /* Base colors */
-  --gruvbox-bg: var(--light-bg);
-  --gruvbox-bg-soft: var(--light-bg-soft);
-  --gruvbox-bg-hard: var(--light-bg-hard);
-  --gruvbox-fg: var(--light-fg);
-  
-  /* Accent colors */
-  --gruvbox-green: var(--light-green);
-  --gruvbox-green-soft: var(--light-green-soft);
-  --gruvbox-aqua: var(--light-aqua);
-  --gruvbox-yellow: var(--light-yellow);
-  --gruvbox-red: var(--light-red);
-  
-  /* Apply base colors */
-  background-color: var(--light-bg);
-  color: var(--light-fg);
-}
-
-/* Background variants */
-.dark .bg-gray-800 {
-  background-color: var(--gruvbox-bg);
-}
-
-.dark .bg-gray-900 {
-  background-color: var(--gruvbox-bg-hard);
-}
-
-.dark .border-gray-700 {
-  border-color: #504945;
-}
-
-/* Light mode styling improvements */
-:root:not(.dark) .bg-gray-50,
-:root:not(.dark) .bg-gray-100 {
-  background-color: var(--light-bg-hard);
-}
-
-:root:not(.dark) .bg-gray-200 {
-  background-color: var(--light-bg-soft);
-}
-
-:root:not(.dark) .bg-white {
-  background-color: var(--light-bg);
-}
-
-:root:not(.dark) .border-gray-200 {
-  border-color: var(--light-border);
-}
-
-:root:not(.dark) .border-gray-300 {
-  border-color: var(--light-border-soft);
-}
-
-/* Light mode text improvements */
+/* Light mode text colors */
 :root:not(.dark) .text-gray-600 {
   color: var(--light-fg-soft) !important;
 }
@@ -344,10 +197,10 @@ code {
 }
 
 :root:not(.dark) .text-gray-500 {
-  color: #666666 !important;
+  color: #6b6b6b !important;
 }
 
-/* Light mode green accents */
+/* Green button styling */
 :root:not(.dark) .text-green-600,
 :root:not(.dark) .text-green-700 {
   color: var(--light-green) !important;
@@ -358,26 +211,24 @@ code {
 }
 
 :root:not(.dark) .bg-green-100 {
-  background-color: rgba(107, 107, 0, 0.1) !important;
+  background-color: #f0f8e8 !important;
 }
 
 :root:not(.dark) .hover\:bg-green-700:hover {
   background-color: var(--light-green-soft) !important;
 }
 
-/* Light mode button improvements */
+/* Form button overrides */
 :root:not(.dark) button.bg-green-600 {
   background-color: var(--light-green) !important;
   color: white !important;
-  border: 1px solid var(--light-green) !important;
 }
 
 :root:not(.dark) button.bg-green-600:hover {
   background-color: var(--light-green-soft) !important;
-  border-color: var(--light-green-soft) !important;
 }
 
-/* Light mode form improvements */
+/* Input focus states */
 :root:not(.dark) input:focus,
 :root:not(.dark) textarea:focus,
 :root:not(.dark) select:focus {
@@ -385,418 +236,276 @@ code {
   box-shadow: 0 0 0 1px var(--light-green) !important;
 }
 
-/* Light mode card styling */
+/* Background overrides */
 :root:not(.dark) .bg-white {
   background-color: var(--light-bg) !important;
-  border-color: var(--light-border) !important;
 }
 
 :root:not(.dark) .shadow-sm {
   box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
 }
 
-/* Override elements */
+/* Layout backgrounds */
 .dark .min-h-screen {
-  background-color: var(--gruvbox-bg);
+  background-color: var(--gruvbox-bg) !important;
 }
 
 :root:not(.dark) .min-h-screen {
-  background-color: var(--light-bg);
+  background-color: var(--light-bg) !important;
 }
 
-.dark header, 
-.dark nav,
-.dark footer {
-  background-color: var(--gruvbox-bg-hard);
-}
-
-:root:not(.dark) header,
-:root:not(.dark) nav,
-:root:not(.dark) footer {
-  background-color: var(--light-bg-hard);
-}
-
+/* Form styling */
 .dark textarea,
 .dark input,
 .dark select {
-  background-color: var(--gruvbox-bg);
-  border-color: #504945;
-  color: var(--gruvbox-fg);
+  background-color: var(--gruvbox-bg) !important;
+  border-color: #504945 !important;
+  color: var(--gruvbox-fg) !important;
 }
 
 :root:not(.dark) textarea,
 :root:not(.dark) input,
 :root:not(.dark) select {
-  background-color: var(--light-bg);
-  border-color: #e0e0e0;
-  color: var(--light-fg);
+  background-color: var(--light-bg) !important;
+  border-color: var(--light-border) !important;
+  color: var(--light-fg) !important;
 }
 
-/* Green theme using gruvbox colors */
+/* Status colors */
 .text-green-400,
-.text-green-500,
-.text-green-600,
-.dark .text-green-400,
-.dark .text-green-500,
-.dark .text-green-600 {
-  color: var(--gruvbox-green);
-}
-
-.bg-green-100,
-.dark .bg-green-100 {
-  background-color: rgba(184, 187, 38, 0.1);
-}
-
-:root:not(.dark) .bg-green-100 {
-  background-color: rgba(121, 116, 14, 0.1);
-}
-
-.bg-green-600,
-.bg-green-700,
-.dark .bg-green-600,
-.dark .bg-green-700 {
-  background-color: var(--gruvbox-green-soft);
-}
-
-.bg-green-800,
-.bg-green-900,
-.dark .bg-green-800,
-.dark .bg-green-900 {
-  background-color: #79740e;
-}
-
-.text-green-100,
-.text-green-300,
-.dark .text-green-100,
 .dark .text-green-300 {
-  color: #d8e082;
+  color: #b8bb26 !important;
 }
 
-:root:not(.dark) .text-green-100,
-:root:not(.dark) .text-green-300 {
-  color: #98971a;
-}
-
-.hover\:bg-green-700:hover,
-.hover\:bg-green-800:hover,
-.dark .hover\:bg-green-700:hover,
-.dark .hover\:bg-green-800:hover {
-  background-color: var(--gruvbox-green-soft);
-}
-
-.hover\:border-green-300:hover,
-.dark .hover\:border-green-300:hover {
-  border-color: var(--gruvbox-green);
-}
-
-.dark .hover\:border-green-700:hover {
-  border-color: var(--gruvbox-green-soft);
-}
-
-/* Blue-themed elements should use green (consistency) */
-.bg-blue-100,
-.dark .bg-blue-100 {
-  background-color: rgba(184, 187, 38, 0.1);
-}
-
-:root:not(.dark) .bg-blue-100 {
-  background-color: rgba(121, 116, 14, 0.1);
-}
-
-.text-blue-700,
-.dark .text-blue-700 {
-  color: var(--gruvbox-green-soft);
-}
-
-:root:not(.dark) .text-blue-700 {
-  color: var(--light-green);
-}
-
-.dark .text-blue-300 {
-  color: var(--gruvbox-green);
-}
-
-:root:not(.dark) .text-blue-300 {
-  color: var(--light-green-soft);
-}
-
-.dark .bg-blue-900\/30 {
-  background-color: rgba(98, 151, 26, 0.3);
-}
-
-.dark .bg-blue-900\/50 {
-  background-color: rgba(98, 151, 26, 0.5);
-}
-
-:root:not(.dark) .bg-blue-900\/30 {
-  background-color: rgba(121, 116, 14, 0.3);
-}
-
-:root:not(.dark) .bg-blue-900\/50 {
-  background-color: rgba(121, 116, 14, 0.5);
-}
-
-/* Button colors */
 .bg-green-100,
-.dark .bg-green-100 {
-  background-color: rgba(184, 187, 38, 0.1);
+.dark .bg-green-900\/30 {
+  background-color: rgba(152, 151, 26, 0.2) !important;
 }
 
 :root:not(.dark) .bg-green-100 {
-  background-color: rgba(121, 116, 14, 0.1);
+  background-color: #f0f8e8 !important;
 }
 
 .bg-green-600,
 .dark .bg-green-600 {
-  background-color: var(--gruvbox-green-soft);
+  background-color: var(--gruvbox-green) !important;
 }
 
-:root:not(.dark) .bg-green-600 {
-  background-color: var(--light-green-soft);
+.bg-green-800,
+.dark .bg-green-800 {
+  background-color: #79740e !important;
 }
 
-/* Add a rule for text color on green buttons */
-.dark .bg-green-600,
-.dark .bg-[#98971a] {
-  color: var(--gruvbox-bg-hard);
+.text-green-100,
+.dark .text-green-100 {
+  color: #f0f8e8 !important;
 }
 
-:root:not(.dark) .bg-green-600,
-:root:not(.dark) .bg-[#98971a] {
-  color: white;
-}
-
-.text-green-700,
-.dark .text-green-700 {
-  color: #98971a;
-}
-
+:root:not(.dark) .text-green-100,
 :root:not(.dark) .text-green-700 {
-  color: var(--light-green);
+  color: var(--light-green) !important;
 }
 
-.dark .text-green-300 {
-  color: var(--gruvbox-green);
+.hover\:bg-green-700:hover,
+.dark .hover\:bg-green-700:hover {
+  background-color: #79740e !important;
 }
 
-:root:not(.dark) .text-green-300 {
-  color: var(--light-green-soft);
+.hover\:border-green-300:hover,
+.dark .hover\:border-green-300:hover {
+  border-color: #b8bb26 !important;
 }
 
-.dark .bg-green-900\/30 {
-  background-color: rgba(98, 151, 26, 0.3);
+.dark .hover\:border-green-700:hover {
+  border-color: #79740e !important;
 }
 
-.dark .bg-green-900\/50 {
-  background-color: rgba(98, 151, 26, 0.5);
+/* Blue status colors */
+.bg-blue-100,
+.dark .bg-blue-900\/30 {
+  background-color: rgba(69, 133, 136, 0.2) !important;
 }
 
-:root:not(.dark) .bg-green-900\/30 {
-  background-color: rgba(121, 116, 14, 0.3);
+:root:not(.dark) .bg-blue-100 {
+  background-color: #e6f3ff !important;
 }
 
-:root:not(.dark) .bg-green-900\/50 {
-  background-color: rgba(121, 116, 14, 0.5);
+.text-blue-700,
+.dark .text-blue-300 {
+  color: #83a598 !important;
 }
 
-/* Other accent colors */
+:root:not(.dark) .text-blue-700 {
+  color: var(--light-aqua) !important;
+}
+
+:root:not(.dark) .text-blue-300 {
+  color: #5a8a6b !important;
+}
+
+.dark .bg-blue-900\/50 {
+  background-color: rgba(69, 133, 136, 0.3) !important;
+}
+
+:root:not(.dark) .bg-blue-900\/30 {
+  background-color: rgba(45, 90, 61, 0.2) !important;
+}
+
+:root:not(.dark) .bg-blue-900\/50 {
+  background-color: rgba(45, 90, 61, 0.3) !important;
+}
+
+/* Yellow and red status colors */
 .dark .bg-yellow-100,
-.dark .text-yellow-700 {
-  background-color: rgba(250, 189, 47, 0.1);
-  color: var(--gruvbox-yellow);
+.dark .bg-amber-100 {
+  background-color: rgba(215, 153, 33, 0.2) !important;
 }
 
-.dark .bg-red-100,
-.dark .text-red-700 {
-  background-color: rgba(251, 73, 52, 0.1);
-  color: var(--gruvbox-red);
+.dark .bg-red-100 {
+  background-color: rgba(204, 36, 29, 0.2) !important;
 }
 
 :root:not(.dark) .bg-yellow-100,
-:root:not(.dark) .text-yellow-700 {
-  background-color: rgba(181, 118, 20, 0.1);
-  color: var(--light-yellow);
+:root:not(.dark) .bg-amber-100 {
+  background-color: #fff8e1 !important;
 }
 
-:root:not(.dark) .bg-red-100,
-:root:not(.dark) .text-red-700 {
-  background-color: rgba(157, 0, 6, 0.1);
-  color: var(--light-red);
+:root:not(.dark) .bg-red-100 {
+  background-color: #ffebee !important;
 }
 
-/* Ensure Create Paste button is always visible */
+/* Form submit buttons */
 form button[type="submit"]:not(:disabled) {
-  background-color: var(--light-green-soft) !important;
+  background-color: var(--light-green) !important;
   color: white !important;
 }
 
 .dark form button[type="submit"]:not(:disabled) {
-  background-color: var(--gruvbox-green-soft) !important;
+  background-color: var(--gruvbox-green) !important;
   color: var(--gruvbox-bg-hard) !important;
 }
 
-/* Ensure hover state is also visible */
 form button[type="submit"]:not(:disabled):hover {
-  background-color: var(--light-green) !important;
+  background-color: var(--light-green-soft) !important;
 }
 
 .dark form button[type="submit"]:not(:disabled):hover {
-  background-color: #79740e !important; /* darker gruvbox green */
+  background-color: #79740e !important;
 }
 
-/* Navigation buttons */
+/* Generic green buttons */
 button[class*="bg-green-600"] {
-  background-color: var(--light-green-soft) !important;
+  background-color: var(--light-green) !important;
   color: white !important;
 }
 
 .dark button[class*="bg-green-600"] {
-  background-color: var(--gruvbox-green-soft) !important;
+  background-color: var(--gruvbox-green) !important;
   color: var(--gruvbox-bg-hard) !important;
 }
 
 button[class*="bg-green-600"]:hover {
-  background-color: var(--light-green) !important;
+  background-color: var(--light-green-soft) !important;
 }
 
 .dark button[class*="bg-green-600"]:hover {
   background-color: #79740e !important;
 }
 
-/* Ensure text is visible in light mode */
+/* Text color overrides */
 :root:not(.dark) .text-white,
-:root:not(.dark) .text-gray-100,
-:root:not(.dark) .text-gray-200 {
+:root:not(.dark) .text-gray-900 {
   color: var(--light-fg) !important;
 }
 
 :root:not(.dark) .text-gray-500,
-:root:not(.dark) .text-gray-600,
-:root:not(.dark) .text-gray-700 {
-  color: #504945 !important;
+:root:not(.dark) .text-gray-400 {
+  color: var(--light-fg-soft) !important;
 }
 
-/* Fix for code blocks in light mode */
+/* Code and pre styling */
 :root:not(.dark) pre,
 :root:not(.dark) code {
-  background-color: var(--light-bg-soft);
-  color: var(--light-fg);
-  border-color: #e0e0e0;
+  background-color: var(--light-bg-soft) !important;
+  color: var(--light-fg) !important;
+  border: 1px solid var(--light-border) !important;
 }
 
-/* Syntax highlighter overrides - ensure theme isolation */
+/* Syntax highlighter overrides */
 .syntax-highlighter-override,
-.syntax-highlighter-override code,
-.syntax-highlighter-override pre,
-.syntax-highlighter-override span {
-  color-scheme: none !important;
-  background: inherit !important;
-}
-
-.syntax-highlighter-override code {
+.syntax-highlighter-override * {
+  background-color: transparent !important;
   color: inherit !important;
 }
 
-/* Make sure code in recent pastes cards maintains their background */
-.dark .overflow-hidden code[class*="language-"],
-.dark .overflow-hidden pre[class*="language-"],
-.light .overflow-hidden code[class*="language-"],
-.light .overflow-hidden pre[class*="language-"] {
-  background: inherit !important;
-  color-scheme: none !important;
+.syntax-highlighter-override code {
+  background-color: transparent !important;
+  border: none !important;
 }
 
-/* Ensure pre and code elements inside highlighter maintain their styling regardless of site theme */
+.dark .overflow-hidden code[class*="language-"],
+.dark .overflow-hidden pre[class*="language-"] {
+  background-color: var(--gruvbox-bg) !important;
+  color: var(--gruvbox-fg) !important;
+  border-color: #504945 !important;
+}
+
+/* General pre and code styling */
 pre[class*="language-"],
 code[class*="language-"] {
-  background: inherit !important;
-  color-scheme: none !important;
-} 
+  font-family: 'Fira Code', 'Monaco', 'Cascadia Code', 'Roboto Mono', monospace !important;
+  font-size: 14px !important;
+  line-height: 1.5 !important;
+}
 
-/* Dark Mode Enhancements with Green Accents */
-
-/* Headings and titles in dark mode - using Gruvbox green for main headings */
+/* Dark mode text styling */
 .dark h1, 
 .dark h2, 
-.dark .text-xl, 
-.dark .text-2xl, 
-.dark .text-3xl.font-bold {
-  color: #98971a !important; /* Gruvbox green for main headings */
-}
-
-/* Subheadings use a slightly more muted color */
 .dark h3, 
-.dark .font-bold, 
-.dark .font-semibold,
-.dark .text-lg {
-  color: #bdae93 !important; /* Muted gold for secondary headings */
+.dark h4, 
+.dark h5, 
+.dark h6 {
+  color: var(--gruvbox-fg) !important;
 }
 
-/* Make all content text more readable with a single consistent color */
 .dark .text-gray-500,
-.dark .text-gray-600,
-.dark .text-gray-700,
-.dark p,
-.dark .text-sm,
-.dark .text-base {
-  color: #d5c4a1 !important; /* Single consistent color for all regular text */
+.dark .text-gray-400,
+.dark .text-gray-600 {
+  color: #a89984 !important;
 }
 
-/* Feature section titles - green accent */
 .dark .font-medium,
-.dark h3.font-semibold.text-lg {
-  color: #b8bb26 !important; /* Bright Gruvbox green for feature titles */
+.dark .font-semibold {
+  color: var(--gruvbox-fg) !important;
 }
 
-/* Files, attachments and tags - subtle background with green text */
 .dark span[class*="rounded-full"],
-.dark div[class*="rounded-full"],
-.dark .inline-flex.items-center {
-  background-color: rgba(152, 151, 26, 0.15) !important; /* Very subtle green background */
-  color: #b8bb26 !important; /* Gruvbox green text */
-}
-
-/* All tag types should use the same subtle style */
-.dark .bg-amber-100,
-.dark .bg-yellow-100,
-.dark .bg-purple-100,
-.dark .bg-green-100 {
-  background-color: rgba(152, 151, 26, 0.15) !important; /* Subtle green background */
-}
-
-/* Tag text uses green */
-.dark .text-green-300,
-.dark .text-green-600,
-.dark .text-green-700,
-.dark .text-green-800 {
-  color: #b8bb26 !important; /* Gruvbox green */
-}
-
-/* Other tag types still use subtle colors */
-.dark .text-amber-300,
-.dark .text-amber-700,
 .dark .text-amber-800,
-.dark .text-yellow-300,
-.dark .text-yellow-700,
-.dark .text-yellow-800,
-.dark .text-purple-300,
-.dark .text-purple-700,
-.dark .text-purple-800 {
-  color: #d5c4a1 !important; /* Subtle color for non-green tags */
+.dark .text-green-800,
+.dark .text-blue-800 {
+  color: var(--gruvbox-fg) !important;
 }
 
-/* Homepage specific styles */
+.dark .text-green-300,
+.dark .text-green-400 {
+  color: #b8bb26 !important;
+}
+
+.dark .text-amber-300,
+.dark .text-yellow-300 {
+  color: #fabd2f !important;
+}
+
+/* Homepage styling */
 .dark .text-3xl.font-bold {
-  color: #98971a !important; /* Gruvbox green for main heading */
+  color: var(--gruvbox-fg) !important;
 }
 
-/* Homepage feature boxes */
 .dark .grid-cols-1 .font-semibold.text-lg {
-  color: #b8bb26 !important; /* Brighter green for feature headings */
+  color: var(--gruvbox-fg) !important;
 }
 
-/* Text within homepage feature boxes */
 .dark .grid-cols-1 p.text-gray-600,
-.dark .grid-cols-1 p.text-gray-300 {
-  color: #d5c4a1 !important; /* Standard text color */
+.dark .grid-cols-1 .text-gray-300 {
+  color: #a89984 !important;
 }

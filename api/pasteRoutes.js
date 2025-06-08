@@ -36,107 +36,13 @@ const upload = multer({
 // Database connection is handled by server.js middleware
 // No need for duplicate middleware here
 
-// Test database connection
-router.get('/test-connection', async (req, res) => {
-  try {
-    const testResult = await req.db.testConnection();
-    return res.status(200).json({
-      success: testResult.connected,
-      message: testResult.connected 
-        ? 'Database connection successful' 
-        : 'Connection test failed',
-      error: testResult.error
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: 'Error testing connection',
-      error: error.message
-    });
-  }
-});
 
-// Debug route for Vercel deployment
-router.get('/debug', async (req, res) => {
-  try {
-    // Collect environment info
-    const envInfo = {
-      nodeEnv: process.env.NODE_ENV || 'not set',
-      isVercel: !!process.env.VERCEL,
-      vercelEnv: process.env.VERCEL_ENV || 'not set',
-      hasDbUrl: !!process.env.DATABASE_URL,
-      region: process.env.VERCEL_REGION || 'unknown'
-    };
-    
-    // Test database connection
-    let dbStatus = { connected: false, error: 'Not attempted' };
-    if (req.db && req.db.success) {
-      try {
-        const testResult = await req.db.testConnection();
-        dbStatus = {
-          connected: testResult.connected,
-          message: testResult.message || 'No message',
-          error: testResult.error
-        };
-      } catch (dbError) {
-        dbStatus = {
-          connected: false,
-          error: dbError.message || 'Unknown error testing connection'
-        };
-      }
-    } else {
-      dbStatus = {
-        connected: false,
-        error: req.db ? 'DB connection failed' : 'DB middleware not initialized'
-      };
-    }
-    
-    // Test model availability
-    let modelsStatus = { available: false };
-    if (req.db && req.db.models) {
-      const { models } = req.db;
-      modelsStatus = {
-        available: true,
-        pasteModel: !!models.Paste,
-        blockModel: !!models.Block,
-        fileModel: !!models.File
-      };
-    }
-    
-    // Get memory usage
-    const memoryUsage = process.memoryUsage();
-    const formatMemory = (bytes) => (bytes / 1024 / 1024).toFixed(2) + ' MB';
-    
-    return res.status(200).json({
-      timestamp: new Date().toISOString(),
-      environment: envInfo,
-      database: dbStatus,
-      models: modelsStatus,
-      memory: {
-        rss: formatMemory(memoryUsage.rss),
-        heapTotal: formatMemory(memoryUsage.heapTotal),
-        heapUsed: formatMemory(memoryUsage.heapUsed),
-        external: formatMemory(memoryUsage.external)
-      }
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: 'Error generating debug info',
-      error: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
-    });
-  }
-});
 
 // GET /api/pastes/recent - Get recent pastes with pagination
 // IMPORTANT: This route must be defined BEFORE the /:id route to avoid conflicts
 router.get('/recent', async (req, res) => {
   try {
-    console.log('Getting recent pastes');
-    
     if (!req.db || !req.db.success) {
-      console.error('Database connection error in /recent route');
       return res.status(503).json({ 
         message: 'Database connection error',
         details: 'Could not establish database connection'
@@ -147,7 +53,6 @@ router.get('/recent', async (req, res) => {
     
     // Validate models are available
     if (!models || !models.Paste || !models.Block) {
-      console.error('Database models not properly initialized in /recent route');
       return res.status(500).json({ 
         message: 'Server configuration error',
         details: 'Database models not properly initialized'
@@ -160,8 +65,6 @@ router.get('/recent', async (req, res) => {
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const limit = 5; // Fixed at 5 pastes per page as requested
     const offset = (page - 1) * limit;
-    
-    console.log(`Fetching page ${page} with limit ${limit}, offset ${offset}`);
     
     // Get recent public pastes with try/catch for the query itself
     try {
@@ -198,8 +101,6 @@ router.get('/recent', async (req, res) => {
           }
         ]
       });
-      
-      console.log(`Found ${pastes.length} recent pastes (page ${page}/${totalPages})`);
       
       // Format pastes for response with additional error handling
       const formattedPastes = pastes.map(paste => {

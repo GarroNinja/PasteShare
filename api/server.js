@@ -47,24 +47,7 @@ try {
 // Import paste routes
 const pasteRoutes = require('./pasteRoutes');
 
-// Print environments at startup for debugging
 console.log('=== PasteShare API Server Starting ===');
-console.log('NODE_ENV:', process.env.NODE_ENV);
-console.log('Is Vercel environment:', !!process.env.VERCEL);
-console.log('DATABASE_URL exists:', !!process.env.DATABASE_URL);
-
-// Log database information safely (without credentials)
-if (process.env.DATABASE_URL) {
-  try {
-    const url = new URL(process.env.DATABASE_URL);
-    console.log('Database host:', url.hostname);
-    console.log('Database port:', url.port);
-    console.log('Database name:', url.pathname.substring(1));
-    console.log('Using SSL:', url.protocol === 'postgres:' ? 'No' : 'Yes');
-  } catch (error) {
-    console.error('Error parsing DATABASE_URL:', error.message);
-  }
-}
 
 // Initialize Express app
 const app = express();
@@ -94,18 +77,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Request logging middleware with unique request ID
-app.use((req, res, next) => {
-  const requestId = Math.random().toString(36).substring(2, 10);
-  req.requestId = requestId;
-  
-  const start = Date.now();
-  res.on('finish', () => {
-    const duration = Date.now() - start;
-    console.log(`[${requestId}] ${req.method} ${req.originalUrl} ${res.statusCode} ${duration}ms`);
-  });
-  next();
-});
+
 
 // Apply middleware for optimized performance on Vercel
 app.use(cors(corsOptions));
@@ -114,13 +86,9 @@ app.use(cors(corsOptions));
 app.use(json({ limit: '10mb' }));  // Lowered to 10MB to conserve memory
 app.use(urlencoded({ extended: true, limit: '10mb' }));
 
-// Only use logging in development or when debugging
-const useLogging = process.env.NODE_ENV === 'development' || process.env.DEBUG_LOGGING === 'true';
-if (useLogging) {
+// Only use logging in development
+if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
-  console.log('Request logging enabled');
-} else {
-  console.log('Request logging disabled in production for performance');
 }
 
 // Add database connection middleware

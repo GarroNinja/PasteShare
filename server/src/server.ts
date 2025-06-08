@@ -3,19 +3,28 @@ import cors from 'cors';
 import morgan from 'morgan';
 import path from 'path';
 import dotenv from 'dotenv';
-import { sequelize } from './models';
-import routes from './routes';
 import fs from 'fs';
 import net from 'net';
 
 // Load environment variables
 dotenv.config();
 
+// Import the working API routes from the JavaScript version
+const pasteRoutes = require('../../api/pasteRoutes');
+
+// Extend Express Request interface to include db property
+declare global {
+  namespace Express {
+    interface Request {
+      db?: any;
+    }
+  }
+}
+
 // Initialize Express app
 const app = express();
-// Use PORT from environment variable for Cloud Run compatibility or select from candidates
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : null;
-const PORT_CANDIDATES = [3000, 3001, 3003, 3004, 3005, 3006, 3007, 3008]; // Try more ports
+const PORT_CANDIDATES = [3000, 3001, 3003, 3004, 3005, 3006, 3007, 3008];
 
 // CORS configuration
 const corsOptions = {
@@ -24,7 +33,7 @@ const corsOptions = {
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization'],
   exposedHeaders: ['Content-Disposition', 'Content-Type', 'Content-Length'],
-  maxAge: 86400 // 24 hours
+  maxAge: 86400
 };
 
 // Add CORS headers to all responses
@@ -35,7 +44,6 @@ app.use((req, res, next) => {
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
   res.header('Access-Control-Expose-Headers', 'Content-Disposition, Content-Type, Content-Length');
   
-  // Handle preflight
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
@@ -43,16 +51,12 @@ app.use((req, res, next) => {
   next();
 });
 
-// Middleware - apply CORS before other middleware
 app.use(cors(corsOptions));
-
-// Configure JSON and URL-encoded middleware with appropriate limits
-app.use(express.json({ limit: '11mb' }));  // Increased to handle 10MB uploads plus overhead
+app.use(express.json({ limit: '11mb' }));
 app.use(express.urlencoded({ extended: true, limit: '11mb' }));
 app.use(morgan('dev'));
 
-// Static files for uploads - make this directory accessible from the browser
-// Use absolute path to ensure files are found in all environments
+// Static files for uploads
 const uploadPath = process.env.UPLOAD_DIR 
   ? path.resolve(process.env.UPLOAD_DIR)
   : path.resolve(process.cwd(), 'uploads');
@@ -60,47 +64,53 @@ const uploadPath = process.env.UPLOAD_DIR
 console.log(`Setting up static file serving for uploads at: ${uploadPath}`);
 app.use('/uploads', express.static(uploadPath));
 
-// Serve static files from client/build for production
-if (process.env.NODE_ENV === 'production') {
-  console.log('Serving static files from public directory');
-  app.use(express.static(path.resolve(process.cwd(), 'public')));
-}
+// Add database connection middleware (from the working API)
+app.use((req, res, next) => {
+  try {
+    if (!pasteRoutes.createConnection) {
+      console.error('Database middleware error: createConnection function not available');
+      res.setHeader('X-DB-Status', 'middleware-error');
+      next();
+      return;
+    }
+    
+    req.db = pasteRoutes.createConnection();
+    
+    if (req.db && req.db.success) {
+      console.log(`Database connection established`);
+      res.setHeader('X-DB-Status', 'connected');
+    } else {
+      console.error(`Database connection failed:`, req.db?.error || 'Unknown error');
+      res.setHeader('X-DB-Status', 'failed');
+    }
+    
+    next();
+  } catch (error) {
+    console.error(`Error in database middleware:`, error);
+    res.setHeader('X-DB-Status', 'error');
+    next();
+  }
+});
 
-// API routes
-app.use('/api', routes);
+// API routes - use the working JavaScript routes
+app.use('/api/pastes', pasteRoutes);
 
 // Add root-level paste handling
 app.get('/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
     
-    // Skip this handler for known frontend routes
     if (id === 'recent' || id === 'health' || id.includes('.') || id === 'api') {
       return next();
     }
     
     console.log(`Handling paste at root level: ${id}`);
-    
-    // Forward to the pastes/:id handler
     req.url = `/api/pastes/${id}`;
     app._router.handle(req, res);
   } catch (error) {
     console.error('Root paste handler error:', error);
     next(error);
   }
-});
-
-// In production, serve index.html for any unhandled routes (SPA support)
-if (process.env.NODE_ENV === 'production') {
-  app.get('*', (req, res) => {
-    res.sendFile(path.resolve(process.cwd(), 'public', 'index.html'));
-  });
-}
-
-// Add route debugging
-app.use((req, res, next) => {
-  console.log(`DEBUG - Unhandled route: ${req.method} ${req.originalUrl}`);
-  next();
 });
 
 // Health check route
@@ -141,17 +151,12 @@ const isPortAvailable = (port: number): Promise<boolean> => {
   });
 };
 
-// Connect to database and start server
+// Start server
 const startServer = async () => {
   try {
-    // Sync database models
-    await sequelize.authenticate();
-    console.log('Database connection established successfully.');
+    console.log('Starting PasteShare server...');
     
-    // Sync models with database with altering to add new fields if needed
-    await sequelize.sync({ alter: process.env.NODE_ENV === "development" });
-    
-    // If PORT is defined in environment (like in Cloud Run), use that port
+    // If PORT is defined in environment, use that port
     if (PORT) {
       app.listen(PORT, () => {
         console.log(`Server running on port ${PORT} (from environment)`);
@@ -159,7 +164,7 @@ const startServer = async () => {
       return;
     }
     
-    // For local development, find an available port from candidates
+    // For local development, find an available port
     let selectedPort = 0;
     
     for (const port of PORT_CANDIDATES) {
@@ -172,21 +177,17 @@ const startServer = async () => {
     
     if (selectedPort === 0) {
       console.log('No available ports found in the candidate list. Using random port.');
-      // Use a random port as last resort
       const server = app.listen(0, () => {
         const address = server.address();
         if (address && typeof address !== 'string') {
           selectedPort = address.port;
           console.log(`Server running on random port ${selectedPort}`);
-          // Write the port to a file so other processes can find it
           fs.writeFileSync('server-port.txt', `${selectedPort}`);
         }
       });
     } else {
-      // Start on the selected port
       app.listen(selectedPort, () => {
         console.log(`Server running on port ${selectedPort}`);
-        // Write the port to a file so other processes can find it
         fs.writeFileSync('server-port.txt', `${selectedPort}`);
       });
     }

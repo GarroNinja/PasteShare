@@ -525,7 +525,7 @@ export function PastePage() {
       const cleanFileUrl = file.url.startsWith('/api/') ? file.url.substring(4) : file.url;
       const fileUrl = `${apiBaseUrl}${cleanFileUrl}`;
       
-      console.log("Downloading file from:", fileUrl);
+
       
       // Use fetch to get the file with proper credentials and mode
       const response = await fetch(fileUrl, {
@@ -537,15 +537,12 @@ export function PastePage() {
         }
       });
       
-      console.log(`Download response: status=${response.status}, content-type=${response.headers.get('content-type')}`);
-      
       if (!response.ok) {
         throw new Error(`Failed to download file: ${response.status}`);
       }
       
       // Get the blob from the response
       const blob = await response.blob();
-      console.log("Download blob:", blob.type, blob.size);
       
       // Create an object URL for the blob
       const url = window.URL.createObjectURL(blob);
@@ -563,8 +560,6 @@ export function PastePage() {
       // Clean up
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-      
-      console.log("Download initiated successfully");
     } catch (err) {
       console.error('File download error:', err);
       setDownloadError(`Failed to download file: ${err instanceof Error ? err.message : String(err)}`);
@@ -583,13 +578,6 @@ export function PastePage() {
         language: block.language || 'text',
         order: block.order
       }));
-      
-      console.log('Initializing edit mode with blocks:', blocks.map(b => ({
-        id: b.id.substring(0, 8) + '...',
-        language: b.language,
-        contentLength: b.content.length,
-        order: b.order
-      })));
       
       setEditableBlocks(blocks);
       
@@ -645,7 +633,6 @@ export function PastePage() {
           };
         });
         updatedData.blocks = formattedBlocks;
-        console.log('Sending blocks to server:', formattedBlocks);
       } else {
         if (!editableContent || editableContent.trim() === '') {
           throw new Error("Content cannot be empty");
@@ -658,7 +645,6 @@ export function PastePage() {
         body: JSON.stringify(updatedData),
         credentials: 'include' as RequestCredentials
       };
-      console.log('Sending update payload:', updatedData);
       try {
         const response = await fetch(`${getApiBaseUrl()}/pastes/${id}`, requestOptions);
         if (!response.ok) {
@@ -672,7 +658,6 @@ export function PastePage() {
           return;
         }
         const data = await response.json();
-        console.log('Server response:', data);
         if (data.paste) {
           setPaste(data.paste);
           setEditableBlocks([]);
@@ -745,7 +730,7 @@ export function PastePage() {
       [id]: newLanguage
     }));
     
-    console.log(`Updated block ${id.substring(0, 8)}... language to ${newLanguage}`);
+
   };
 
   // Structure the paste content display based on paste type

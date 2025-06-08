@@ -146,7 +146,7 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
             setPasteSuccess(null);
           }, 3000);
 
-          console.log(`Pasted image: ${filename} (${formatFileSize(namedFile.size)})`);
+  
           
         } catch (error) {
           console.error('Error processing pasted image:', error);
@@ -271,8 +271,7 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
       return;
     }
     
-    console.log("Form is valid, preparing submission...");
-    console.log("isJupyterStyle:", isJupyterStyle);
+
     
     if (isJupyterStyle) {
       // Filter out empty blocks to avoid server errors
@@ -283,7 +282,7 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
         return;
       }
       
-      console.log("Submitting Jupyter blocks:", nonEmptyBlocks);
+      
       
       // Reorder blocks to ensure proper sequence
       const reorderedBlocks = nonEmptyBlocks.map((block, index) => ({
@@ -305,7 +304,7 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
       });
     } else {
       // Standard paste submission
-      console.log("Submitting standard paste with content:", content.substring(0, 50));
+      
     
     onSubmit({
       title,
@@ -813,13 +812,10 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
   );
 } 
 
-// Use a simpler approach that doesn't rely on DOM manipulation
+// Global content validation function
 export const globalContentValidation = () => {
-  // No need for this function anymore - removing it to avoid DOM errors
-  console.log("Content validation initialized");
-  
   // The form now handles validation internally
   return () => {
-    console.log("Content validation cleanup");
+    // Cleanup if needed
   };
 }; 
