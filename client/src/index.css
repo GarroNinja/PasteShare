@@ -34,9 +34,6 @@ html, body {
   width: 100%;
   margin: 0;
   padding: 0;
-  /* Safe area support for notches and camera cutouts */
-  padding-left: env(safe-area-inset-left);
-  padding-right: env(safe-area-inset-right);
 }
 
 .dark html, .dark body {
@@ -44,20 +41,36 @@ html, body {
   color: var(--gruvbox-fg) !important;
 }
 
+/* Safe area support - apply to the main app container instead of body */
+#root {
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+  min-height: 100vh;
+  min-height: 100dvh;
+  background-color: var(--light-bg);
+}
+
+.dark #root {
+  background-color: var(--gruvbox-bg);
+}
+
 /* Ensure full viewport coverage on mobile landscape with safe areas */
 @media screen and (orientation: landscape) and (max-height: 500px) {
   html, body {
     min-height: 100vh !important;
     min-height: 100dvh !important;
-    /* Enhanced safe area support for landscape */
-    padding-left: max(env(safe-area-inset-left), 16px);
-    padding-right: max(env(safe-area-inset-right), 16px);
-    padding-top: env(safe-area-inset-top);
-    padding-bottom: env(safe-area-inset-bottom);
   }
   
   .dark html, .dark body {
     background-color: var(--gruvbox-bg) !important;
+  }
+  
+  /* Enhanced safe area support for landscape - apply to root */
+  #root {
+    padding-left: max(env(safe-area-inset-left), 16px);
+    padding-right: max(env(safe-area-inset-right), 16px);
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
   }
   
   /* Adjust main content for safe areas */
@@ -67,16 +80,17 @@ html, body {
   }
   
   /* Navbar adjustments for landscape */
-  header {
-    padding-left: max(env(safe-area-inset-left), 16px);
-    padding-right: max(env(safe-area-inset-right), 16px);
+  header .max-w-6xl {
+    padding-left: 0;
+    padding-right: 0;
   }
   
   /* Mobile nav bar adjustments */
   .md\\:hidden.fixed.bottom-0 {
-    padding-left: max(env(safe-area-inset-left), 16px);
-    padding-right: max(env(safe-area-inset-right), 16px);
+    left: max(env(safe-area-inset-left), 16px);
+    right: max(env(safe-area-inset-right), 16px);
     padding-bottom: max(env(safe-area-inset-bottom), 8px);
+    width: auto;
   }
 }
 
@@ -150,17 +164,17 @@ html, body, #root {
   max-width: 100vw;
 }
 
-/* Safe area support for all devices */
+/* Safe area support for all devices - remove since we handle it at root level */
 .max-w-4xl, .max-w-6xl {
-  padding-left: max(1rem, env(safe-area-inset-left));
-  padding-right: max(1rem, env(safe-area-inset-right));
+  padding-left: 1rem;
+  padding-right: 1rem;
 }
 
 /* Additional safe area support for mobile */
 @media (max-width: 768px) {
   .max-w-4xl, .max-w-6xl {
-    padding-left: max(1rem, env(safe-area-inset-left));
-    padding-right: max(1rem, env(safe-area-inset-right));
+    padding-left: 1rem;
+    padding-right: 1rem;
   }
 }
 
