@@ -35,6 +35,7 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
   const [files, setFiles] = useState<File[]>([]);
   const [fileError, setFileError] = useState<string | null>(null);
   const [pasteSuccess, setPasteSuccess] = useState<string | null>(null);
+  const [isPasting, setIsPasting] = useState(false);
   const [customUrlError, setCustomUrlError] = useState<string | null>(null);
   const [isPasswordProtected, setIsPasswordProtected] = useState(false);
   const [password, setPassword] = useState('');
@@ -60,9 +61,6 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
     else if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
     else return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
   };
-
-  // Utility function for formatting file sizes
-
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -103,14 +101,17 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
 
       // Prevent default paste behavior for images
       event.preventDefault();
+      
+      // Show pasting indicator
+      setIsPasting(true);
 
       for (const item of imageItems) {
         try {
           const file = item.getAsFile();
           if (!file) continue;
 
-          // Generate a filename with timestamp
-          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+          // Generate a filename with timestamp and proper extension
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').split('.')[0];
           const extension = file.type.split('/')[1] || 'png';
           const filename = `pasted-image-${timestamp}.${extension}`;
 
@@ -138,7 +139,7 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
           setFileError(null);
 
           // Show a success message
-          setPasteSuccess(`Pasted image: ${filename} (${formatFileSize(namedFile.size)})`);
+          setPasteSuccess(`✅ Pasted image: ${filename} (${formatFileSize(namedFile.size)})`);
           
           // Clear success message after 3 seconds
           setTimeout(() => {
@@ -152,6 +153,9 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
           setFileError('Failed to process pasted image. Please try again.');
         }
       }
+      
+      // Hide pasting indicator
+      setIsPasting(false);
     };
 
     // Add event listener to document
@@ -740,11 +744,11 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
               <p className="pl-1">or drag and drop</p>
             </div>
             <div className="flex items-center justify-center mt-2">
-              <div className="flex items-center text-xs text-blue-600 dark:text-blue-400">
+              <div className="flex items-center text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded">
                 <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                 </svg>
-                <span>or paste images with Ctrl+V</span>
+                <span>or paste images with <kbd className="px-1 py-0.5 text-xs font-semibold text-blue-800 dark:text-blue-200 bg-blue-200 dark:bg-blue-800 rounded">Ctrl+V</kbd></span>
               </div>
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -759,6 +763,10 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
         
         {pasteSuccess && (
           <p className="mt-1 text-sm text-green-600 dark:text-green-400">{pasteSuccess}</p>
+        )}
+        
+        {isPasting && (
+          <p className="mt-1 text-sm text-blue-600 dark:text-blue-400">📋 Processing pasted image...</p>
         )}
       
       {files.length > 0 && (
