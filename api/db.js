@@ -96,6 +96,11 @@ const createConnection = () => {
       return this.content === null || this.content === ''; // If content is empty/null, assume Jupyter-style
     };
 
+    // Add isPasswordProtected method to Paste model prototype
+    Paste.prototype.isPasswordProtected = function() {
+      return Boolean(this.password);
+    };
+
     // Define Block model for Jupyter-style notebook blocks
     const Block = sequelize.define('Block', {
       id: {
