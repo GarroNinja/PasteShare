@@ -511,25 +511,23 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
       </div>
       
       {/* Paste Style Toggle */}
-      <div className="flex items-center justify-between">
-        <label className="flex items-center">
-          <span className="text-sm font-medium text-gray-700 dark:text-gray-300 mr-2">
-            Use Jupyter Notebook Style
-          </span>
-          <button 
-            type="button"
-            onClick={togglePasteStyle}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full ${
-              isJupyterStyle ? 'bg-green-600 dark:bg-[#98971a]' : 'bg-gray-300 dark:bg-[#504945]'
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+          Use Jupyter Notebook Style
+        </span>
+        <button 
+          type="button"
+          onClick={togglePasteStyle}
+          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-green-500 dark:focus:ring-[#b8bb26] focus:ring-offset-2 ${
+            isJupyterStyle ? 'bg-green-600 dark:bg-[#98971a]' : 'bg-gray-300 dark:bg-[#504945]'
+          }`}
+        >
+          <span
+            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ease-in-out shadow-sm ${
+              isJupyterStyle ? 'translate-x-6' : 'translate-x-1'
             }`}
-          >
-            <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
-                isJupyterStyle ? 'translate-x-6' : 'translate-x-1'
-              }`}
-            />
-          </button>
-        </label>
+          />
+        </button>
       </div>
       
       {isJupyterStyle ? (
@@ -626,9 +624,9 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
           <label htmlFor="customUrl" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
             Custom URL (optional)
           </label>
-          <div className="mt-1 flex rounded-md">
-            <span className="inline-flex items-center rounded-l-md border border-r-0 border-gray-300 dark:border-[#504945] bg-gray-50 dark:bg-[#3c3836] px-3 text-gray-500 dark:text-gray-400 sm:text-sm">
-              {window.location.origin}/
+          <div className="mt-1 flex rounded-md overflow-hidden">
+            <span className="inline-flex items-center rounded-l-md border border-r-0 border-gray-300 dark:border-[#504945] bg-gray-50 dark:bg-[#3c3836] px-2 sm:px-3 text-gray-500 dark:text-gray-400 text-xs sm:text-sm whitespace-nowrap">
+              pasteshare.ninja/
             </span>
             <input
               type="text"
@@ -639,7 +637,7 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
                 setCustomUrl(e.target.value);
                 validateCustomUrl(e.target.value);
               }}
-              className="block w-full flex-1 rounded-r-md border border-gray-300 dark:border-[#504945] bg-white dark:bg-[#282828] px-3 py-2 text-gray-900 dark:text-[#ebdbb2] focus:border-green-500 dark:focus:border-[#b8bb26] focus:ring-green-500 dark:focus:ring-[#b8bb26]"
+              className="block w-full flex-1 min-w-0 rounded-r-md border border-gray-300 dark:border-[#504945] bg-white dark:bg-[#282828] px-3 py-2 text-gray-900 dark:text-[#ebdbb2] focus:border-green-500 dark:focus:border-[#b8bb26] focus:ring-green-500 dark:focus:ring-[#b8bb26]"
             />
           </div>
           {customUrlError && (

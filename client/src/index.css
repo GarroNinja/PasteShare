@@ -71,6 +71,13 @@ html, body {
     min-height: 44px; /* iOS touch target size */
   }
   
+  /* Toggle switch touch target */
+  button[type="button"]:has(span.rounded-full) {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 8px;
+  }
+  
   /* Better mobile paste page layout */
   .jupyter-notebook-container .mb-4 {
     flex-direction: column;
@@ -90,6 +97,31 @@ html, body {
   /* Mobile table responsiveness */
   .overflow-x-auto {
     -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Mobile form improvements */
+  .flex.flex-col.gap-4.sm\\:flex-row {
+    gap: 1rem;
+  }
+  
+  .flex.flex-col.gap-4.sm\\:flex-row.sm\\:gap-6 {
+    gap: 1rem;
+  }
+  
+  /* Mobile toggle switch improvements */
+  .flex.items-center.justify-between {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  
+  /* Better mobile input spacing */
+  .mt-1.flex.rounded-md {
+    min-width: 0;
+  }
+  
+  .mt-1.flex.rounded-md span {
+    white-space: nowrap;
+    flex-shrink: 0;
   }
 }
 
