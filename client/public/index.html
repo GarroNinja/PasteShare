@@ -54,23 +54,36 @@
     </script>
     <script>
       (function() {
-        // Set light mode as default
-        document.documentElement.classList.add('light');
-        document.documentElement.style.colorScheme = 'light';
-        
-        // Try to get saved theme
+        // Prevent theme flash by setting theme immediately
         try {
-          const theme = localStorage.getItem('pasteshare-theme');
-          if (theme) {
-            document.documentElement.classList.remove('light', 'dark');
-            document.documentElement.classList.add(theme);
-            document.documentElement.style.colorScheme = theme;
+          const theme = localStorage.getItem('pasteshare-theme') || 'light';
+          
+          // Apply theme to both html and body
+          document.documentElement.classList.remove('light', 'dark');
+          document.documentElement.classList.add(theme);
+          document.documentElement.style.colorScheme = theme;
+          
+          // Also apply to body when it's available
+          if (document.body) {
+            document.body.classList.remove('light', 'dark');
+            document.body.classList.add(theme);
           } else {
-            // Default to light theme if none saved
+            // Wait for body to be available
+            document.addEventListener('DOMContentLoaded', function() {
+              document.body.classList.remove('light', 'dark');
+              document.body.classList.add(theme);
+            });
+          }
+          
+          // Save default theme if none exists
+          if (!localStorage.getItem('pasteshare-theme')) {
             localStorage.setItem('pasteshare-theme', 'light');
           }
         } catch (e) {
           console.error('Error setting initial theme:', e);
+          // Fallback to light theme
+          document.documentElement.classList.add('light');
+          document.documentElement.style.colorScheme = 'light';
         }
       })();
     </script>
@@ -80,12 +93,32 @@
         color-scheme: light;
       }
       html, body {
-        background-color: #ffffff !important;
-        color: #3c3836 !important;
+        background-color: #fefefe !important;
+        color: #2d2d2d !important;
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        min-height: 100vh;
+        min-height: 100dvh;
+        overflow-x: hidden;
       }
+      
+      /* Dark mode fallback */
+      .dark html, .dark body {
+        background-color: #282828 !important;
+        color: #ebdbb2 !important;
+      }
+      
       /* Prevent flash by hiding content until CSS is loaded */
       body:not(.loaded) #root {
         visibility: hidden;
+      }
+      
+      /* Ensure full coverage on mobile */
+      #root {
+        min-height: 100vh;
+        min-height: 100dvh;
+        width: 100%;
       }
     </style>
   </head>

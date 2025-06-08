@@ -10,27 +10,94 @@
   --gruvbox-fg: #ebdbb2;
   --gruvbox-green: #98971a;
   
-  /* Minimalist light theme colors */
-  --light-bg: #ffffff;
-  --light-bg-hard: #f8f8f8;
-  --light-bg-soft: #f0f0f0;
-  --light-fg: #3c3836;
-  --light-green: #79740e;
-  --light-green-soft: #98971a;
-  --light-aqua: #427b58;
-  --light-yellow: #b57614;
-  --light-red: #9d0006;
+  /* Improved light theme colors - more consistent with dark mode */
+  --light-bg: #fefefe;
+  --light-bg-hard: #f9f9f9;
+  --light-bg-soft: #f5f5f5;
+  --light-fg: #2d2d2d;
+  --light-fg-soft: #4a4a4a;
+  --light-green: #6b6b00;
+  --light-green-soft: #7a7a00;
+  --light-aqua: #2d5a3d;
+  --light-yellow: #a66100;
+  --light-red: #8b0000;
+  --light-border: #e8e8e8;
+  --light-border-soft: #f0f0f0;
 }
 
-/* Set immediate colors for html and body */
+/* Set immediate colors for html and body - ensure full coverage */
 html, body {
-  background-color: var(--light-bg);
-  color: var(--light-fg);
+  background-color: var(--light-bg) !important;
+  color: var(--light-fg) !important;
+  min-height: 100vh;
+  min-height: 100dvh; /* Dynamic viewport height for mobile */
+  width: 100%;
+  margin: 0;
+  padding: 0;
 }
 
 .dark html, .dark body {
-  background-color: var(--gruvbox-bg);
-  color: var(--gruvbox-fg);
+  background-color: var(--gruvbox-bg) !important;
+  color: var(--gruvbox-fg) !important;
+}
+
+/* Ensure full viewport coverage on mobile landscape */
+@media screen and (orientation: landscape) and (max-height: 500px) {
+  html, body {
+    min-height: 100vh !important;
+    min-height: 100dvh !important;
+  }
+  
+  .dark html, .dark body {
+    background-color: var(--gruvbox-bg) !important;
+  }
+}
+
+/* Mobile responsiveness improvements */
+@media (max-width: 768px) {
+  /* Ensure proper spacing on mobile */
+  .max-w-4xl {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  
+  /* Better mobile form styling */
+  textarea, input, select {
+    font-size: 16px; /* Prevent zoom on iOS */
+  }
+  
+  /* Mobile-friendly buttons */
+  button {
+    min-height: 44px; /* iOS touch target size */
+  }
+  
+  /* Better mobile paste page layout */
+  .jupyter-notebook-container .mb-4 {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .jupyter-notebook-container .flex.items-center {
+    flex-wrap: wrap;
+  }
+  
+  /* Mobile syntax highlighter improvements */
+  pre[class*="language-"] {
+    font-size: 14px !important;
+    overflow-x: auto;
+  }
+  
+  /* Mobile table responsiveness */
+  .overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Prevent horizontal scroll on mobile */
+html, body, #root {
+  overflow-x: hidden;
+  width: 100%;
+  max-width: 100vw;
 }
 
 /* Navbar colors */
@@ -156,7 +223,7 @@ code {
   border-color: #504945;
 }
 
-/* Light mode background variants */
+/* Light mode styling improvements */
 :root:not(.dark) .bg-gray-50,
 :root:not(.dark) .bg-gray-100 {
   background-color: var(--light-bg-hard);
@@ -171,7 +238,72 @@ code {
 }
 
 :root:not(.dark) .border-gray-200 {
-  border-color: #e0e0e0;
+  border-color: var(--light-border);
+}
+
+:root:not(.dark) .border-gray-300 {
+  border-color: var(--light-border-soft);
+}
+
+/* Light mode text improvements */
+:root:not(.dark) .text-gray-600 {
+  color: var(--light-fg-soft) !important;
+}
+
+:root:not(.dark) .text-gray-700 {
+  color: var(--light-fg) !important;
+}
+
+:root:not(.dark) .text-gray-500 {
+  color: #666666 !important;
+}
+
+/* Light mode green accents */
+:root:not(.dark) .text-green-600,
+:root:not(.dark) .text-green-700 {
+  color: var(--light-green) !important;
+}
+
+:root:not(.dark) .bg-green-600 {
+  background-color: var(--light-green) !important;
+}
+
+:root:not(.dark) .bg-green-100 {
+  background-color: rgba(107, 107, 0, 0.1) !important;
+}
+
+:root:not(.dark) .hover\:bg-green-700:hover {
+  background-color: var(--light-green-soft) !important;
+}
+
+/* Light mode button improvements */
+:root:not(.dark) button.bg-green-600 {
+  background-color: var(--light-green) !important;
+  color: white !important;
+  border: 1px solid var(--light-green) !important;
+}
+
+:root:not(.dark) button.bg-green-600:hover {
+  background-color: var(--light-green-soft) !important;
+  border-color: var(--light-green-soft) !important;
+}
+
+/* Light mode form improvements */
+:root:not(.dark) input:focus,
+:root:not(.dark) textarea:focus,
+:root:not(.dark) select:focus {
+  border-color: var(--light-green) !important;
+  box-shadow: 0 0 0 1px var(--light-green) !important;
+}
+
+/* Light mode card styling */
+:root:not(.dark) .bg-white {
+  background-color: var(--light-bg) !important;
+  border-color: var(--light-border) !important;
+}
+
+:root:not(.dark) .shadow-sm {
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
 }
 
 /* Override elements */

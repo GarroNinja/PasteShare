@@ -4,6 +4,7 @@ import { apiFetch } from '../lib/utils';
 import SyntaxHighlighter from 'react-syntax-highlighter';
 import { gruvboxDark, gruvboxLight } from 'react-syntax-highlighter/dist/esm/styles/hljs';
 import CopyNotification from '../components/CopyNotification';
+import { useTheme } from '../components/theme-provider';
 
 interface Paste {
   id: string;
@@ -35,11 +36,11 @@ export function RecentPastesPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const fetchedRef = useRef(false);
   
+  const { theme } = useTheme();
+  const isDarkMode = theme === 'dark';
+  
   // Get the appropriate theme based on current mode
-  const [syntaxTheme] = useState(() => {
-    const isDarkMode = document.documentElement.classList.contains('dark');
-    return isDarkMode ? gruvboxDark : gruvboxLight;
-  });
+  const syntaxTheme = isDarkMode ? gruvboxDark : gruvboxLight;
   
   // Notification state
   const [showNotification, setShowNotification] = useState(false);
@@ -357,9 +358,9 @@ export function RecentPastesPage() {
                       </button>
                     </div>
                     <div className="overflow-hidden rounded" style={{
-                      backgroundColor: document.documentElement.classList.contains('dark') 
+                      backgroundColor: isDarkMode 
                         ? '#1d2021'  // Dark background for dark mode
-                        : '#fbf1c7'  // Light background for light mode (Gruvbox light bg)
+                        : '#f9f9f9'  // Light background for light mode
                     }}>
                       {renderPasteContent(paste)}
                     </div>

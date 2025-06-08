@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import SyntaxHighlighter from 'react-syntax-highlighter';
 import { gruvboxDark, gruvboxLight } from 'react-syntax-highlighter/dist/esm/styles/hljs';
-import { useTheme } from '../hooks/useTheme';
+import { useTheme } from './theme-provider';
 
 // Define language options for the language selector
 const LANGUAGE_OPTIONS = [
@@ -54,7 +54,8 @@ export function JupyterBlock({
   showLanguageSelector = false
 }: JupyterBlockProps) {
   const [editableContent, setEditableContent] = useState(content);
-  const { isDarkMode } = useTheme();
+  const { theme: currentTheme } = useTheme();
+  const isDarkMode = currentTheme === 'dark';
   const [internalLanguage, setInternalLanguage] = useState(language || 'text');
   
   // Update internal state when props change
@@ -91,7 +92,7 @@ export function JupyterBlock({
   };
   
   // Use either the custom theme or the default theme based on dark mode
-  const theme = customTheme || (isDarkMode ? gruvboxDark : gruvboxLight);
+  const syntaxTheme = customTheme || (isDarkMode ? gruvboxDark : gruvboxLight);
   
   return (
     <div className="mb-6 rounded-md overflow-hidden border border-gray-200 dark:border-[#3c3836]">
@@ -155,7 +156,7 @@ export function JupyterBlock({
         ) : (
           <SyntaxHighlighter
             language={internalLanguage}
-            style={theme}
+            style={syntaxTheme}
             customStyle={{
               margin: 0,
               padding: '1rem',

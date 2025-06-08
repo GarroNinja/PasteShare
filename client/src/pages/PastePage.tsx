@@ -1,19 +1,19 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getApiBaseUrl, apiFetch } from '../lib/utils';
+import { getApiBaseUrl } from '../lib/utils';
 import SyntaxHighlighter from 'react-syntax-highlighter';
 import { 
   a11yDark, a11yLight, agate, anOldHope, androidstudio, 
   arduinoLight, atomOneDark, atomOneLight, 
-  dracula, docco, darcula, far, github, googlecode,
+  dracula, darcula, far, github, googlecode,
   gruvboxDark, gruvboxLight, hopscotch, hybrid, 
   monokai, monokaiSublime, nord, obsidian, 
   ocean, paraisoDark, railscasts, solarizedDark, solarizedLight,
   tomorrowNight, vs, vs2015, xcode, xt256, zenburn
 } from 'react-syntax-highlighter/dist/esm/styles/hljs';
 import CopyNotification from '../components/CopyNotification';
-import { useTheme } from '../hooks/useTheme';
-import { PageWrapper } from '../components/PageWrapper';
+import { useTheme } from '../components/theme-provider';
+
 import { JupyterBlock } from '../components/JupyterBlock';
 
 interface File {
@@ -101,16 +101,21 @@ export function PastePage() {
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [language, setLanguage] = useState<string>('plaintext');
+  const { theme } = useTheme();
+  const isDarkMode = theme === 'dark';
+  
   const [selectedTheme, setSelectedTheme] = useState(() => {
-    // Check if the document has dark mode class to determine current theme
-    const isDarkMode = document.documentElement.classList.contains('dark');
     return isDarkMode ? gruvboxDark : gruvboxLight;
   });
   const [selectedThemeName, setSelectedThemeName] = useState(() => {
-    // Check if the document has dark mode class to determine current theme
-    const isDarkMode = document.documentElement.classList.contains('dark');
     return isDarkMode ? 'Gruvbox Dark' : 'Gruvbox Light';
   });
+  
+  // Update theme when dark mode changes
+  useEffect(() => {
+    setSelectedTheme(isDarkMode ? gruvboxDark : gruvboxLight);
+    setSelectedThemeName(isDarkMode ? 'Gruvbox Dark' : 'Gruvbox Light');
+  }, [isDarkMode]);
   
   // Notification state
   const [showNotification, setShowNotification] = useState(false);
@@ -121,10 +126,7 @@ export function PastePage() {
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordLoading, setPasswordLoading] = useState(false);
   
-  const { isDarkMode } = useTheme();
   const syntaxTheme = isDarkMode ? gruvboxDark : gruvboxLight;
-  
-  const contentRef = useRef<HTMLDivElement>(null);
 
   // Language state for individual blocks (keyed by block id)
   const [blockLanguages, setBlockLanguages] = useState<{[key: string]: string}>({});
@@ -309,12 +311,7 @@ export function PastePage() {
     { name: 'Zenburn', value: zenburn }
   ];
 
-  // List of common languages for manual selection
-  const commonLanguages = [
-    'text', 'javascript', 'typescript', 'python', 'java', 'cpp', 'csharp', 'c',
-    'ruby', 'go', 'php', 'html', 'css', 'xml', 'json', 'yaml', 'markdown',
-    'sql', 'bash', 'powershell', 'rust', 'kotlin', 'lua'
-  ];
+
 
   useEffect(() => {
     // Skip if we've already fetched data with the same ID

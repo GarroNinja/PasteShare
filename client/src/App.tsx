@@ -47,31 +47,16 @@ function MobileNavBar() {
 }
 
 function App() {
-  // Apply light theme class to document on component mount to prevent flashing
+  // Initialize global content validation
   useEffect(() => {
-    // Get theme from localStorage or use light as default
-    const storedTheme = localStorage.getItem('pasteshare-theme') || 'light';
-    document.documentElement.classList.add(storedTheme);
-    
-    // Set color scheme meta tag
-    const meta = document.createElement('meta');
-    meta.name = 'color-scheme';
-    meta.content = storedTheme;
-    document.head.appendChild(meta);
-    
-    // Initialize the global content validation to fix error messages
     globalContentValidation();
-    
-    return () => {
-      document.head.removeChild(meta);
-    };
   }, []);
   
   return (
     <ThemeProvider defaultTheme="light">
       <Router>
         {/* Use flex column to create a layout with sticky footer */}
-        <div className="flex flex-col min-h-screen bg-white dark:bg-[#282828]">
+        <div className="flex flex-col min-h-screen min-h-[100dvh] bg-white dark:bg-[#282828] w-full">
           <Navbar />
           
           {/* Make main content grow to fill available space */}

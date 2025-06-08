@@ -80,27 +80,40 @@ export function ThemeProvider({
 
   useEffect(() => {
     const root = window.document.documentElement;
+    const body = window.document.body;
     
+    // Remove all theme classes first
     root.classList.remove("light", "dark");
+    body.classList.remove("light", "dark");
     
+    let actualTheme = theme;
     if (theme === "system") {
-      const systemTheme = window.matchMedia("(prefers-color-scheme: dark)")
-        .matches
-        ? "dark"
-        : "light";
-      
-      root.classList.add(systemTheme);
-      return;
+      actualTheme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
     }
     
-    root.classList.add(theme);
+    // Apply theme to both html and body for full coverage
+    root.classList.add(actualTheme);
+    body.classList.add(actualTheme);
+    
+    // Set color-scheme for proper browser styling
+    root.style.colorScheme = actualTheme;
+    
+    // Ensure viewport meta tag for mobile
+    let viewportMeta = document.querySelector('meta[name="viewport"]');
+    if (!viewportMeta) {
+      viewportMeta = document.createElement('meta');
+      viewportMeta.setAttribute('name', 'viewport');
+      document.head.appendChild(viewportMeta);
+    }
+    viewportMeta.setAttribute('content', 'width=device-width, initial-scale=1.0, viewport-fit=cover');
+    
   }, [theme]);
 
   const value = {
     theme,
-    setTheme: (theme: Theme) => {
-      localStorage.setItem(storageKey, theme);
-      setTheme(theme);
+    setTheme: (newTheme: Theme) => {
+      localStorage.setItem(storageKey, newTheme);
+      setTheme(newTheme);
     },
   };
 
