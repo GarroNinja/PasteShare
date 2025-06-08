@@ -33,20 +33,8 @@ const upload = multer({
   }
 });
 
-// Middleware to set up database connection for each request
-router.use(async (req, res, next) => {
-  // Create a fresh database connection for this request
-  req.db = createConnection();
-  
-  if (!req.db.success) {
-    return res.status(503).json({
-      error: 'Database unavailable',
-      message: 'Could not establish database connection'
-    });
-  }
-  
-  next();
-});
+// Database connection is handled by server.js middleware
+// No need for duplicate middleware here
 
 // Test database connection
 router.get('/test-connection', async (req, res) => {
@@ -245,8 +233,22 @@ router.get('/recent', async (req, res) => {
 // POST /api/pastes - Create a new paste
 router.post('/', upload.array('files', 3), async (req, res) => {
   try {
-    console.log('Paste creation started');
+    console.log('[CREATE-PASTE] Paste creation started');
     const { title, content, expiresIn, isPrivate, customUrl, isEditable, password, isJupyterStyle, blocks } = req.body;
+    
+    console.log(`[CREATE-PASTE] Form data received:`, {
+      title: title || 'undefined',
+      hasContent: !!content,
+      expiresIn: expiresIn || 'undefined',
+      isPrivate: isPrivate || 'undefined',
+      customUrl: customUrl || 'undefined',
+      isEditable: isEditable || 'undefined',
+      hasPassword: !!password,
+      passwordLength: password ? password.length : 0,
+      isJupyterStyle: isJupyterStyle || 'undefined',
+      hasBlocks: !!blocks,
+      blocksType: typeof blocks
+    });
     
     // Determine if this is a Jupyter-style paste
     const isJupyterStylePaste = isJupyterStyle === 'true' || isJupyterStyle === true;
@@ -310,7 +312,11 @@ router.post('/', upload.array('files', 3), async (req, res) => {
     // Hash password if provided
     let hashedPassword = null;
     if (password) {
+      console.log(`[CREATE-PASTE] Hashing password for paste`);
       hashedPassword = await bcrypt.hash(password, 10);
+      console.log(`[CREATE-PASTE] Password hashed successfully, length: ${hashedPassword.length}`);
+    } else {
+      console.log(`[CREATE-PASTE] No password provided`);
     }
     
     // Start transaction
@@ -328,7 +334,7 @@ router.post('/', upload.array('files', 3), async (req, res) => {
         password: hashedPassword
       }, { transaction });
       
-      console.log(`Created paste with ID: ${paste.id}`);
+      console.log(`[CREATE-PASTE] Created paste with ID: ${paste.id}, has password: ${!!paste.password}`);
       
       // Process blocks for Jupyter-style paste
       if (isJupyterStylePaste && parsedBlocks.length > 0) {
@@ -508,6 +514,8 @@ router.get('/:id', async (req, res) => {
     
     // Check password if paste is password-protected
     if (paste.password) {
+      console.log(`[GET-PASTE] Paste is password protected, password provided: ${!!password}`);
+      
       // If no password provided, return limited info
       if (!password) {
         return res.status(403).json({
@@ -524,13 +532,16 @@ router.get('/:id', async (req, res) => {
       // Verify password
       try {
         const isPasswordValid = await bcrypt.compare(password, paste.password);
+        console.log(`[GET-PASTE] Password verification result: ${isPasswordValid}`);
+        
         if (!isPasswordValid) {
           return res.status(403).json({ message: 'Invalid password' });
         }
         
-        return res.status(200).json({ success: true });
+        // Password is valid, continue to return paste data below
+        console.log(`[GET-PASTE] Password verified, proceeding to return paste data`);
       } catch (bcryptError) {
-        console.error('bcrypt compare error:', bcryptError);
+        console.error('[GET-PASTE] bcrypt compare error:', bcryptError);
         return res.status(500).json({
           message: 'Server error verifying password',
           error: 'Error comparing passwords'
@@ -596,18 +607,27 @@ router.post('/:id/verify-password', async (req, res) => {
     const { id } = req.params;
     const { password } = req.body;
     
+    console.log(`[VERIFY-PASSWORD] Request for ID: ${id}, has password: ${!!password}`);
+    
     if (!password) {
       return res.status(400).json({ message: 'Password is required' });
     }
     
     if (!req.db || !req.db.success) {
+      console.error('[VERIFY-PASSWORD] Database connection error:', req.db?.error);
       return res.status(503).json({ message: 'Database connection error' });
     }
     
     const { models } = req.db;
     const { Paste } = models;
     
+    if (!Paste) {
+      console.error('[VERIFY-PASSWORD] Paste model not available');
+      return res.status(500).json({ message: 'Server configuration error' });
+    }
+    
     // Find paste
+    console.log(`[VERIFY-PASSWORD] Searching for paste with ID/customUrl: ${id}`);
     const paste = await Paste.findOne({
       where: { 
         [Op.or]: [
@@ -618,36 +638,44 @@ router.post('/:id/verify-password', async (req, res) => {
     });
     
     if (!paste) {
+      console.log(`[VERIFY-PASSWORD] Paste not found for ID: ${id}`);
       return res.status(404).json({ message: 'Paste not found' });
     }
     
+    console.log(`[VERIFY-PASSWORD] Found paste: ${paste.id}, has password: ${!!paste.password}`);
+    
     // Check if paste has expired
     if (paste.expiresAt && new Date() > new Date(paste.expiresAt)) {
+      console.log(`[VERIFY-PASSWORD] Paste expired: ${paste.expiresAt}`);
       return res.status(404).json({ message: 'Paste has expired' });
     }
     
     // Check if paste is password-protected
     if (!paste.password) {
+      console.log(`[VERIFY-PASSWORD] Paste is not password-protected`);
       return res.status(400).json({ message: 'This paste is not password-protected' });
     }
     
     // Verify password
+    console.log(`[VERIFY-PASSWORD] Attempting to verify password`);
     try {
       const isPasswordValid = await bcrypt.compare(password, paste.password);
+      console.log(`[VERIFY-PASSWORD] Password verification result: ${isPasswordValid}`);
+      
       if (!isPasswordValid) {
         return res.status(403).json({ message: 'Invalid password' });
       }
       
       return res.status(200).json({ success: true });
     } catch (bcryptError) {
-      console.error('bcrypt compare error:', bcryptError);
+      console.error('[VERIFY-PASSWORD] bcrypt compare error:', bcryptError);
       return res.status(500).json({
         message: 'Server error verifying password',
         error: 'Error comparing passwords'
       });
     }
   } catch (error) {
-    console.error('Verify password error:', error);
+    console.error('[VERIFY-PASSWORD] Verify password error:', error);
     return res.status(500).json({
       message: 'Server error verifying password',
       error: error.message
@@ -714,19 +742,26 @@ router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { title, content, blocks } = req.body;
-    console.log('Request body:', req.body);
-    console.log('typeof blocks:', typeof blocks, 'blocks:', blocks);
+    console.log(`[UPDATE-PASTE] Request for ID: ${id}`);
+    console.log(`[UPDATE-PASTE] Request body:`, req.body);
+    console.log(`[UPDATE-PASTE] typeof blocks:`, typeof blocks, 'blocks length:', Array.isArray(blocks) ? blocks.length : 'not array');
     
     // Check database connection
     if (!req.db || !req.db.success) {
-      console.error('No DB connection');
+      console.error('[UPDATE-PASTE] No DB connection:', req.db?.error);
       return res.status(503).json({ message: 'Database connection error' });
     }
     
     const { sequelize, models } = req.db;
     const { Paste, Block } = models;
     
+    if (!Paste || !Block) {
+      console.error('[UPDATE-PASTE] Models not available - Paste:', !!Paste, 'Block:', !!Block);
+      return res.status(500).json({ message: 'Server configuration error' });
+    }
+    
     // Find paste
+    console.log(`[UPDATE-PASTE] Searching for paste with ID/customUrl: ${id}`);
     const paste = await Paste.findOne({
       where: { 
         [Op.or]: [
@@ -743,9 +778,11 @@ router.put('/:id', async (req, res) => {
     });
     
     if (!paste) {
-      console.error('Paste not found');
+      console.error('[UPDATE-PASTE] Paste not found for ID:', id);
       return res.status(404).json({ message: 'Paste not found' });
     }
+    
+    console.log(`[UPDATE-PASTE] Found paste: ${paste.id}, isEditable: ${paste.isEditable}`);
     
     // Check if paste is editable
     if (!paste.isEditable) {
