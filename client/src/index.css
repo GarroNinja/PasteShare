@@ -460,12 +460,15 @@ code[class*="language-"] {
 
 /* Dark mode text styling */
 .dark h1, 
-.dark h2, 
+.dark h2 {
+  color: #98971a !important; /* Gruvbox green for main headings */
+}
+
 .dark h3, 
 .dark h4, 
 .dark h5, 
 .dark h6 {
-  color: var(--gruvbox-fg) !important;
+  color: #b8bb26 !important; /* Bright Gruvbox green for subheadings */
 }
 
 .dark .text-gray-500,
@@ -476,14 +479,14 @@ code[class*="language-"] {
 
 .dark .font-medium,
 .dark .font-semibold {
-  color: var(--gruvbox-fg) !important;
+  color: #b8bb26 !important; /* Gruvbox green for emphasized text */
 }
 
 .dark span[class*="rounded-full"],
 .dark .text-amber-800,
 .dark .text-green-800,
 .dark .text-blue-800 {
-  color: var(--gruvbox-fg) !important;
+  color: #b8bb26 !important; /* Gruvbox green for tags and badges */
 }
 
 .dark .text-green-300,
@@ -498,14 +501,32 @@ code[class*="language-"] {
 
 /* Homepage styling */
 .dark .text-3xl.font-bold {
-  color: var(--gruvbox-fg) !important;
+  color: #98971a !important; /* Gruvbox green for main title */
 }
 
 .dark .grid-cols-1 .font-semibold.text-lg {
-  color: var(--gruvbox-fg) !important;
+  color: #b8bb26 !important; /* Bright Gruvbox green for feature titles */
 }
 
 .dark .grid-cols-1 p.text-gray-600,
 .dark .grid-cols-1 .text-gray-300 {
   color: #a89984 !important;
+}
+
+/* Additional Gruvbox green accents for dark mode */
+.dark .text-xl.font-semibold,
+.dark .text-lg.font-semibold,
+.dark .font-bold {
+  color: #b8bb26 !important; /* Gruvbox green for important text */
+}
+
+/* Navigation and brand styling */
+.dark .text-2xl,
+.dark nav .font-semibold {
+  color: #98971a !important; /* Gruvbox green for navigation */
+}
+
+/* Form labels in dark mode */
+.dark label.block.text-sm.font-medium {
+  color: #b8bb26 !important; /* Gruvbox green for form labels */
 }
