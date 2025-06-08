@@ -236,11 +236,11 @@ router.post('/', upload.array('files', 3), async (req, res) => {
     console.log('[CREATE-PASTE] Paste creation started');
     const { title, content, expiresIn, isPrivate, customUrl, isEditable, password, isJupyterStyle, blocks } = req.body;
     
-    // Debug logging for paste creation
-    console.log(`[CREATE-PASTE] Creating paste - hasPassword: ${!!password}, isJupyterStyle: ${isJupyterStylePaste}`);
-    
     // Determine if this is a Jupyter-style paste
     const isJupyterStylePaste = isJupyterStyle === 'true' || isJupyterStyle === true;
+    
+    // Debug logging for paste creation
+    console.log(`[CREATE-PASTE] Creating paste - hasPassword: ${!!password}, isJupyterStyle: ${isJupyterStylePaste}`);
     
     // Validate input
     if (!isJupyterStylePaste && !content) {
