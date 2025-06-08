@@ -628,13 +628,20 @@ router.post('/:id/verify-password', async (req, res) => {
     
     // Find paste
     console.log(`[VERIFY-PASSWORD] Searching for paste with ID/customUrl: ${id}`);
+    
+    // Check if the ID is a valid UUID format
+    const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    console.log(`[VERIFY-PASSWORD] ID is valid UUID: ${isValidUUID}`);
+    
+    // Build the query condition based on whether id is a UUID
+    const whereCondition = isValidUUID 
+      ? { [Op.or]: [{ id }, { customUrl: id }] } 
+      : { customUrl: id }; // Only check customUrl if not a UUID
+    
+    console.log(`[VERIFY-PASSWORD] Query condition:`, whereCondition);
+    
     const paste = await Paste.findOne({
-      where: { 
-        [Op.or]: [
-          { id },
-          { customUrl: id }
-        ]
-      }
+      where: whereCondition
     });
     
     if (!paste) {
