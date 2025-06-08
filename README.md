@@ -1,6 +1,6 @@
 # PasteShare
 
-A modern pastebin application for sharing code snippets, text, and files.
+A modern, feature-rich pastebin application built with React and Node.js.
 
 ## Screenshots
 ![Homepage Dark Mode](screenshots/homepage_dark.png)
@@ -8,47 +8,106 @@ A modern pastebin application for sharing code snippets, text, and files.
 
 ## Features
 
-- Code & text sharing
-- File attachments support
-- Custom URLs for easier sharing
-- Paste expiry options
-- Unlisted pastes
+### 📝 **Paste Management**
+- Create and share text pastes with syntax highlighting
+- Support for 20+ programming languages
+- Custom URLs for easy sharing
+- Expiration dates (5 minutes to never)
+- Private/unlisted pastes
 - Password protection
 - Editable pastes
-- Jupyter-style notebook support with multiple code blocks
-- Mobile responsive UI
-- Syntax highlighting with multiple theme options
-- Print-friendly view
+
+### 🔧 **Advanced Features**
+- **Jupyter Notebook Style**: Create multi-block pastes with different languages per block
+- **File Attachments**: Upload up to 3 files (10MB each) per paste
+- **📋 Clipboard Image Pasting**: Paste images directly with Ctrl+V - no need to save screenshots first!
+- **Pagination**: Browse recent pastes with 5 per page
+- **Auto-cleanup**: Expired pastes are automatically removed from database
+- **Password Protection**: Secure your pastes with passwords
+
+### 🎨 **User Experience**
+- Dark/Light theme support
+- Responsive design for mobile and desktop
+- Multiple syntax highlighting themes
+- Copy to clipboard functionality
+- Print support
+- Real-time paste preview
+
+### 🔒 **Security & Privacy**
+- Password-protected pastes with bcrypt encryption
+- Content hidden in recent pastes for password-protected items
+- Automatic cleanup of expired content
+- No tracking or analytics
 
 ## Quick Start
 
-### Prerequisites
+1. Visit [PasteShare](https://www.pasteshare.ninja)
+2. Paste your content or create Jupyter-style blocks
+3. **New!** Copy an image to clipboard and paste with Ctrl+V to attach it instantly
+4. Configure expiration, privacy, and other settings
+5. Share the generated URL
 
-- Node.js 16+
-- PostgreSQL database
+## Clipboard Image Pasting
 
-### Local Development
+The new clipboard image pasting feature allows you to:
+- Copy any image (screenshot, image from web, etc.)
+- Paste directly into the form with **Ctrl+V**
+- Automatically generates timestamped filenames
+- Supports all common image formats (PNG, JPG, GIF, etc.)
+- Respects file size limits (10MB) and count limits (3 files)
+- Shows real-time feedback during processing
 
-1. Clone and set up:
-   ```bash
-   git clone https://github.com/YOUR_USERNAME/PasteShare.git
-   cd PasteShare
-   npm run install:all
-   ```
+Perfect for quickly sharing screenshots, diagrams, or any visual content without the hassle of saving files first!
 
-2. Set up database:
-   - Create a `.env` file in the server directory:
-   ```
-   DATABASE_URL=postgres://username:password@localhost:5432/pasteshare
-   NODE_ENV=development
-   ```
+## Technology Stack
 
-3. Start the application:
-   ```bash
-   npm run dev
-   ```
+- **Frontend**: React, TypeScript, Tailwind CSS
+- **Backend**: Node.js, Express
+- **Database**: PostgreSQL with Sequelize ORM
+- **Deployment**: Vercel
+- **File Storage**: Local filesystem with base64 encoding
 
-4. Open `http://localhost:4000`
+## Development
+
+```bash
+# Clone the repository
+git clone https://github.com/GarroNinja/PasteShare.git
+cd PasteShare
+
+# Install dependencies
+npm install
+
+# Set up environment variables
+cp .env.example .env
+# Edit .env with your database credentials
+
+# Run database migrations
+npm run migrate
+
+# Start development server
+npm run dev
+```
+
+## API Endpoints
+
+- `GET /api/pastes/recent?page=1` - Get recent pastes with pagination
+- `POST /api/pastes` - Create new paste
+- `GET /api/pastes/:id` - Get paste by ID
+- `PUT /api/pastes/:id` - Update paste (if editable)
+- `POST /api/pastes/:id/verify-password` - Verify paste password
+- `GET /api/pastes/cleanup` - Clean up expired pastes
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly
+5. Submit a pull request
+
+## License
+
+MIT License - see LICENSE file for details.
 
 ## Deployment
 
