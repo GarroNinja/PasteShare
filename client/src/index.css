@@ -41,10 +41,8 @@ html, body {
   color: var(--gruvbox-fg) !important;
 }
 
-/* Safe area support - apply to the main app container instead of body */
+/* Safe area support - apply to main content only, not header/footer */
 #root {
-  padding-left: env(safe-area-inset-left);
-  padding-right: env(safe-area-inset-right);
   min-height: 100vh;
   min-height: 100dvh;
   background-color: var(--light-bg);
@@ -52,6 +50,24 @@ html, body {
 
 .dark #root {
   background-color: var(--gruvbox-bg);
+}
+
+/* Apply safe area padding only to main content */
+main {
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+/* Header content should respect safe areas but background extends full width */
+header .max-w-6xl {
+  padding-left: max(env(safe-area-inset-left), 1rem);
+  padding-right: max(env(safe-area-inset-right), 1rem);
+}
+
+/* Mobile nav bar should respect safe areas */
+.md\\:hidden.fixed.bottom-0 {
+  padding-left: max(env(safe-area-inset-left), 1rem);
+  padding-right: max(env(safe-area-inset-right), 1rem);
 }
 
 /* Ensure full viewport coverage on mobile landscape with safe areas */
@@ -65,32 +81,27 @@ html, body {
     background-color: var(--gruvbox-bg) !important;
   }
   
-  /* Enhanced safe area support for landscape - apply to root */
-  #root {
+  /* Enhanced safe area support for landscape - apply to main content */
+  main {
     padding-left: max(env(safe-area-inset-left), 16px);
     padding-right: max(env(safe-area-inset-right), 16px);
     padding-top: env(safe-area-inset-top);
     padding-bottom: env(safe-area-inset-bottom);
   }
   
-  /* Adjust main content for safe areas */
-  main {
-    padding-left: 0;
-    padding-right: 0;
-  }
-  
-  /* Navbar adjustments for landscape */
+  /* Header content should respect safe areas but background extends full width */
   header .max-w-6xl {
-    padding-left: 0;
-    padding-right: 0;
+    padding-left: max(env(safe-area-inset-left), 1rem);
+    padding-right: max(env(safe-area-inset-right), 1rem);
   }
   
   /* Mobile nav bar adjustments */
   .md\\:hidden.fixed.bottom-0 {
-    left: max(env(safe-area-inset-left), 16px);
-    right: max(env(safe-area-inset-right), 16px);
+    left: 0;
+    right: 0;
+    padding-left: max(env(safe-area-inset-left), 16px);
+    padding-right: max(env(safe-area-inset-right), 16px);
     padding-bottom: max(env(safe-area-inset-bottom), 8px);
-    width: auto;
   }
 }
 
