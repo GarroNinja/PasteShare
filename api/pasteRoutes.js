@@ -840,7 +840,7 @@ router.put('/:id', async (req, res) => {
       return res.status(404).json({ message: 'Paste not found' });
     }
     
-    console.log(`[UPDATE-PASTE] Found paste: ${paste.id}, isEditable: ${paste.isEditable}`);
+    console.log(`[UPDATE-PASTE] Found paste: ${paste.id}, isEditable: ${paste.isEditable}, customUrl: ${paste.customUrl}`);
     
     // Check if paste is editable
     if (!paste.isEditable) {
@@ -911,12 +911,15 @@ router.put('/:id', async (req, res) => {
         }
         
         console.log('Valid blocks count:', validBlocks.length);
+        console.log(`[UPDATE-PASTE] About to delete blocks for paste ID: ${paste.id}`);
         
         // Delete existing blocks
         await Block.destroy({
           where: { pasteId: paste.id },
           transaction
         });
+        
+        console.log(`[UPDATE-PASTE] Successfully deleted existing blocks for paste ID: ${paste.id}`);
         
         // Create new blocks
         let insertedBlocks = [];
