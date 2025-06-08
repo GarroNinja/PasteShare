@@ -8,56 +8,28 @@ A modern, feature-rich pastebin application built with React and Node.js.
 
 ## Features
 
-### 📝 **Paste Management**
-- Create and share text pastes with syntax highlighting
-- Support for 20+ programming languages
-- Custom URLs for easy sharing
-- Expiration dates (5 minutes to never)
-- Private/unlisted pastes
-- Password protection
-- Editable pastes
-
-### 🔧 **Advanced Features**
-- **Jupyter Notebook Style**: Create multi-block pastes with different languages per block
+- **Text & Code Sharing**: Syntax highlighting for 20+ programming languages
+- **Jupyter Notebook Style**: Multi-block pastes with different languages per block
 - **File Attachments**: Upload up to 3 files (10MB each) per paste
-- **📋 Clipboard Image Pasting**: Paste images directly with Ctrl+V - no need to save screenshots first!
-- **Pagination**: Browse recent pastes with 5 per page
-- **Auto-cleanup**: Expired pastes are automatically removed from database
-- **Password Protection**: Secure your pastes with passwords
-
-### 🎨 **User Experience**
-- Dark/Light theme support
-- Responsive design for mobile and desktop
-- Multiple syntax highlighting themes
-- Copy to clipboard functionality
-- Print support
-- Real-time paste preview
-
-### 🔒 **Security & Privacy**
-- Password-protected pastes with bcrypt encryption
-- Content hidden in recent pastes for password-protected items
-- Automatic cleanup of expired content
-- No tracking or analytics
+- **Clipboard Image Pasting**: Paste images directly with Ctrl+V
+- **Custom URLs**: Easy sharing with memorable links
+- **Password Protection**: Secure pastes with bcrypt encryption
+- **Expiration Options**: From 5 minutes to never
+- **Private Pastes**: Unlisted pastes not shown in recent list
+- **Editable Pastes**: Allow modifications after creation
+- **Pagination**: Browse recent pastes (5 per page)
+- **Auto-cleanup**: Expired pastes automatically removed
+- **Dark/Light Themes**: Multiple syntax highlighting themes
+- **Responsive Design**: Works on mobile and desktop
+- **Print Support**: Print-friendly paste view
 
 ## Quick Start
 
 1. Visit [PasteShare](https://www.pasteshare.ninja)
 2. Paste your content or create Jupyter-style blocks
-3. **New!** Copy an image to clipboard and paste with Ctrl+V to attach it instantly
+3. Copy an image to clipboard and paste with Ctrl+V to attach it instantly
 4. Configure expiration, privacy, and other settings
 5. Share the generated URL
-
-## Clipboard Image Pasting
-
-The new clipboard image pasting feature allows you to:
-- Copy any image (screenshot, image from web, etc.)
-- Paste directly into the form with **Ctrl+V**
-- Automatically generates timestamped filenames
-- Supports all common image formats (PNG, JPG, GIF, etc.)
-- Respects file size limits (10MB) and count limits (3 files)
-- Shows real-time feedback during processing
-
-Perfect for quickly sharing screenshots, diagrams, or any visual content without the hassle of saving files first!
 
 ## Technology Stack
 

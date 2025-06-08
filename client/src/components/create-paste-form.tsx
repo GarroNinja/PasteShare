@@ -139,7 +139,7 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
           setFileError(null);
 
           // Show a success message
-          setPasteSuccess(`✅ Pasted image: ${filename} (${formatFileSize(namedFile.size)})`);
+          setPasteSuccess(`Image pasted: ${filename}`);
           
           // Clear success message after 3 seconds
           setTimeout(() => {
@@ -743,13 +743,8 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
               </label>
               <p className="pl-1">or drag and drop</p>
             </div>
-            <div className="flex items-center justify-center mt-2">
-              <div className="flex items-center text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded">
-                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                </svg>
-                <span>or paste images with <kbd className="px-1 py-0.5 text-xs font-semibold text-blue-800 dark:text-blue-200 bg-blue-200 dark:bg-blue-800 rounded">Ctrl+V</kbd></span>
-              </div>
+            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              or <kbd className="px-1 py-0.5 text-xs bg-gray-100 dark:bg-gray-700 rounded">Ctrl+V</kbd> to paste images
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400">
               Up to 3 files, 10MB each
@@ -766,7 +761,7 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
         )}
         
         {isPasting && (
-          <p className="mt-1 text-sm text-blue-600 dark:text-blue-400">📋 Processing pasted image...</p>
+          <p className="mt-1 text-sm text-blue-600 dark:text-blue-400">Processing image...</p>
         )}
       
       {files.length > 0 && (
