@@ -633,16 +633,32 @@ router.post('/:id/verify-password', async (req, res) => {
     const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
     console.log(`[VERIFY-PASSWORD] ID is valid UUID: ${isValidUUID}`);
     
-    // Build the query condition based on whether id is a UUID
-    const whereCondition = isValidUUID 
-      ? { [Op.or]: [{ id }, { customUrl: id }] } 
-      : { customUrl: id }; // Only check customUrl if not a UUID
-    
-    console.log(`[VERIFY-PASSWORD] Query condition:`, whereCondition);
-    
-    const paste = await Paste.findOne({
-      where: whereCondition
-    });
+    let paste;
+    try {
+      if (isValidUUID) {
+        // Try to find by ID first, then by customUrl
+        paste = await Paste.findOne({
+          where: { id }
+        });
+        
+        if (!paste) {
+          paste = await Paste.findOne({
+            where: { customUrl: id }
+          });
+        }
+      } else {
+        // Only search by customUrl for non-UUID strings
+        paste = await Paste.findOne({
+          where: { customUrl: id }
+        });
+      }
+    } catch (queryError) {
+      console.error(`[VERIFY-PASSWORD] Database query error:`, queryError);
+      return res.status(500).json({
+        message: 'Database query error',
+        error: queryError.message
+      });
+    }
     
     if (!paste) {
       console.log(`[VERIFY-PASSWORD] Paste not found for ID: ${id}`);
