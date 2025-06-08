@@ -129,7 +129,7 @@ router.get('/debug', async (req, res) => {
   }
 });
 
-// GET /api/pastes/recent - Get recent pastes
+// GET /api/pastes/recent - Get recent pastes with pagination
 // IMPORTANT: This route must be defined BEFORE the /:id route to avoid conflicts
 router.get('/recent', async (req, res) => {
   try {
@@ -156,8 +156,28 @@ router.get('/recent', async (req, res) => {
     
     const { Paste, Block } = models;
     
+    // Parse pagination parameters
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = 5; // Fixed at 5 pastes per page as requested
+    const offset = (page - 1) * limit;
+    
+    console.log(`Fetching page ${page} with limit ${limit}, offset ${offset}`);
+    
     // Get recent public pastes with try/catch for the query itself
     try {
+      // First, get the total count for pagination
+      const totalCount = await Paste.count({
+        where: {
+          isPrivate: false,
+          [Op.or]: [
+            { expiresAt: null },
+            { expiresAt: { [Op.gt]: new Date() } }
+          ]
+        }
+      });
+      
+      const totalPages = Math.ceil(totalCount / limit);
+      
       const pastes = await Paste.findAll({
         where: {
           isPrivate: false,
@@ -167,7 +187,8 @@ router.get('/recent', async (req, res) => {
           ]
         },
         order: [['createdAt', 'DESC']],
-        limit: 10,
+        limit,
+        offset,
         include: [
           {
             model: Block,
@@ -178,25 +199,49 @@ router.get('/recent', async (req, res) => {
         ]
       });
       
-      console.log(`Found ${pastes.length} recent pastes`);
+      console.log(`Found ${pastes.length} recent pastes (page ${page}/${totalPages})`);
       
       // Format pastes for response with additional error handling
       const formattedPastes = pastes.map(paste => {
         try {
+          const isPasswordProtected = paste.isPasswordProtected();
+          
+          // For password-protected pastes, don't show content in preview
+          let content = '';
+          let blocks = [];
+          
+          if (!isPasswordProtected) {
+            if (paste.isJupyterStyle()) {
+              // For Jupyter-style pastes, show first block content as preview
+              const pasteBlocks = Array.isArray(paste.Blocks) ? paste.Blocks : [];
+              if (pasteBlocks.length > 0) {
+                const firstBlock = pasteBlocks[0];
+                content = firstBlock.content ? 
+                  (firstBlock.content.length > 200 ? `${firstBlock.content.slice(0, 200)}...` : firstBlock.content) : '';
+              }
+              blocks = pasteBlocks.map(block => ({
+                id: block.id,
+                content: block.content || '',
+                language: block.language || 'text',
+                order: block.order || 0
+              }));
+            } else {
+              // For standard pastes, show truncated content
+              const fullContent = paste.content || '';
+              content = fullContent.length > 200 ? `${fullContent.slice(0, 200)}...` : fullContent;
+            }
+          }
+          
           return {
             id: paste.id,
             title: paste.title || 'Untitled Paste',
-            content: paste.isJupyterStyle() ? '' : (paste.content || ''),
+            content,
             createdAt: paste.createdAt,
             expiresAt: paste.expiresAt,
             customUrl: paste.customUrl,
             isJupyterStyle: paste.isJupyterStyle(),
-            blocks: Array.isArray(paste.Blocks) ? paste.Blocks.map(block => ({
-              id: block.id,
-              content: block.content || '',
-              language: block.language || 'text',
-              order: block.order || 0
-            })) : []
+            isPasswordProtected,
+            blocks
           };
         } catch (formatError) {
           console.error('Error formatting paste:', formatError, paste?.id);
@@ -207,12 +252,22 @@ router.get('/recent', async (req, res) => {
             content: '',
             createdAt: paste.createdAt || new Date(),
             isJupyterStyle: false,
+            isPasswordProtected: false,
             blocks: []
           };
         }
       });
       
-      return res.status(200).json({ pastes: formattedPastes });
+      return res.status(200).json({ 
+        pastes: formattedPastes,
+        pagination: {
+          currentPage: page,
+          totalPages,
+          totalCount,
+          hasNextPage: page < totalPages,
+          hasPrevPage: page > 1
+        }
+      });
     } catch (queryError) {
       console.error('Database query error in /recent route:', queryError);
       return res.status(500).json({
@@ -229,6 +284,141 @@ router.get('/recent', async (req, res) => {
     });
   }
 });
+
+// Cleanup function for expired pastes
+const cleanupExpiredPastes = async (db) => {
+  try {
+    if (!db || !db.success) {
+      console.error('Database connection not available for cleanup');
+      return { success: false, error: 'Database connection error' };
+    }
+
+    const { sequelize, models } = db;
+    const { Paste, Block, File } = models;
+
+    console.log('Starting cleanup of expired pastes...');
+
+    // Find all expired pastes
+    const expiredPastes = await Paste.findAll({
+      where: {
+        expiresAt: {
+          [Op.lt]: new Date()
+        }
+      },
+      include: [
+        {
+          model: Block,
+          as: 'Blocks',
+          required: false
+        },
+        {
+          model: File,
+          as: 'Files',
+          required: false
+        }
+      ]
+    });
+
+    if (expiredPastes.length === 0) {
+      console.log('No expired pastes found');
+      return { success: true, deletedCount: 0 };
+    }
+
+    console.log(`Found ${expiredPastes.length} expired pastes to delete`);
+
+    // Start transaction for cleanup
+    const transaction = await sequelize.transaction();
+
+    try {
+      let deletedCount = 0;
+
+      for (const paste of expiredPastes) {
+        try {
+          // Delete associated blocks
+          if (paste.Blocks && paste.Blocks.length > 0) {
+            await Block.destroy({
+              where: { pasteId: paste.id },
+              transaction
+            });
+          }
+
+          // Delete associated files
+          if (paste.Files && paste.Files.length > 0) {
+            await File.destroy({
+              where: { pasteId: paste.id },
+              transaction
+            });
+          }
+
+          // Delete the paste itself
+          await paste.destroy({ transaction });
+          deletedCount++;
+
+          console.log(`Deleted expired paste: ${paste.id} (expired: ${paste.expiresAt})`);
+        } catch (deleteError) {
+          console.error(`Error deleting paste ${paste.id}:`, deleteError);
+          // Continue with other pastes even if one fails
+        }
+      }
+
+      await transaction.commit();
+      console.log(`Cleanup completed. Deleted ${deletedCount} expired pastes.`);
+      
+      return { success: true, deletedCount };
+    } catch (transactionError) {
+      await transaction.rollback();
+      console.error('Transaction error during cleanup:', transactionError);
+      return { success: false, error: transactionError.message };
+    }
+  } catch (error) {
+    console.error('Error during expired pastes cleanup:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// GET /api/pastes/cleanup - Manual cleanup endpoint (for admin use)
+router.get('/cleanup', async (req, res) => {
+  try {
+    const result = await cleanupExpiredPastes(req.db);
+    
+    if (result.success) {
+      return res.status(200).json({
+        message: 'Cleanup completed successfully',
+        deletedCount: result.deletedCount
+      });
+    } else {
+      return res.status(500).json({
+        message: 'Cleanup failed',
+        error: result.error
+      });
+    }
+  } catch (error) {
+    console.error('Error in cleanup endpoint:', error);
+    return res.status(500).json({
+      message: 'Server error during cleanup',
+      error: error.message
+    });
+  }
+});
+
+// Schedule automatic cleanup every hour
+setInterval(async () => {
+  try {
+    // We need to get a database connection for the cleanup
+    // This is a bit tricky since we don't have req.db here
+    // We'll need to create a connection manually
+    const dbConnection = require('./db');
+    const db = await dbConnection();
+    
+    if (db.success) {
+      await cleanupExpiredPastes(db);
+    } else {
+      console.error('Could not establish database connection for scheduled cleanup');
+    }
+  } catch (error) {
+    console.error('Error in scheduled cleanup:', error);
+  }
+}, 60 * 60 * 1000); // Run every hour
 
 // POST /api/pastes - Create a new paste
 router.post('/', upload.array('files', 3), async (req, res) => {

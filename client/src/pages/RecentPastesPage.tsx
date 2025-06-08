@@ -15,13 +15,24 @@ interface Paste {
   isPrivate: boolean;
   customUrl?: string;
   isJupyterStyle?: boolean;
+  isPasswordProtected?: boolean;
   blocks?: { language: string; content: string }[];
+}
+
+interface PaginationInfo {
+  currentPage: number;
+  totalPages: number;
+  totalCount: number;
+  hasNextPage: boolean;
+  hasPrevPage: boolean;
 }
 
 export function RecentPastesPage() {
   const [pastes, setPastes] = useState<Paste[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [pagination, setPagination] = useState<PaginationInfo | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
   const fetchedRef = useRef(false);
   
   // Get the appropriate theme based on current mode
@@ -173,34 +184,44 @@ export function RecentPastesPage() {
     }
   };
 
+  const fetchPastes = async (page: number = 1) => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const data = await apiFetch(`pastes/recent?page=${page}`);
+      
+      // Check if the response has the expected structure
+      if (data.pastes && Array.isArray(data.pastes)) {
+        setPastes(data.pastes);
+        setPagination(data.pagination);
+      } else if (Array.isArray(data)) {
+        // Fallback for old API format
+        setPastes(data);
+        setPagination(null);
+      } else {
+        setError("Invalid API response format");
+      }
+      
+      setLoading(false);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to load pastes');
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    // Skip if we've already fetched data
-    if (fetchedRef.current) return;
+    // Skip if we've already fetched data for this page
+    if (fetchedRef.current && currentPage === 1) return;
     
     fetchedRef.current = true;
-    
-    const fetchPastes = async () => {
-      try {
-        const data = await apiFetch('pastes/recent');
-        
-        // Check if the response has the expected structure
-        if (Array.isArray(data)) {
-          setPastes(data);
-        } else if (data.pastes && Array.isArray(data.pastes)) {
-          setPastes(data.pastes);
-        } else {
-          setError("Invalid API response format");
-        }
-        
-        setLoading(false);
-      } catch (error) {
-        setError(error instanceof Error ? error.message : 'Failed to load pastes');
-        setLoading(false);
-      }
-    };
+    fetchPastes(currentPage);
+  }, [currentPage]);
 
-    fetchPastes();
-  }, []);
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    fetchedRef.current = false; // Allow refetch for new page
+  };
 
   // Common wrapper for consistent minimum height
   const PageWrapper = ({ children }: { children: React.ReactNode }) => (
@@ -211,6 +232,21 @@ export function RecentPastesPage() {
   );
 
   const renderPasteContent = (paste: Paste) => {
+    // For password-protected pastes, show a placeholder
+    if (paste.isPasswordProtected) {
+      return (
+        <div className="flex items-center justify-center h-24 bg-gray-100 dark:bg-[#3c3836] rounded border-2 border-dashed border-gray-300 dark:border-[#504945]">
+          <div className="text-center">
+            <svg className="w-8 h-8 mx-auto mb-2 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Password Protected</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500">Click to view content</p>
+          </div>
+        </div>
+      );
+    }
+
     // For Jupyter-style pastes with blocks, show blocks content
     if (paste.isJupyterStyle && paste.blocks && paste.blocks.length > 0) {
       // Show just the first block or a combined preview
@@ -290,46 +326,133 @@ export function RecentPastesPage() {
           </Link>
         </div>
       ) : (
-        <div className="space-y-4">
-          {pastes.map(paste => (
-            <div key={paste.id} className="relative block">
-              <Link
-                to={`/${paste.customUrl || paste.id}`}
-                className="block bg-white dark:bg-[#282828] rounded-lg shadow-sm border border-gray-200 dark:border-[#3c3836] hover:border-green-300 dark:hover:border-[#98971a] transition-colors"
-              >
-                <div className="p-4">
-                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-2">
-                    <h2 className="text-lg font-medium mb-2 sm:mb-0 pr-20 sm:pr-0 truncate max-w-full">{paste.title || 'Untitled Paste'}</h2>
-                    <button
-                      onClick={(e) => copyLinkToClipboard(paste.id, paste.customUrl, e)}
-                      className="absolute top-4 right-4 sm:static sm:ml-2 sm:flex-shrink-0 px-3 py-1 text-sm bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-900/50 z-10"
-                    >
-                      Copy Link
-                    </button>
-                  </div>
-                  <div className="overflow-hidden rounded" style={{
-                    backgroundColor: document.documentElement.classList.contains('dark') 
-                      ? '#1d2021'  // Dark background for dark mode
-                      : '#fbf1c7'  // Light background for light mode (Gruvbox light bg)
-                  }}>
-                    {renderPasteContent(paste)}
-                  </div>
-                  <div className="mt-2 flex justify-between text-xs text-gray-500 dark:text-gray-400">
-                    <span>Created: {new Date(paste.createdAt).toLocaleString()}</span>
-                    <div className="flex items-center gap-2">
-                      {paste.customUrl && (
-                        <span className="px-2 py-0.5 bg-green-100 dark:bg-[#282828] text-green-800 dark:text-[#98971a] rounded-full">
-                          {paste.customUrl}
-                        </span>
-                      )}
-                      <span>{paste.views} views</span>
+        <>
+          <div className="space-y-4">
+            {pastes.map(paste => (
+              <div key={paste.id} className="relative block">
+                <Link
+                  to={`/${paste.customUrl || paste.id}`}
+                  className="block bg-white dark:bg-[#282828] rounded-lg shadow-sm border border-gray-200 dark:border-[#3c3836] hover:border-green-300 dark:hover:border-[#98971a] transition-colors"
+                >
+                  <div className="p-4">
+                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-2">
+                      <div className="flex items-center gap-2 mb-2 sm:mb-0 pr-20 sm:pr-0">
+                        <h2 className="text-lg font-medium truncate max-w-full">{paste.title || 'Untitled Paste'}</h2>
+                        {paste.isPasswordProtected && (
+                          <svg className="w-4 h-4 text-blue-500 dark:text-blue-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                          </svg>
+                        )}
+                        {paste.isJupyterStyle && (
+                          <span className="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/20 text-indigo-800 dark:text-indigo-300 rounded-full text-xs flex-shrink-0">
+                            Jupyter
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        onClick={(e) => copyLinkToClipboard(paste.id, paste.customUrl, e)}
+                        className="absolute top-4 right-4 sm:static sm:ml-2 sm:flex-shrink-0 px-3 py-1 text-sm bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-900/50 z-10"
+                      >
+                        Copy Link
+                      </button>
+                    </div>
+                    <div className="overflow-hidden rounded" style={{
+                      backgroundColor: document.documentElement.classList.contains('dark') 
+                        ? '#1d2021'  // Dark background for dark mode
+                        : '#fbf1c7'  // Light background for light mode (Gruvbox light bg)
+                    }}>
+                      {renderPasteContent(paste)}
+                    </div>
+                    <div className="mt-2 flex justify-between text-xs text-gray-500 dark:text-gray-400">
+                      <span>Created: {new Date(paste.createdAt).toLocaleString()}</span>
+                      <div className="flex items-center gap-2">
+                        {paste.customUrl && (
+                          <span className="px-2 py-0.5 bg-green-100 dark:bg-[#282828] text-green-800 dark:text-[#98971a] rounded-full">
+                            {paste.customUrl}
+                          </span>
+                        )}
+                        <span>{paste.views} views</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </Link>
+                </Link>
+              </div>
+            ))}
+          </div>
+
+          {/* Pagination */}
+          {pagination && pagination.totalPages > 1 && (
+            <div className="mt-8 flex justify-center">
+              <div className="flex items-center space-x-2">
+                {/* Previous button */}
+                <button
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={!pagination.hasPrevPage}
+                  className={`px-3 py-2 rounded-md text-sm font-medium ${
+                    pagination.hasPrevPage
+                      ? 'bg-white dark:bg-[#282828] text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-[#504945] hover:bg-gray-50 dark:hover:bg-[#3c3836]'
+                      : 'bg-gray-100 dark:bg-[#3c3836] text-gray-400 dark:text-gray-500 border border-gray-200 dark:border-[#504945] cursor-not-allowed'
+                  }`}
+                >
+                  Previous
+                </button>
+
+                {/* Page numbers */}
+                {Array.from({ length: pagination.totalPages }, (_, i) => i + 1).map(page => {
+                  // Show first page, last page, current page, and pages around current page
+                  const showPage = page === 1 || 
+                                   page === pagination.totalPages || 
+                                   Math.abs(page - currentPage) <= 1;
+                  
+                  if (!showPage) {
+                    // Show ellipsis for gaps
+                    if (page === 2 && currentPage > 4) {
+                      return <span key={page} className="px-2 text-gray-400">...</span>;
+                    }
+                    if (page === pagination.totalPages - 1 && currentPage < pagination.totalPages - 3) {
+                      return <span key={page} className="px-2 text-gray-400">...</span>;
+                    }
+                    return null;
+                  }
+
+                  return (
+                    <button
+                      key={page}
+                      onClick={() => handlePageChange(page)}
+                      className={`px-3 py-2 rounded-md text-sm font-medium ${
+                        page === currentPage
+                          ? 'bg-green-600 text-white dark:bg-[#98971a] dark:text-[#1d2021]'
+                          : 'bg-white dark:bg-[#282828] text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-[#504945] hover:bg-gray-50 dark:hover:bg-[#3c3836]'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  );
+                })}
+
+                {/* Next button */}
+                <button
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={!pagination.hasNextPage}
+                  className={`px-3 py-2 rounded-md text-sm font-medium ${
+                    pagination.hasNextPage
+                      ? 'bg-white dark:bg-[#282828] text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-[#504945] hover:bg-gray-50 dark:hover:bg-[#3c3836]'
+                      : 'bg-gray-100 dark:bg-[#3c3836] text-gray-400 dark:text-gray-500 border border-gray-200 dark:border-[#504945] cursor-not-allowed'
+                  }`}
+                >
+                  Next
+                </button>
+              </div>
             </div>
-          ))}
-        </div>
+          )}
+
+          {/* Pagination info */}
+          {pagination && (
+            <div className="mt-4 text-center text-sm text-gray-500 dark:text-gray-400">
+              Showing {((currentPage - 1) * 5) + 1} to {Math.min(currentPage * 5, pagination.totalCount)} of {pagination.totalCount} pastes
+            </div>
+          )}
+        </>
       )}
     </PageWrapper>
   );
