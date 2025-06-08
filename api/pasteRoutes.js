@@ -785,20 +785,55 @@ router.put('/:id', async (req, res) => {
     
     // Find paste
     console.log(`[UPDATE-PASTE] Searching for paste with ID/customUrl: ${id}`);
-    const paste = await Paste.findOne({
-      where: { 
-        [Op.or]: [
-          { id },
-          { customUrl: id }
-        ]
-      },
-      include: [
-        {
-          model: Block,
-          as: 'Blocks'
+    
+    // Check if the ID is a valid UUID format
+    const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    console.log(`[UPDATE-PASTE] ID is valid UUID: ${isValidUUID}`);
+    
+    let paste;
+    try {
+      if (isValidUUID) {
+        // Try to find by ID first, then by customUrl
+        paste = await Paste.findOne({
+          where: { id },
+          include: [
+            {
+              model: Block,
+              as: 'Blocks'
+            }
+          ]
+        });
+        
+        if (!paste) {
+          paste = await Paste.findOne({
+            where: { customUrl: id },
+            include: [
+              {
+                model: Block,
+                as: 'Blocks'
+              }
+            ]
+          });
         }
-      ]
-    });
+      } else {
+        // Only search by customUrl for non-UUID strings
+        paste = await Paste.findOne({
+          where: { customUrl: id },
+          include: [
+            {
+              model: Block,
+              as: 'Blocks'
+            }
+          ]
+        });
+      }
+    } catch (queryError) {
+      console.error(`[UPDATE-PASTE] Database query error:`, queryError);
+      return res.status(500).json({
+        message: 'Database query error',
+        error: queryError.message
+      });
+    }
     
     if (!paste) {
       console.error('[UPDATE-PASTE] Paste not found for ID:', id);
