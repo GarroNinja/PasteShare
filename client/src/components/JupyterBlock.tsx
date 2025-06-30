@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import SyntaxHighlighter from 'react-syntax-highlighter';
 import { gruvboxDark, gruvboxLight } from 'react-syntax-highlighter/dist/esm/styles/hljs';
-import { useTheme } from './theme-provider';
+import { useTheme } from './ThemeProvider';
 
 // Define language options for the language selector
 const LANGUAGE_OPTIONS = [
@@ -98,9 +98,11 @@ export function JupyterBlock({
     <div className="mb-6 rounded-md overflow-hidden border border-gray-200 dark:border-[#3c3836]">
       <div className="flex items-center justify-between p-2 bg-gray-100 dark:bg-[#3c3836]">
         <div className="flex items-center">
-          <span className="text-sm font-medium text-gray-700 dark:text-gray-300 mr-3">
-            Block {order + 1}
-          </span>
+          <div className="flex items-center mr-3">
+            <div className="w-6 h-6 bg-[#98971a] text-[#282828] rounded-full flex items-center justify-center text-xs font-bold">
+              {order + 1}
+            </div>
+          </div>
           
           {(showLanguageSelector || isEditable) && (
             <select
@@ -162,7 +164,7 @@ export function JupyterBlock({
               padding: '1rem',
               borderRadius: 0,
               fontSize: '0.875rem',
-              lineHeight: '1.5'
+              lineHeight: '1.5',
             }}
             wrapLines={true}
             wrapLongLines={true}

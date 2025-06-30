@@ -423,32 +423,7 @@ button[class*="bg-green-600"]:hover {
   color: var(--light-fg-soft) !important;
 }
 
-/* Code and pre styling */
-:root:not(.dark) pre,
-:root:not(.dark) code {
-  background-color: var(--light-bg-soft) !important;
-  color: var(--light-fg) !important;
-  border: 1px solid var(--light-border) !important;
-}
 
-/* Syntax highlighter overrides */
-.syntax-highlighter-override,
-.syntax-highlighter-override * {
-  background-color: transparent !important;
-  color: inherit !important;
-}
-
-.syntax-highlighter-override code {
-  background-color: transparent !important;
-  border: none !important;
-}
-
-.dark .overflow-hidden code[class*="language-"],
-.dark .overflow-hidden pre[class*="language-"] {
-  background-color: var(--gruvbox-bg) !important;
-  color: var(--gruvbox-fg) !important;
-  border-color: #504945 !important;
-}
 
 /* General pre and code styling */
 pre[class*="language-"],

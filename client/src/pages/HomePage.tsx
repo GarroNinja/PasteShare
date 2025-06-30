@@ -1,6 +1,6 @@
 import React, { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { CreatePasteForm } from "../components/create-paste-form";
+import { CreatePasteForm } from "../components/CreatePasteForm";
 import { getApiBaseUrl } from "../lib/utils";
 
 export function HomePage() {

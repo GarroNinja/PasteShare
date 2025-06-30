@@ -4,7 +4,7 @@ import { apiFetch } from '../lib/utils';
 import SyntaxHighlighter from 'react-syntax-highlighter';
 import { gruvboxDark, gruvboxLight } from 'react-syntax-highlighter/dist/esm/styles/hljs';
 import CopyNotification from '../components/CopyNotification';
-import { useTheme } from '../components/theme-provider';
+import { useTheme } from '../components/ThemeProvider';
 
 interface Paste {
   id: string;
@@ -258,7 +258,10 @@ export function RecentPastesPage() {
         <SyntaxHighlighter
           language={firstBlock ? firstBlock.language : 'text'}
           style={syntaxTheme}
-          customStyle={{ maxHeight: '200px', overflow: 'hidden' }}
+          customStyle={{ 
+            maxHeight: '200px', 
+            overflow: 'hidden',
+          }}
         >
           {previewContent}
         </SyntaxHighlighter>
@@ -270,7 +273,10 @@ export function RecentPastesPage() {
       <SyntaxHighlighter
         language={detectLanguage(paste.content)}
         style={syntaxTheme}
-        customStyle={{ maxHeight: '200px', overflow: 'hidden' }}
+        customStyle={{ 
+          maxHeight: '200px', 
+          overflow: 'hidden',
+        }}
       >
         {paste.content}
       </SyntaxHighlighter>

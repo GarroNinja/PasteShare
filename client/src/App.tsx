@@ -1,11 +1,12 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
-import { ThemeProvider } from './components/theme-provider';
-import { Navbar } from './components/navbar';
+import { ThemeProvider } from './components/ThemeProvider';
+import { Navbar } from './components/Navbar';
 import { HomePage } from './pages/HomePage';
 import { PastePage } from './pages/PastePage';
 import { RecentPastesPage } from './pages/RecentPastesPage';
-import { globalContentValidation } from './components/create-paste-form';
+import { RawPastePage } from './pages/RawPastePage';
+import { globalContentValidation } from './components/CreatePasteForm';
 
 // Mobile navigation component that shows at the bottom of the screen
 function MobileNavBar() {
@@ -63,8 +64,9 @@ function App() {
           <main className="flex-grow pb-16 md:pb-0"> {/* Add padding to bottom for mobile nav */}
             <Routes>
               <Route path="/" element={<HomePage />} />
-              <Route path="/:id" element={<PastePage />} />
+              <Route path="/raw/:id" element={<RawPastePage />} />
               <Route path="/recent" element={<RecentPastesPage />} />
+              <Route path="/:id" element={<PastePage />} />
             </Routes>
           </main>
           

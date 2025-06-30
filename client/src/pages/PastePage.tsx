@@ -12,7 +12,7 @@ import {
   tomorrowNight, vs, vs2015, xcode, xt256, zenburn
 } from 'react-syntax-highlighter/dist/esm/styles/hljs';
 import CopyNotification from '../components/CopyNotification';
-import { useTheme } from '../components/theme-provider';
+import { useTheme } from '../components/ThemeProvider';
 
 import { JupyterBlock } from '../components/JupyterBlock';
 
@@ -1063,7 +1063,7 @@ export function PastePage() {
       )}
       
       {paste && (
-      <div className="bg-white dark:bg-[#282828] rounded-lg shadow-sm border border-gray-200 dark:border-[#3c3836] overflow-hidden mb-4">
+      <div className="rounded-lg shadow-sm border border-gray-200 dark:border-[#3c3836] overflow-hidden mb-4">
         <div className="p-4 border-b border-gray-200 dark:border-[#3c3836] flex flex-col sm:flex-row sm:justify-between sm:items-center">
             {!isEditMode && (
             <h1 className="text-xl font-semibold mb-3 sm:mb-0 truncate max-w-full">{paste.title || 'Untitled Paste'}</h1>
@@ -1093,6 +1093,14 @@ export function PastePage() {
                 >
                   Print
                 </button>
+                {!paste.isJupyterStyle && (
+                  <button 
+                    onClick={() => window.open(`/raw/${paste.customUrl || paste.id}`, '_blank')}
+                    className="px-3 py-1 text-sm bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 rounded hover:bg-purple-200 dark:hover:bg-purple-900/50"
+                  >
+                    Raw
+                  </button>
+                )}
                 {paste.canEdit && (
                   <button 
                     onClick={handleEdit}
@@ -1106,10 +1114,10 @@ export function PastePage() {
           </div>
         </div>
         
-          {/* Paste content */}
-          <div className="mb-4 relative p-4">
-            {renderPasteContent()}
-          </div>
+                  {/* Paste content */}
+        <div className="mb-4 relative p-4" style={{ backgroundColor: 'transparent' }}>
+          {renderPasteContent()}
+        </div>
         
         <div className="p-3 bg-gray-50 dark:bg-[#1d2021] text-xs text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-[#3c3836]">
           <p>Created: {new Date(paste.createdAt).toLocaleString()}</p>

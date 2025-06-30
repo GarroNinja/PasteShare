@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { ThemeToggle } from "./theme-toggle";
+import { ThemeToggle } from "./ThemeToggle";
 
 export function Navbar() {
   const location = useLocation();

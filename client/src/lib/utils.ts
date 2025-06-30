@@ -32,31 +32,23 @@ export function getExpiryDate(seconds: number): Date | null {
   return new Date(Date.now() + seconds * 1000);
 }
 
-// Get the server API base URL
+// Get the API base URL based on the environment
 export function getApiBaseUrl(): string {
-  // In production (GCP or Vercel deployment), use the correct API URL
-  if (process.env.NODE_ENV === 'production') {
-    const { protocol, host } = window.location;
-    
-    // For GCP App Engine deployment with api service
-    if (host.includes('appspot.com')) {
-      const projectId = host.split('.')[0]; // Extract project ID from the hostname
-      return `${protocol}//api-dot-${projectId}.appspot.com/api`;
+  // Check if we're in a browser environment
+  if (typeof window !== 'undefined') {
+    // For Vercel deployment - detect by hostname
+    if (window.location.hostname.includes('vercel.app') || 
+        window.location.hostname.includes('.app') || 
+        (process.env.NODE_ENV === 'production' && window.location.hostname !== 'localhost')) {
+      // Use current origin for Vercel deployment
+      return `${window.location.origin}/api`;
     }
     
-    // Default case (Vercel or custom domain)
-    return `${protocol}//${host}/api`;
+    // For Docker/local development - always use localhost:3000 for API
+    return 'http://localhost:3000/api';
   }
   
-  // Try to get the server port from localStorage (set in index.html)
-  const serverPort = localStorage.getItem('api_port');
-  if (serverPort) {
-    // Clean up the port value in case it has non-numeric characters
-    const cleanPort = serverPort.replace(/[^0-9]/g, '');
-    return `http://localhost:${cleanPort}/api`;
-  }
-  
-  // Default fallback for development
+  // Server-side rendering fallback
   return 'http://localhost:3000/api';
 }
 
