@@ -40,6 +40,8 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
   const [isPasswordProtected, setIsPasswordProtected] = useState(false);
   const [password, setPassword] = useState('');
   const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [isCheckingUrl, setIsCheckingUrl] = useState(false);
+  const [urlCheckTimeout, setUrlCheckTimeout] = useState<NodeJS.Timeout | null>(null);
   
   // Jupyter-style notebook state
   const [isJupyterStyle, setIsJupyterStyle] = useState(false);
@@ -170,7 +172,7 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
   const selectedExpiryLabel = EXPIRY_OPTIONS.find(option => 
     Number(option.value) === expiresIn)?.label || 'Select expiry';
 
-  const validateCustomUrl = (url: string) => {
+  const validateCustomUrl = async (url: string) => {
     if (!url) {
       setCustomUrlError(null);
       return true;
@@ -188,11 +190,30 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
     }
     
     // Check for reserved routes
-    const reservedRoutes = ['recent', 'api', 'health'];
+    const reservedRoutes = ['recent', 'api', 'health', 'raw'];
     if (reservedRoutes.includes(url.toLowerCase())) {
       setCustomUrlError(`"${url}" is a reserved route and cannot be used as a custom URL`);
       return false;
     }
+    
+    // Check if URL is already taken
+    setIsCheckingUrl(true);
+    try {
+      const { getApiBaseUrl } = await import('../lib/utils');
+      const response = await fetch(`${getApiBaseUrl()}/pastes/check-url/${encodeURIComponent(url)}`);
+      const data = await response.json();
+      
+      if (!data.available) {
+        setCustomUrlError(`"${url}" is already taken. Please choose a different URL.`);
+        setIsCheckingUrl(false);
+        return false;
+      }
+    } catch (error) {
+      console.error('Error checking URL availability:', error);
+      // Don't block submission if check fails, just warn
+      setCustomUrlError('Unable to verify URL availability. The URL might already be taken.');
+    }
+    setIsCheckingUrl(false);
     
     setCustomUrlError(null);
     return true;
@@ -230,7 +251,7 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
     let isValid = true;
     
     // Validate custom URL if provided
-    if (customUrl && !validateCustomUrl(customUrl)) {
+    if (customUrl && customUrlError) {
       isValid = false;
     }
     
@@ -640,12 +661,33 @@ export function CreatePasteForm({ onSubmit, isLoading }: CreatePasteFormProps) {
               placeholder="your-custom-url"
               value={customUrl}
               onChange={(e) => {
-                setCustomUrl(e.target.value);
-                validateCustomUrl(e.target.value);
+                const newUrl = e.target.value;
+                setCustomUrl(newUrl);
+                
+                // Clear previous timeout
+                if (urlCheckTimeout) {
+                  clearTimeout(urlCheckTimeout);
+                }
+                
+                // Clear error state immediately when typing
+                setCustomUrlError(null);
+                
+                if (newUrl.trim()) {
+                  // Debounce the URL check
+                  const timeoutId = setTimeout(() => {
+                    validateCustomUrl(newUrl);
+                  }, 500);
+                  setUrlCheckTimeout(timeoutId);
+                } else {
+                  setIsCheckingUrl(false);
+                }
               }}
               className="block w-full flex-1 min-w-0 rounded-r-md border border-gray-300 dark:border-[#504945] bg-white dark:bg-[#282828] px-3 py-2 text-gray-900 dark:text-[#ebdbb2] focus:border-green-500 dark:focus:border-[#b8bb26] focus:ring-green-500 dark:focus:ring-[#b8bb26]"
             />
           </div>
+          {isCheckingUrl && (
+            <p className="mt-1 text-sm text-blue-600 dark:text-blue-400">Checking availability...</p>
+          )}
           {customUrlError && (
             <p className="mt-1 text-sm text-red-600 dark:text-red-400">{customUrlError}</p>
           )}
