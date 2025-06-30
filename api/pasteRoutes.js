@@ -619,6 +619,39 @@ router.get('/raw/:id', async (req, res) => {
   }
 });
 
+// GET /api/pastes/check-url/:url - Check if custom URL is available
+router.get('/check-url/:url', async (req, res) => {
+  try {
+    console.log(`[CHECK-URL ROUTE] Hit with params:`, req.params, `URL: ${req.url}`);
+    const { url } = req.params;
+    
+    if (!req.db || !req.db.success) {
+      return res.status(503).json({ message: 'Database connection error' });
+    }
+    
+    const { models } = req.db;
+    const { Paste } = models;
+    
+    // Check if URL already exists
+    const existingPaste = await Paste.findOne({
+      where: { customUrl: url }
+    });
+    
+    const isAvailable = !existingPaste;
+    
+    return res.status(200).json({ 
+      available: isAvailable,
+      url: url
+    });
+  } catch (error) {
+    console.error('Check URL error:', error);
+    return res.status(500).json({
+      message: 'Error checking URL availability',
+      error: error.message
+    });
+  }
+});
+
 // GET /api/pastes/:id - Get a paste by ID or custom URL
 router.get('/:id', async (req, res) => {
   try {

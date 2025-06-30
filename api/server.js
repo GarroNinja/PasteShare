@@ -251,6 +251,12 @@ const handleRawPaste = async (req, res) => {
 app.get('/raw/:id', handleRawPaste);
 app.get('/api/pastes/raw/:id', handleRawPaste);
 
+// Add debugging middleware for Vercel
+app.use((req, res, next) => {
+  console.log(`[VERCEL DEBUG] ${req.method} ${req.url} - Original URL: ${req.originalUrl}`);
+  next();
+});
+
 // Mount the paste routes
 app.use('/api/pastes', pasteRoutes);
 
