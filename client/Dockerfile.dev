@@ -11,8 +11,8 @@ RUN npm install
 # Copy source code
 COPY . .
 
-# Expose port 3000 (React dev server default)
-EXPOSE 3000
+# Expose port 4000 to match docker-compose mapping
+EXPOSE 4000
 
-# Start development server
+# Start development server (host and port configured via environment variables)
 CMD ["npm", "start"] 
