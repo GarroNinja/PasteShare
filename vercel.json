@@ -4,6 +4,7 @@
   "installCommand": "npm install pg pg-hstore",
   "outputDirectory": "client/build",
   "rewrites": [
+    { "source": "/raw/(.*)", "destination": "/api/server.js" },
     { "source": "/api/(.*)", "destination": "/api/server.js" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],

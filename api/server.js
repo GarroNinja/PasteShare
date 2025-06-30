@@ -166,8 +166,8 @@ app.use((err, req, res, next) => {
   next(err);
 });
 
-// Add a direct handler for raw pastes to ensure it works on Vercel
-app.get('/api/pastes/raw/:id', async (req, res) => {
+// Add handlers for both /raw/:id (for curl) and /api/pastes/raw/:id (for API)
+const handleRawPaste = async (req, res) => {
   try {
     const { id } = req.params;
     const { password } = req.query;
@@ -245,7 +245,11 @@ app.get('/api/pastes/raw/:id', async (req, res) => {
     console.error('Get raw paste error:', error);
     res.status(500).send('Server error retrieving paste');
   }
-});
+};
+
+// Handle both URL patterns for raw pastes
+app.get('/raw/:id', handleRawPaste);
+app.get('/api/pastes/raw/:id', handleRawPaste);
 
 // Mount the paste routes
 app.use('/api/pastes', pasteRoutes);
