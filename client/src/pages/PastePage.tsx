@@ -978,14 +978,14 @@ export function PastePage() {
 
   if (isPasswordPromptOpen && pasteInfo) {
     return (
-      <div className="max-w-md mx-auto px-4 py-8">
+      <div className="max-w-md mx-auto px-3 sm:px-4 py-4 sm:py-8">
         <div className="bg-white dark:bg-[#282828] rounded-lg shadow-sm border border-gray-200 dark:border-[#3c3836] overflow-hidden">
-          <div className="p-4 border-b border-gray-200 dark:border-[#3c3836]">
-            <h1 className="text-xl font-semibold">Password Protected Paste</h1>
+          <div className="p-3 sm:p-4 border-b border-gray-200 dark:border-[#3c3836]">
+            <h1 className="text-lg sm:text-xl font-semibold">Password Protected Paste</h1>
           </div>
           
-          <div className="p-4">
-            <p className="mb-4 text-gray-700 dark:text-gray-300">
+          <div className="p-3 sm:p-4">
+            <p className="mb-4 text-sm sm:text-base text-gray-700 dark:text-gray-300">
               This paste is password protected. Please enter the password to view it.
             </p>
             
@@ -1010,18 +1010,18 @@ export function PastePage() {
                 </div>
               )}
               
-              <div className="flex justify-between">
+              <div className="flex flex-col sm:flex-row gap-3 sm:justify-between">
                 <button
                   type="button"
                   onClick={() => navigate('/')}
-                  className="px-4 py-2 border border-gray-300 dark:border-[#504945] text-gray-700 dark:text-gray-300 rounded hover:bg-gray-50 dark:hover:bg-[#3c3836]"
+                  className="px-4 py-2 border border-gray-300 dark:border-[#504945] text-gray-700 dark:text-gray-300 rounded hover:bg-gray-50 dark:hover:bg-[#3c3836] order-2 sm:order-1"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={passwordLoading || !password.trim()}
-                  className={`px-4 py-2 rounded ${
+                  className={`px-4 py-2 rounded order-1 sm:order-2 ${
                     passwordLoading || !password.trim()
                       ? 'bg-gray-300 text-gray-500 dark:bg-[#504945] dark:text-gray-400 cursor-not-allowed'
                       : 'bg-green-600 text-white dark:bg-[#98971a] dark:text-[#1d2021] hover:bg-green-700 dark:hover:bg-[#79740e]'
@@ -1052,7 +1052,7 @@ export function PastePage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8 min-h-[80vh]">
+    <div className="max-w-4xl mx-auto px-3 sm:px-4 py-4 sm:py-8 min-h-[80vh]">
       {showNotification && (
         <CopyNotification 
           message={notificationMessage}
@@ -1063,13 +1063,13 @@ export function PastePage() {
       )}
       
       {paste && (
-      <div className="rounded-lg shadow-sm border border-gray-200 dark:border-[#3c3836] overflow-hidden mb-4">
-        <div className="p-4 border-b border-gray-200 dark:border-[#3c3836] flex flex-col sm:flex-row sm:justify-between sm:items-center">
+        <div className="rounded-lg shadow-sm border border-gray-200 dark:border-[#3c3836] overflow-hidden mb-4">
+        <div className="p-3 sm:p-4 border-b border-gray-200 dark:border-[#3c3836] flex flex-col sm:flex-row sm:justify-between sm:items-start">
             {!isEditMode && (
-            <h1 className="text-xl font-semibold mb-3 sm:mb-0 truncate max-w-full">{paste.title || 'Untitled Paste'}</h1>
+            <h1 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-0 break-words max-w-full pr-2">{paste.title || 'Untitled Paste'}</h1>
           )}
           
-          <div className="flex flex-wrap gap-2 mt-2 sm:mt-0 sm:flex-shrink-0">
+          <div className="flex flex-wrap gap-1.5 sm:gap-2 mt-2 sm:mt-0 sm:flex-shrink-0">
               {!isEditMode && (
               <>
                 <button 
@@ -1077,34 +1077,35 @@ export function PastePage() {
                       paste.blocks.map(b => b.content).join('\n\n') : 
                       paste.content
                     )}
-                  className="px-3 py-1 text-sm bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 rounded hover:bg-green-200 dark:hover:bg-green-900/50"
+                  className="px-2 sm:px-3 py-1 text-xs sm:text-sm bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 rounded hover:bg-green-200 dark:hover:bg-green-900/50"
                 >
                   Copy
                 </button>
                 <button 
                   onClick={copyLinkToClipboard}
-                  className="px-3 py-1 text-sm bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-900/50"
+                  className="px-2 sm:px-3 py-1 text-xs sm:text-sm bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-900/50"
                 >
                   Copy Link
                 </button>
                 <button 
                   onClick={() => window.print()}
-                  className="px-3 py-1 text-sm bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
+                  className="px-2 sm:px-3 py-1 text-xs sm:text-sm bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600 hidden sm:block"
                 >
                   Print
                 </button>
                 {!paste.isJupyterStyle && (
                   <button 
-                    onClick={() => window.open(`/raw/${paste.customUrl || paste.id}`, '_blank')}
-                    className="px-3 py-1 text-sm bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 rounded hover:bg-purple-200 dark:hover:bg-purple-900/50"
+                    onClick={() => copyToClipboard(`${window.location.origin}/raw/${paste.customUrl || paste.id}`)}
+                    className="px-2 sm:px-3 py-1 text-xs sm:text-sm bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 rounded hover:bg-purple-200 dark:hover:bg-purple-900/50"
                   >
-                    Raw
+                    <span className="hidden sm:inline">Copy Raw Link</span>
+                    <span className="sm:hidden">Raw Link</span>
                   </button>
                 )}
                 {paste.canEdit && (
                   <button 
                     onClick={handleEdit}
-                    className="px-3 py-1 text-sm bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300 rounded hover:bg-yellow-200 dark:hover:bg-yellow-900/50"
+                    className="px-2 sm:px-3 py-1 text-xs sm:text-sm bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300 rounded hover:bg-yellow-200 dark:hover:bg-yellow-900/50"
                   >
                     Edit
                   </button>
@@ -1120,12 +1121,15 @@ export function PastePage() {
         </div>
         
         <div className="p-3 bg-gray-50 dark:bg-[#1d2021] text-xs text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-[#3c3836]">
-          <p>Created: {new Date(paste.createdAt).toLocaleString()}</p>
-          {paste.expiresAt && (
-            <p>Expires: {new Date(paste.expiresAt).toLocaleString()}</p>
-          )}
-          
-          <div className="flex flex-wrap gap-2 mt-1">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+            <div className="text-xs">
+              <p>Created: {new Date(paste.createdAt).toLocaleString()}</p>
+              {paste.expiresAt && (
+                <p>Expires: {new Date(paste.expiresAt).toLocaleString()}</p>
+              )}
+            </div>
+            
+            <div className="flex flex-wrap gap-1.5 sm:gap-2">
             {paste.isPrivate && (
               <span className="inline-flex items-center px-2 py-1 bg-amber-100 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300 rounded-full text-xs">
                   Unlisted
@@ -1163,7 +1167,7 @@ export function PastePage() {
             )}
           </div>
         </div>
-      </div>
+        </div>
       )}
       
       {/* File attachments section */}
