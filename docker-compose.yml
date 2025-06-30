@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  # Backend Server - using Supabase database
+  server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    container_name: pasteshare-server
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: ${PORT:-3000}
+      DATABASE_URL: ${DATABASE_URL}
+      UPLOAD_DIR: ${UPLOAD_DIR:-/app/uploads}
+    ports:
+      - "3000:3000"
+    volumes:
+      - uploads_data:/app/uploads
+    networks:
+      - pasteshare-network
+    restart: unless-stopped
+
+  # Frontend Client
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: pasteshare-client
+    ports:
+      - "80:80"
+    networks:
+      - pasteshare-network
+    depends_on:
+      - server
+    restart: unless-stopped
+
+volumes:
+  uploads_data:
+
+networks:
+  pasteshare-network:
+    driver: bridge 

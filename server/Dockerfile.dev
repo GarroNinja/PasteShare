@@ -1,0 +1,37 @@
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Copy package files from both server and api directories
+COPY server/package*.json ./server/
+COPY api/package*.json ./api/
+
+# Install server dependencies (including dev dependencies)
+WORKDIR /app/server
+RUN npm install
+
+# Install api dependencies
+WORKDIR /app/api
+RUN npm install
+
+# Copy source code
+WORKDIR /app
+COPY server/ ./server/
+COPY api/ ./api/
+
+# Create uploads directory
+RUN mkdir -p /app/uploads
+
+# Set environment variables
+ENV NODE_ENV=development
+ENV PORT=3000
+ENV UPLOAD_DIR=/app/uploads
+
+# Expose port
+EXPOSE 3000
+
+# Set working directory to server for running dev command
+WORKDIR /app/server
+
+# Start the development server with hot-reload
+CMD ["npm", "run", "dev"] 

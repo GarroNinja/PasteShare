@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database (same as production)
+  postgres:
+    image: postgres:15-alpine
+    container_name: pasteshare-db-dev
+    environment:
+      POSTGRES_DB: pasteshare
+      POSTGRES_USER: pasteshare_user
+      POSTGRES_PASSWORD: pasteshare_password
+      POSTGRES_HOST_AUTH_METHOD: md5
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    networks:
+      - pasteshare-dev-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pasteshare_user -d pasteshare"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend Server with hot-reload - using Supabase database
+  server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile.dev
+    container_name: pasteshare-server-dev
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: ${PORT:-3000}
+      DATABASE_URL: ${DATABASE_URL}
+      UPLOAD_DIR: ${UPLOAD_DIR:-/app/uploads}
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./server/src:/app/server/src
+      - ./api:/app/api
+      - uploads_dev_data:/app/uploads
+    networks:
+      - pasteshare-dev-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    command: npm run dev
+
+  # Frontend Client with hot-reload
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile.dev
+    container_name: pasteshare-client-dev
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./client/src:/app/src
+      - ./client/public:/app/public
+    networks:
+      - pasteshare-dev-network
+    depends_on:
+      - server
+    restart: unless-stopped
+
+volumes:
+  postgres_dev_data:
+  uploads_dev_data:
+
+networks:
+  pasteshare-dev-network:
+    driver: bridge 

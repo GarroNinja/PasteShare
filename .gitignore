@@ -47,4 +47,23 @@ logs
 Thumbs.db
 
 # Misc
-coverage 
+coverage
+
+# Docker
+.dockerignore
+
+# Generated files
+server-port.txt
+*.port
+*.pid
+
+# Google Cloud (if needed)
+.gcloudignore
+
+# Temporary files
+*.tmp
+*.temp
+
+# Package manager files
+package-lock.json
+yarn.lock

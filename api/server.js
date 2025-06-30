@@ -166,6 +166,87 @@ app.use((err, req, res, next) => {
   next(err);
 });
 
+// Add a direct handler for raw pastes to ensure it works on Vercel
+app.get('/api/pastes/raw/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { password } = req.query;
+    
+    console.log(`Get raw paste request for ID/URL: ${id}`);
+    
+    if (!req.db || !req.db.success) {
+      return res.status(503).send('Database connection error');
+    }
+    
+    const { models } = req.db;
+    const { Paste, Block } = models;
+    
+    // Import Op here to avoid issues
+    const { Op } = require('./db');
+    const bcrypt = require('bcryptjs');
+    
+    // Check if the ID is a valid UUID
+    const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    
+    // Find paste by ID or custom URL
+    const paste = await Paste.findOne({
+      where: isValidUUID 
+        ? { [Op.or]: [{ id }, { customUrl: id }] }
+        : { customUrl: id },
+      include: [
+        {
+          model: Block,
+          as: 'Blocks',
+          attributes: ['id', 'content', 'language', 'order']
+        }
+      ]
+    });
+    
+    if (!paste) {
+      return res.status(404).send('Paste not found');
+    }
+    
+    // Check if paste has expired
+    if (paste.expiresAt && new Date() > new Date(paste.expiresAt)) {
+      return res.status(404).send('Paste has expired');
+    }
+    
+    // Check if it's a Jupyter-style paste (not supported for raw view)
+    if (paste.Blocks && paste.Blocks.length > 0) {
+      return res.status(400).send('Raw view not supported for Jupyter-style pastes. Use the regular view instead.');
+    }
+    
+    // Check password if paste is password-protected
+    if (paste.password) {
+      if (!password) {
+        return res.status(403).send('Password required. Add ?password=YOUR_PASSWORD to the URL.');
+      }
+      
+      try {
+        const isPasswordValid = await bcrypt.compare(password, paste.password);
+        if (!isPasswordValid) {
+          return res.status(403).send('Invalid password');
+        }
+      } catch (bcryptError) {
+        console.error('bcrypt compare error:', bcryptError);
+        return res.status(500).send('Server error verifying password');
+      }
+    }
+    
+    // Increment view count
+    paste.views = (paste.views || 0) + 1;
+    await paste.save();
+    
+    // Return raw content as plain text
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.send(paste.content || '');
+    
+  } catch (error) {
+    console.error('Get raw paste error:', error);
+    res.status(500).send('Server error retrieving paste');
+  }
+});
+
 // Mount the paste routes
 app.use('/api/pastes', pasteRoutes);
 
