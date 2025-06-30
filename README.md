@@ -1,25 +1,25 @@
 # PasteShare
 
-A clean pastebin alternative with Jupyter-style blocks and terminal support.
+A clean pastebin alternative with Jupyter-style blocks and terminal access support.
 
 ## What's this?
 
-I built this because I got tired of existing pastebin services. It's fast, has a decent dark theme (Gruvbox), and supports multi-language blocks like Jupyter notebooks. Plus it works great with curl for terminal users.
+I built this because I got tired of existing pastebin services which are either too bloated or are very minimal. It's fast, has asthetically pleasing UI, and supports multi-language blocks like Jupyter notebook. Plus it works great with curl for terminal users.
 
 ## Features
 
 - **Multiple paste styles**: Regular text or Jupyter-style blocks
-- **Terminal-friendly**: Raw endpoints for curl/wget users  
+- **Terminal-friendly**: Raw endpoints for curl/wget 
 - **File attachments**: Drag & drop support
 - **Password protection**: Keep sensitive stuff private
 - **Custom URLs**: Make links memorable
-- **Syntax highlighting**: 30+ themes including Gruvbox
+- **Syntax highlighting**: 30+ popular themes 
 - **Expiration**: Auto-delete after time periods
-- **Dark/light themes**: Because your eyes matter
+- **Dark/light themes**: Because your eyes matter 
 
 ## Getting started
 
-### Using Docker (easiest)
+### Using Docker (for local deployment)
 
 ```bash
 git clone https://github.com/yourusername/PasteShare.git
@@ -61,7 +61,7 @@ curl http://localhost:3000/api/pastes/raw/PASTE_ID
 - Express.js API server  
 - PostgreSQL database
 - Docker for easy deployment
-- Tailwind CSS + Gruvbox theme
+- Tailwind CSS
 
 ## Configuration
 
@@ -88,8 +88,3 @@ docker-compose.dev.yml    Development setup
 
 Found a bug? Want a feature? Open an issue or send a PR. 
 
-The code is straightforward - no complex patterns or frameworks. Just React components and Express routes.
-
-## License
-
-MIT - do whatever you want with it. 

@@ -42,8 +42,8 @@ export function getApiBaseUrl(): string {
         (process.env.NODE_ENV === 'production' && window.location.hostname !== 'localhost')) {
       // Use current origin for Vercel deployment
       return `${window.location.origin}/api`;
-    }
-    
+  }
+  
     // For Docker/local development - always use localhost:3000 for API
     return 'http://localhost:3000/api';
   }

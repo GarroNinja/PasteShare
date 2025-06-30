@@ -1067,32 +1067,32 @@ export function PastePage() {
           <div className="p-3 sm:p-4 border-b border-gray-200 dark:border-[#3c3836] flex flex-col sm:flex-row sm:justify-between sm:items-start">
             {!isEditMode && (
               <h1 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-0 break-words max-w-full pr-2">{paste.title || 'Untitled Paste'}</h1>
-            )}
-            
+          )}
+          
             <div className="flex flex-wrap gap-1.5 sm:gap-2 mt-2 sm:mt-0 sm:flex-shrink-0">
               {!isEditMode && (
-                <>
-                  <button 
+              <>
+                <button 
                     onClick={() => copyToClipboard(paste.isJupyterStyle && paste.blocks ? 
                       paste.blocks.map(b => b.content).join('\n\n') : 
                       paste.content
                     )}
                     className="px-2 sm:px-3 py-1 text-xs sm:text-sm bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 rounded hover:bg-green-200 dark:hover:bg-green-900/50"
-                  >
-                    Copy
-                  </button>
-                  <button 
-                    onClick={copyLinkToClipboard}
+                >
+                  Copy
+                </button>
+                <button 
+                  onClick={copyLinkToClipboard}
                     className="px-2 sm:px-3 py-1 text-xs sm:text-sm bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-900/50"
-                  >
-                    Copy Link
-                  </button>
-                  <button 
-                    onClick={() => window.print()}
+                >
+                  Copy Link
+                </button>
+                <button 
+                  onClick={() => window.print()}
                     className="px-2 sm:px-3 py-1 text-xs sm:text-sm bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600 hidden sm:block"
-                  >
-                    Print
-                  </button>
+                >
+                  Print
+                </button>
                   {!paste.isJupyterStyle && (
                     <button 
                       onClick={() => copyToClipboard(`${window.location.origin}/raw/${paste.customUrl || paste.id}`)}
@@ -1102,73 +1102,73 @@ export function PastePage() {
                       <span className="sm:hidden">Raw Link</span>
                     </button>
                   )}
-                  {paste.canEdit && (
-                    <button 
-                      onClick={handleEdit}
+                {paste.canEdit && (
+                  <button 
+                    onClick={handleEdit}
                       className="px-2 sm:px-3 py-1 text-xs sm:text-sm bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300 rounded hover:bg-yellow-200 dark:hover:bg-yellow-900/50"
-                    >
-                      Edit
-                    </button>
-                  )}
-                </>
-              )}
-            </div>
+                  >
+                    Edit
+                  </button>
+                )}
+              </>
+            )}
           </div>
-          
+        </div>
+        
           {/* Paste content */}
           <div className="mb-4 relative p-4" style={{ backgroundColor: 'transparent' }}>
             {renderPasteContent()}
           </div>
-          
-          <div className="p-3 bg-gray-50 dark:bg-[#1d2021] text-xs text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-[#3c3836]">
+        
+        <div className="p-3 bg-gray-50 dark:bg-[#1d2021] text-xs text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-[#3c3836]">
             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
               <div className="text-xs">
-                <p>Created: {new Date(paste.createdAt).toLocaleString()}</p>
-                {paste.expiresAt && (
-                  <p>Expires: {new Date(paste.expiresAt).toLocaleString()}</p>
-                )}
+          <p>Created: {new Date(paste.createdAt).toLocaleString()}</p>
+          {paste.expiresAt && (
+            <p>Expires: {new Date(paste.expiresAt).toLocaleString()}</p>
+          )}
               </div>
-              
+          
               <div className="flex flex-wrap gap-1.5 sm:gap-2">
-                {paste.isPrivate && (
-                  <span className="inline-flex items-center px-2 py-1 bg-amber-100 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300 rounded-full text-xs">
-                    Unlisted
-                  </span>
-                )}
-                
-                {paste.isEditable && (
-                  <span className="inline-flex items-center px-2 py-1 bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300 rounded-full text-xs">
-                    Editable
-                  </span>
-                )}
-                
-                {paste.isPasswordProtected && (
-                  <span className="inline-flex items-center px-2 py-1 bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300 rounded-full text-xs">
-                    Password Protected
-                  </span>
-                )}
-                
-                {paste.isJupyterStyle && (
-                  <span className="inline-flex items-center px-2 py-1 bg-indigo-100 dark:bg-indigo-900/20 text-indigo-800 dark:text-indigo-300 rounded-full text-xs">
-                    Jupyter Notebook
-                  </span>
-                )}
-                
-                {paste.customUrl && (
-                  <span className="inline-flex items-center px-2 py-1 bg-purple-100 dark:bg-purple-900/20 text-purple-800 dark:text-purple-300 rounded-full text-xs">
-                    Custom URL: {paste.customUrl}
-                  </span>
-                )}
-                
-                {paste.views !== undefined && (
-                  <span className="inline-flex items-center px-2 py-1 bg-gray-100 dark:bg-[#3c3836] text-gray-700 dark:text-gray-300 rounded-full text-xs">
-                    Views: {paste.views}
-                  </span>
-                )}
+            {paste.isPrivate && (
+              <span className="inline-flex items-center px-2 py-1 bg-amber-100 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300 rounded-full text-xs">
+                  Unlisted
+              </span>
+            )}
+            
+            {paste.isEditable && (
+              <span className="inline-flex items-center px-2 py-1 bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300 rounded-full text-xs">
+                Editable
+              </span>
+            )}
+              
+              {paste.isPasswordProtected && (
+                <span className="inline-flex items-center px-2 py-1 bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300 rounded-full text-xs">
+                  Password Protected
+                </span>
+              )}
+              
+              {paste.isJupyterStyle && (
+                <span className="inline-flex items-center px-2 py-1 bg-indigo-100 dark:bg-indigo-900/20 text-indigo-800 dark:text-indigo-300 rounded-full text-xs">
+                  Jupyter Notebook
+                </span>
+              )}
+            
+            {paste.customUrl && (
+              <span className="inline-flex items-center px-2 py-1 bg-purple-100 dark:bg-purple-900/20 text-purple-800 dark:text-purple-300 rounded-full text-xs">
+                Custom URL: {paste.customUrl}
+              </span>
+            )}
+            
+            {paste.views !== undefined && (
+              <span className="inline-flex items-center px-2 py-1 bg-gray-100 dark:bg-[#3c3836] text-gray-700 dark:text-gray-300 rounded-full text-xs">
+                Views: {paste.views}
+              </span>
+            )}
               </div>
-            </div>
           </div>
         </div>
+      </div>
       )}
       
       {/* File attachments section */}
