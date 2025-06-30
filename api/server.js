@@ -237,9 +237,9 @@ const handleRawPaste = async (req, res) => {
     paste.views = (paste.views || 0) + 1;
     await paste.save();
     
-    // Return raw content as plain text
+    // Return raw content as plain text with newline for proper terminal display
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    res.send(paste.content || '');
+    res.send((paste.content || '') + '\n');
     
   } catch (error) {
     console.error('Get raw paste error:', error);
