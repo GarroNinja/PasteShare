@@ -1064,12 +1064,12 @@ export function PastePage() {
       
       {paste && (
         <div className="rounded-lg shadow-sm border border-gray-200 dark:border-[#3c3836] overflow-hidden mb-4">
-          <div className="p-3 sm:p-4 border-b border-gray-200 dark:border-[#3c3836] flex flex-col sm:flex-row sm:justify-between sm:items-start">
+          <div className="p-3 sm:p-4 border-b border-gray-200 dark:border-[#3c3836] flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2">
             {!isEditMode && (
-              <h1 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-0 break-words max-w-full pr-2">{paste.title || 'Untitled Paste'}</h1>
+              <h1 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-0 truncate min-w-0 flex-1">{paste.title || 'Untitled Paste'}</h1>
           )}
           
-            <div className="flex flex-wrap gap-1.5 sm:gap-2 mt-2 sm:mt-0 sm:flex-shrink-0">
+            <div className="flex flex-wrap gap-1.5 sm:gap-2 sm:flex-shrink-0">
               {!isEditMode && (
               <>
                 <button 
@@ -1095,7 +1095,13 @@ export function PastePage() {
                 </button>
                   {!paste.isJupyterStyle && (
                     <button 
-                      onClick={() => copyToClipboard(`${window.location.origin}/raw/${paste.customUrl || paste.id}`)}
+                      onClick={() => {
+                        const rawUrl = `${window.location.origin}/raw/${paste.customUrl || paste.id}`;
+                        const urlToCopy = paste.isPasswordProtected 
+                          ? `${rawUrl}?password=<PASSWORD>` 
+                          : rawUrl;
+                        copyToClipboard(urlToCopy);
+                      }}
                       className="px-2 sm:px-3 py-1 text-xs sm:text-sm bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 rounded hover:bg-purple-200 dark:hover:bg-purple-900/50"
                     >
                       <span className="hidden sm:inline">Copy Raw Link</span>

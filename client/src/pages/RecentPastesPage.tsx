@@ -342,9 +342,9 @@ export function RecentPastesPage() {
                   className="block bg-white dark:bg-[#282828] rounded-lg shadow-sm border border-gray-200 dark:border-[#3c3836] hover:border-green-300 dark:hover:border-[#98971a] transition-colors"
                 >
                   <div className="p-4">
-                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-2">
-                      <div className="flex items-center gap-2 mb-2 sm:mb-0 pr-20 sm:pr-0">
-                        <h2 className="text-lg font-medium truncate max-w-full">{paste.title || 'Untitled Paste'}</h2>
+                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-2 gap-2">
+                      <div className="flex items-center gap-2 mb-2 sm:mb-0 min-w-0 flex-1 overflow-hidden">
+                        <h2 className="text-lg font-medium truncate min-w-0">{paste.title || 'Untitled Paste'}</h2>
                         {paste.isPasswordProtected && (
                           <svg className="w-4 h-4 text-blue-500 dark:text-blue-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
