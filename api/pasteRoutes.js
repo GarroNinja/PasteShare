@@ -322,7 +322,15 @@ setInterval(async () => {
 }, 60 * 60 * 1000); // Run every hour
 
 // POST /api/pastes - Create a new paste
-router.post('/', upload.array('files', 3), async (req, res) => {
+// Rate limit: 10 pastes per minute per IP (applied via middleware)
+router.post('/', (req, res, next) => {
+  // Apply stricter rate limit for paste creation
+  const createPasteLimiter = req.app.locals.rateLimiters?.createPasteLimiter;
+  if (createPasteLimiter) {
+    return createPasteLimiter(req, res, next);
+  }
+  next();
+}, upload.array('files', 3), async (req, res) => {
   try {
     console.log('[CREATE-PASTE] Paste creation started');
     const { title, content, expiresIn, isPrivate, customUrl, isEditable, password, isJupyterStyle, blocks } = req.body;
@@ -788,7 +796,15 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST /api/pastes/:id/verify-password - Verify paste password
-router.post('/:id/verify-password', async (req, res) => {
+// Rate limit: 5 attempts per minute per IP (prevent brute force)
+router.post('/:id/verify-password', (req, res, next) => {
+  // Apply strict rate limit for password verification
+  const passwordVerifyLimiter = req.app.locals.rateLimiters?.passwordVerifyLimiter;
+  if (passwordVerifyLimiter) {
+    return passwordVerifyLimiter(req, res, next);
+  }
+  next();
+}, async (req, res) => {
   try {
     const { id } = req.params;
     const { password } = req.body;

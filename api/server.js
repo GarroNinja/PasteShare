@@ -6,6 +6,7 @@ const morgan = require('morgan');
 const https = require('https');
 const { URL } = require('url');
 const bodyParser = require('body-parser');
+const rateLimit = require('express-rate-limit');
 
 // Import required PostgreSQL dependencies
 try {
@@ -90,6 +91,83 @@ app.use(urlencoded({ extended: true, limit: '10mb' }));
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
+
+// ============================================
+// RATE LIMITING CONFIGURATION
+// ============================================
+// Note: In serverless environments, each instance has its own memory.
+// This provides per-instance rate limiting which still helps prevent abuse.
+// For stricter limits, consider using Redis or Upstash.
+
+// Helper to get client IP (works with Vercel's proxy headers)
+const getClientIp = (req) => {
+  return req.headers['x-real-ip'] || 
+         req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 
+         req.ip || 
+         req.connection?.remoteAddress ||
+         'unknown';
+};
+
+// General API rate limiter - 100 requests per minute per IP
+const generalLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute window
+  max: 100, // 100 requests per window
+  standardHeaders: true, // Return rate limit info in headers
+  legacyHeaders: false,
+  keyGenerator: getClientIp,
+  handler: (req, res) => {
+    console.log(`Rate limit exceeded for IP: ${getClientIp(req)}`);
+    res.status(429).json({
+      message: 'Too many requests. Please slow down.',
+      retryAfter: Math.ceil(60) // seconds until reset
+    });
+  },
+  skip: (req) => {
+    // Skip rate limiting for health checks
+    return req.path === '/api/health' || req.path === '/health';
+  }
+});
+
+// Strict rate limiter for paste creation - 10 pastes per minute per IP
+const createPasteLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute window
+  max: 10, // 10 paste creations per minute
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: getClientIp,
+  handler: (req, res) => {
+    console.log(`Paste creation rate limit exceeded for IP: ${getClientIp(req)}`);
+    res.status(429).json({
+      message: 'Too many pastes created. Please wait before creating more.',
+      retryAfter: Math.ceil(60)
+    });
+  }
+});
+
+// Very strict limiter for password verification - 5 attempts per minute per IP
+const passwordVerifyLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute window
+  max: 5, // 5 password attempts per minute
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: getClientIp,
+  handler: (req, res) => {
+    console.log(`Password verification rate limit exceeded for IP: ${getClientIp(req)}`);
+    res.status(429).json({
+      message: 'Too many password attempts. Please wait before trying again.',
+      retryAfter: Math.ceil(60)
+    });
+  }
+});
+
+// Apply general rate limiter to all API routes
+app.use('/api/', generalLimiter);
+
+// Export rate limiters for use in routes
+app.locals.rateLimiters = {
+  createPasteLimiter,
+  passwordVerifyLimiter
+};
 
 // Add database connection middleware
 app.use((req, res, next) => {
