@@ -52,8 +52,15 @@ curl -X POST http://localhost:3000/api/pastes \
 
 Get raw paste (termbin-style):
 ```bash
-curl http://localhost:3000/api/pastes/raw/PASTE_ID
+curl http://localhost:3000/raw/PASTE_ID
 ```
+
+Get raw paste with password protection:
+```bash
+curl "http://localhost:3000/raw/PASTE_ID?password=YOUR_PASSWORD"
+```
+
+> **Tip**: When you copy the raw link for a password-protected paste, it includes a `?password=<PASSWORD>` placeholder. Replace `<PASSWORD>` with your actual password to retrieve the content.
 
 ## Tech stack
 
